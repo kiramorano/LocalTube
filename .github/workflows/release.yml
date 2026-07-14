@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller flask yt-dlp requests pillow
+          pip install pyinstaller flask yt-dlp requests pillow pywebview
 
       - name: Download FFmpeg (win64)
         shell: pwsh
@@ -55,10 +55,13 @@ jobs:
       - name: Build portable EXE
         shell: pwsh
         run: |
-          pyinstaller --onefile --clean --name LocalTube-portable `
+          pyinstaller --onefile --clean --noconsole --name LocalTube-portable `
             --add-data "build_exe/localtube_src;localtube_src" `
             --add-data "build_exe/bin;bin" `
             --collect-all yt_dlp `
+            --collect-all webview `
+            --collect-all clr_loader `
+            --collect-all pythonnet `
             desktop/launcher.py
 
       - name: Upload artifact
@@ -102,6 +105,18 @@ jobs:
           mkdir -p "$LIBS"
           curl -fL "$FFMPEG_ANDROID_BASE/ffmpeg" -o "$LIBS/libffmpeg.so"
           curl -fL "$FFMPEG_ANDROID_BASE/ffprobe" -o "$LIBS/libffprobe.so"
+          chmod +x "$LIBS"/*.so
+
+      - name: Download FFmpeg (Android arm32)
+        run: |
+          LIBS=android/app/src/main/jniLibs/armeabi-v7a
+          mkdir -p "$LIBS"
+          # Статические сборки для armhf (совместимы с Android armeabi-v7a)
+          curl -fL "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-armhf-static.tar.xz" -o ffmpeg-armhf.tar.xz
+          mkdir -p ffmpeg_armhf
+          tar -xJf ffmpeg-armhf.tar.xz -C ffmpeg_armhf --strip-components=1
+          cp ffmpeg_armhf/ffmpeg "$LIBS/libffmpeg.so"
+          cp ffmpeg_armhf/ffprobe "$LIBS/libffprobe.so"
           chmod +x "$LIBS"/*.so
 
       - uses: gradle/actions/setup-gradle@v4
@@ -149,14 +164,18 @@ jobs:
 
             ### Windows (portable)
             `LocalTube-portable.exe` — один файл, ничего устанавливать не нужно.
+            Открывается в собственном окне приложения (не в браузере).
             FFmpeg встроен. При первом запуске рядом с exe создаётся папка
             `LocalTube_Data` со всеми данными (видео, настройки, cookies).
-            После запуска браузер откроется автоматически (http://127.0.0.1:8000).
 
             ### Android
             `LocalTube.apk` — полноценное приложение со встроенным сервером
             (Python + yt-dlp + FFmpeg внутри). Все функции ПК-версии работают
-            прямо на телефоне, без компьютера. Требуется Android 7.0+ (arm64).
+            прямо на телефоне, без компьютера. Требуется Android 6.0+
+            (поддерживаются и 64-битные, и 32-битные устройства).
 
-            Для скачивания видео в высоком качестве положите свои cookies
-            через настройки интерфейса (как и на ПК).
+            ### Импорт cookies
+            Настройки (шестерёнка) → раздел «Cookies (YouTube)» — можно
+            загрузить файл cookies.txt или вставить содержимое (поддерживается
+            и JSON-экспорт из расширений вроде Cookie-Editor). Работает и на
+            ПК, и на Android.

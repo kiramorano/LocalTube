@@ -115,17 +115,27 @@ def prepare_data_dir(bundle: str, data_dir: str) -> None:
             shutil.copy2(src, dst)
 
 
-def open_browser_when_ready() -> None:
-    """Открывает браузер, когда сервер поднялся."""
+def wait_for_server(url: str, attempts: int = 240) -> bool:
+    """Ждёт, пока сервер поднимется."""
     import urllib.request
-    url = f"http://127.0.0.1:{PORT}"
-    for _ in range(120):
+    for _ in range(attempts):
         try:
             urllib.request.urlopen(url, timeout=1)
-            webbrowser.open(url)
-            return
+            return True
         except Exception:
             time.sleep(0.5)
+    return False
+
+
+def run_server(data_dir: str) -> None:
+    """Запускает app.py (блокирующий вызов) в текущем потоке."""
+    import signal as _signal
+    if threading.current_thread() is not threading.main_thread():
+        # app.py регистрирует обработчики сигналов, что разрешено только
+        # в главном потоке — отключаем это в фоновом потоке.
+        _signal.signal = lambda *a, **k: None
+    app_path = os.path.join(data_dir, "app.py")
+    runpy.run_path(app_path, run_name="__main__")
 
 
 def main() -> None:
@@ -149,10 +159,41 @@ def main() -> None:
     os.chdir(data_dir)
     sys.path.insert(0, data_dir)
 
-    threading.Thread(target=open_browser_when_ready, daemon=True).start()
+    url = f"http://127.0.0.1:{PORT}"
 
-    app_path = os.path.join(data_dir, "app.py")
-    runpy.run_path(app_path, run_name="__main__")
+    # Сервер всегда работает в фоновом потоке
+    server_thread = threading.Thread(
+        target=run_server, args=(data_dir,), daemon=True
+    )
+    server_thread.start()
+
+    if not wait_for_server(url):
+        print("[LAUNCHER] Сервер не поднялся за отведённое время")
+        sys.exit(1)
+
+    # Пробуем открыть собственное окно приложения (pywebview / WebView2).
+    # Если недоступно (нет WebView2 Runtime и т.п.) — откроем обычный браузер.
+    try:
+        import webview
+        webview.create_window(
+            "LocalTube",
+            url,
+            width=1280,
+            height=800,
+            min_size=(480, 360),
+            confirm_close=False,
+            text_select=True,
+            zoomable=True,
+        )
+        webview.start()
+        # Окно закрыто пользователем — завершаем процесс (сервер в daemon-потоке).
+        return
+    except Exception as exc:  # noqa: BLE001
+        print(f"[LAUNCHER] Окно приложения недоступно ({exc}), открываю браузер...")
+
+    # Фолбэк: обычный браузер, сервер продолжает работать в фоне
+    webbrowser.open(url)
+    server_thread.join()
 
 
 if __name__ == "__main__":

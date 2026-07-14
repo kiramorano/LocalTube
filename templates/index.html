@@ -328,7 +328,7 @@
     </div>
 
     <!-- Модальные окна -->
-    <div id="settingsModal" class="modal-overlay"><div class="modal-content"><h2>Настройки LocalTube</h2><h3>Профиль</h3><div class="setting-group"><label>Отображаемое имя:</label><input type="text" id="prefUsername" placeholder="Например: admin"></div><div class="setting-group"><label>Ссылка на аватарку (URL или Base64):</label><input type="text" id="prefAvatarUrl" placeholder="https://..."></div><h3>Оформление</h3><div class="setting-group"><label>Тема оформления:</label><select id="themeSelect"><option value="dark">Тёмная</option><option value="light">Светлая</option><option value="frutiger-aero">Frutiger Aero</option></select></div><div class="modal-buttons"><button class="btn-secondary" onclick="closeSettings()">Отмена</button><button class="btn-secondary" onclick="downloadAllAvatars()">📸 Скачать все аватарки</button><button class="btn-primary" onclick="saveSettings()">Сохранить</button></div></div></div>
+    <div id="settingsModal" class="modal-overlay"><div class="modal-content"><h2>Настройки LocalTube</h2><h3>Профиль</h3><div class="setting-group"><label>Отображаемое имя:</label><input type="text" id="prefUsername" placeholder="Например: admin"></div><div class="setting-group"><label>Ссылка на аватарку (URL или Base64):</label><input type="text" id="prefAvatarUrl" placeholder="https://..."></div><h3>Оформление</h3><div class="setting-group"><label>Тема оформления:</label><select id="themeSelect"><option value="dark">Тёмная</option><option value="light">Светлая</option><option value="frutiger-aero">Frutiger Aero</option></select></div><h3>Cookies (YouTube)</h3><div class="setting-group"><div id="cookiesStatus" style="margin-bottom:8px;opacity:0.8;">Проверка...</div><label>Файл cookies.txt (Netscape) или JSON-экспорт:</label><input type="file" id="cookiesFileInput" accept=".txt,.json" style="margin-bottom:8px;"><label>Или вставьте содержимое cookies:</label><textarea id="cookiesTextInput" rows="4" placeholder="# Netscape HTTP Cookie File... или JSON из расширения Cookie-Editor" style="width:100%;resize:vertical;box-sizing:border-box;"></textarea><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"><button class="btn-primary" type="button" onclick="importCookies()">Импортировать cookies</button><button class="btn-secondary" type="button" onclick="deleteCookies()">Удалить cookies</button></div></div><div class="modal-buttons"><button class="btn-secondary" onclick="closeSettings()">Отмена</button><button class="btn-secondary" onclick="downloadAllAvatars()">📸 Скачать все аватарки</button><button class="btn-primary" onclick="saveSettings()">Сохранить</button></div></div></div>
 
     <div id="qualityModal" class="modal-overlay">
         <div class="modal-content">
@@ -659,6 +659,68 @@
             const currentTheme = localStorage.getItem('lt_theme') || 'dark';
             document.getElementById('themeSelect').value = currentTheme;
             document.getElementById('settingsModal').classList.add('active');
+            refreshCookiesStatus();
+        }
+        async function refreshCookiesStatus() {
+            const el = document.getElementById('cookiesStatus');
+            try {
+                const res = await fetch('/api/cookies/status');
+                const data = await res.json();
+                if (data.exists) {
+                    const date = data.modified ? new Date(data.modified * 1000).toLocaleString() : '';
+                    el.innerHTML = `✅ cookies.txt установлен (${data.size} байт${date ? ', обновлён ' + date : ''})`;
+                } else {
+                    el.innerHTML = '❌ cookies.txt отсутствует — видео в высоком качестве могут быть недоступны';
+                }
+            } catch (e) {
+                el.innerText = 'Не удалось проверить статус cookies';
+            }
+        }
+        async function importCookies() {
+            const fileInput = document.getElementById('cookiesFileInput');
+            const textInput = document.getElementById('cookiesTextInput');
+            try {
+                let res;
+                if (fileInput.files && fileInput.files.length > 0) {
+                    const fd = new FormData();
+                    fd.append('file', fileInput.files[0]);
+                    res = await fetch('/api/cookies/import', { method: 'POST', body: fd });
+                } else if (textInput.value.trim()) {
+                    res = await fetch('/api/cookies/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: textInput.value })
+                    });
+                } else {
+                    showToast('Выберите файл или вставьте содержимое cookies');
+                    return;
+                }
+                const data = await res.json();
+                if (res.ok) {
+                    showToast(`Cookies импортированы (${data.cookies_count} записей)`);
+                    fileInput.value = '';
+                    textInput.value = '';
+                    refreshCookiesStatus();
+                } else {
+                    showToast(data.error || 'Ошибка импорта cookies');
+                }
+            } catch (e) {
+                showToast('Ошибка импорта cookies: ' + e.message);
+            }
+        }
+        async function deleteCookies() {
+            try {
+                const res = await fetch('/api/cookies', { method: 'DELETE' });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast('Cookies удалены');
+                    refreshCookiesStatus();
+                } else {
+                    showToast(data.error || 'Ошибка удаления cookies');
+                }
+            } catch (e) {
+                showToast('Ошибка удаления cookies: ' + e.message);
+            }
         }
         function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
         function saveSettings() {

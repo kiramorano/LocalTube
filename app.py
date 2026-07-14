@@ -1243,6 +1243,104 @@ def config_api():
     build_playlist_map()
     return jsonify({"status": "ok"})
 
+# ------------------ COOKIES ------------------
+def _json_cookies_to_netscape(cookies_list):
+    """Конвертирует JSON-экспорт cookies (Cookie-Editor, EditThisCookie и т.п.)
+    в формат Netscape, который понимает yt-dlp."""
+    lines = [
+        "# Netscape HTTP Cookie File",
+        "# Импортировано через LocalTube",
+        "",
+    ]
+    for c in cookies_list:
+        if not isinstance(c, dict):
+            continue
+        domain = c.get('domain', '')
+        name = c.get('name', '')
+        value = c.get('value', '')
+        if not domain or not name:
+            continue
+        include_subdomains = "TRUE" if domain.startswith('.') else "FALSE"
+        path = c.get('path', '/')
+        secure = "TRUE" if c.get('secure') else "FALSE"
+        expires = c.get('expirationDate') or c.get('expires') or 0
+        try:
+            expires = str(int(float(expires)))
+        except (TypeError, ValueError):
+            expires = "0"
+        lines.append(f"{domain}\t{include_subdomains}\t{path}\t{secure}\t{expires}\t{name}\t{value}")
+    return "\n".join(lines) + "\n"
+
+@app.route('/api/cookies/status', methods=['GET'])
+def cookies_status():
+    if os.path.exists(COOKIES_PATH):
+        st = os.stat(COOKIES_PATH)
+        return jsonify({
+            "exists": True,
+            "size": st.st_size,
+            "modified": int(st.st_mtime),
+        })
+    return jsonify({"exists": False})
+
+@app.route('/api/cookies/import', methods=['POST'])
+def cookies_import():
+    content = None
+    # Вариант 1: загрузка файла (multipart)
+    if 'file' in request.files:
+        f = request.files['file']
+        try:
+            content = f.read().decode('utf-8-sig', errors='replace')
+        except Exception as e:
+            return jsonify({"error": f"Не удалось прочитать файл: {e}"}), 400
+    # Вариант 2: вставленный текст (JSON body)
+    if content is None:
+        data = request.get_json(silent=True) or {}
+        content = data.get('text')
+    if not content or not content.strip():
+        return jsonify({"error": "Пустое содержимое cookies"}), 400
+
+    content = content.strip()
+
+    # JSON-экспорт из расширений браузера -> конвертируем в Netscape
+    if content.startswith('[') or content.startswith('{'):
+        try:
+            parsed = json.loads(content)
+            if isinstance(parsed, dict):
+                parsed = parsed.get('cookies', [])
+            if not isinstance(parsed, list) or not parsed:
+                return jsonify({"error": "JSON не содержит списка cookies"}), 400
+            content = _json_cookies_to_netscape(parsed)
+        except json.JSONDecodeError as e:
+            return jsonify({"error": f"Некорректный JSON: {e}"}), 400
+    else:
+        # Netscape-формат: минимальная валидация (табуляции в строках данных)
+        data_lines = [l for l in content.splitlines() if l.strip() and not l.startswith('#')]
+        if not data_lines or not any('\t' in l for l in data_lines):
+            return jsonify({"error": "Файл не похож на cookies в формате Netscape (нет табуляций). Используйте расширение вроде 'Get cookies.txt LOCALLY' или JSON-экспорт."}), 400
+        if not content.startswith('# Netscape'):
+            content = "# Netscape HTTP Cookie File\n" + content
+        if not content.endswith('\n'):
+            content += '\n'
+
+    try:
+        with open(COOKIES_PATH, 'w', encoding='utf-8', newline='\n') as fp:
+            fp.write(content)
+    except Exception as e:
+        return jsonify({"error": f"Не удалось сохранить cookies.txt: {e}"}), 500
+
+    lines_count = len([l for l in content.splitlines() if l.strip() and not l.startswith('#')])
+    logger.info(f"cookies.txt импортирован ({lines_count} записей)")
+    return jsonify({"status": "ok", "cookies_count": lines_count})
+
+@app.route('/api/cookies', methods=['DELETE'])
+def cookies_delete():
+    if os.path.exists(COOKIES_PATH):
+        try:
+            os.remove(COOKIES_PATH)
+        except Exception as e:
+            return jsonify({"error": f"Не удалось удалить: {e}"}), 500
+    return jsonify({"status": "ok"})
+
 @app.route('/api/restart', methods=['POST'])
 def restart():
     def _restart():
