@@ -84,3 +84,14 @@ queue.json
 *.aab
 *.keystore
 *.jks
+
+# ===== Android-проект (android/) =====
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+# Генерируются в CI при сборке:
+android/app/src/main/assets/localtube/
+android/app/src/main/jniLibs/
+# Ресурсы приложения должны быть в git, несмотря на глобальный *.png:
+!android/app/src/main/res/**/*.png

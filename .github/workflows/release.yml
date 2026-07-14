@@ -1,0 +1,162 @@
+name: Build Releases (EXE + APK)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FFMPEG_ANDROID_BASE: https://raw.githubusercontent.com/hzw1199/Android-FFmpeg-Prebuilt/main/ffmpeg-8.1.1/bin
+
+jobs:
+  # ============================================================
+  # Windows portable EXE (PyInstaller onefile + встроенный ffmpeg)
+  # ============================================================
+  windows-exe:
+    name: Windows Portable EXE
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller flask yt-dlp requests pillow
+
+      - name: Download FFmpeg (win64)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip" -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_tmp
+          New-Item -ItemType Directory -Force -Path build_exe/bin | Out-Null
+          $bin = Get-ChildItem -Path ffmpeg_tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          Copy-Item $bin.FullName build_exe/bin/ffmpeg.exe
+          $probe = Get-ChildItem -Path ffmpeg_tmp -Recurse -Filter ffprobe.exe | Select-Object -First 1
+          Copy-Item $probe.FullName build_exe/bin/ffprobe.exe
+
+      - name: Stage LocalTube sources
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build_exe/localtube_src | Out-Null
+          Copy-Item *.py build_exe/localtube_src/
+          Copy-Item -Recurse templates build_exe/localtube_src/templates
+          Copy-Item -Recurse static build_exe/localtube_src/static
+          if (Test-Path config.json) { Copy-Item config.json build_exe/localtube_src/ }
+          if (Test-Path cookies.txt) { Copy-Item cookies.txt build_exe/localtube_src/ }
+
+      - name: Build portable EXE
+        shell: pwsh
+        run: |
+          pyinstaller --onefile --clean --name LocalTube-portable `
+            --add-data "build_exe/localtube_src;localtube_src" `
+            --add-data "build_exe/bin;bin" `
+            --collect-all yt_dlp `
+            desktop/launcher.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LocalTube-portable-exe
+          path: dist/LocalTube-portable.exe
+
+  # ============================================================
+  # Android APK (Chaquopy: встроенный Python-сервер + ffmpeg arm64)
+  # ============================================================
+  android-apk:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Chaquopy требует buildPython той же версии, что и целевой Python
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Stage LocalTube sources into assets
+        run: |
+          ASSETS=android/app/src/main/assets/localtube
+          mkdir -p "$ASSETS"
+          cp *.py "$ASSETS/"
+          cp -r templates "$ASSETS/templates"
+          cp -r static "$ASSETS/static"
+          [ -f config.json ] && cp config.json "$ASSETS/" || true
+          [ -f cookies.txt ] && cp cookies.txt "$ASSETS/" || true
+
+      - name: Download FFmpeg (Android arm64)
+        run: |
+          LIBS=android/app/src/main/jniLibs/arm64-v8a
+          mkdir -p "$LIBS"
+          curl -fL "$FFMPEG_ANDROID_BASE/ffmpeg" -o "$LIBS/libffmpeg.so"
+          curl -fL "$FFMPEG_ANDROID_BASE/ffprobe" -o "$LIBS/libffprobe.so"
+          chmod +x "$LIBS"/*.so
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.6"
+
+      - name: Build APK
+        env:
+          ANDROID_VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || format('0.0.0-dev.{0}', github.run_number) }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+        run: gradle -p android assembleRelease --no-daemon
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk LocalTube.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LocalTube-apk
+          path: LocalTube.apk
+
+  # ============================================================
+  # Публикация GitHub Release (только для тегов v*)
+  # ============================================================
+  release:
+    name: Publish GitHub Release
+    if: github.ref_type == 'tag'
+    needs: [windows-exe, android-apk]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: release_files
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: LocalTube ${{ github.ref_name }}
+          files: |
+            release_files/LocalTube-portable.exe
+            release_files/LocalTube.apk
+          body: |
+            ## LocalTube ${{ github.ref_name }}
+
+            ### Windows (portable)
+            `LocalTube-portable.exe` — один файл, ничего устанавливать не нужно.
+            FFmpeg встроен. При первом запуске рядом с exe создаётся папка
+            `LocalTube_Data` со всеми данными (видео, настройки, cookies).
+            После запуска браузер откроется автоматически (http://127.0.0.1:8000).
+
+            ### Android
+            `LocalTube.apk` — полноценное приложение со встроенным сервером
+            (Python + yt-dlp + FFmpeg внутри). Все функции ПК-версии работают
+            прямо на телефоне, без компьютера. Требуется Android 7.0+ (arm64).
+
+            Для скачивания видео в высоком качестве положите свои cookies
+            через настройки интерфейса (как и на ПК).

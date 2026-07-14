@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LocalTube</string>
+    <string name="notification_channel">LocalTube Server</string>
+    <string name="notification_title">LocalTube работает</string>
+    <string name="notification_text">Локальный сервер запущен на порту 8000</string>
+    <string name="loading">Запуск сервера LocalTube…</string>
+</resources>

@@ -1,0 +1,54 @@
+plugins {
+    id 'com.android.application'
+    id 'com.chaquo.python'
+}
+
+android {
+    namespace 'com.localtube.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.localtube.app"
+        minSdk 24
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv("ANDROID_VERSION_CODE") ?: "1")
+        versionName(System.getenv("ANDROID_VERSION_NAME") ?: "1.0.0")
+
+        // ffmpeg собран только под arm64 — покрывает практически все современные устройства
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+
+        python {
+            version "3.11"
+            pip {
+                install "flask"
+                install "requests"
+                install "yt-dlp"
+                install "Pillow"
+            }
+        }
+    }
+
+    // Нативные библиотеки (ffmpeg/ffprobe) должны быть распакованы на диск,
+    // чтобы их можно было исполнять как обычные бинарники
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // Подписываем debug-ключом, чтобы APK ставился сразу из релиза.
+            // Для публикации в магазины замените на собственный keystore.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
