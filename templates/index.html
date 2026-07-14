@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalTube</title>
+    <style>
+        @font-face { font-family: 'Roboto'; src: url('/static/fonts/Roboto-Regular.woff2') format('woff2'); font-weight: 400; }
+        @font-face { font-family: 'Roboto'; src: url('/static/fonts/Roboto-Medium.woff2') format('woff2'); font-weight: 500; }
+        @font-face { font-family: 'Roboto'; src: url('/static/fonts/Roboto-Bold.woff2') format('woff2'); font-weight: 700; }
+        :root[data-theme="dark"] { --yt-bg: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa; --yt-spec-border: #3f3f3f; --yt-spec-icon-inactive: #ffffff; --yt-search-bg: #121212; --yt-search-border: #303030; --yt-button-hover: #272727; --yt-card-bg: transparent; --yt-modal-bg: #212121; }
+        :root[data-theme="light"] { --yt-bg: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060; --yt-spec-border: #e5e5e5; --yt-spec-icon-inactive: #030303; --yt-search-bg: #f8f8f8; --yt-search-border: #cccccc; --yt-button-hover: #f2f2f2; --yt-card-bg: #f9f9f9; --yt-modal-bg: #ffffff; }
+        :root { --yt-header-height: 56px; --yt-sidebar-width: 240px; --video-card-min-width: 310px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', Arial, sans-serif; }
+        input, button, select, textarea { font-family: inherit; }
+        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; transition: background-color 0.5s ease, color 0.5s ease, border 0.5s ease; position: relative; }
+        /* Фоновые слои — теперь отдельные элементы, кроссфейд через opacity */
+        #bg-layer-1, #bg-layer-2 {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            transition: opacity 1.5s ease-in-out;
+            pointer-events: none;
+            z-index: -3;
+        }
+        #bg-layer-2 { z-index: -2; } /* активный слой выше */
+        /* Затемнение для читаемости (поверх слоёв) */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: rgba(0, 0, 0, 0.05);
+            pointer-events: none;
+            transition: background 1s ease;
+        }
+        [data-theme="frutiger-aero"] body::after {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        /* остальные стили — без изменений */
+        header { position: fixed; top: 0; left: 0; right: 0; height: var(--yt-header-height); background-color: var(--yt-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 100; border-bottom: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; }
+        .header-left { display: flex; align-items: center; gap: 16px; width: 20%; }
+        .menu-icon { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); cursor: pointer; transition: fill 0.3s ease; }
+        .logo { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 500; text-decoration: none; color: var(--yt-spec-text-primary); transition: color 0.3s ease; }
+        .logo svg { width: 30px; height: 20px; fill: #FF0000; }
+        .header-center { display: flex; align-items: center; flex: 0 1 732px; max-width: 732px; }
+        .search-container { display: flex; align-items: center; width: 100%; }
+        .url-input { flex: 1; background-color: var(--yt-search-bg); border: 1px solid var(--yt-search-border); border-radius: 40px 0 0 40px; padding: 0 16px; height: 40px; color: var(--yt-spec-text-primary); font-size: 16px; outline: none; transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; }
+        .url-input:focus { border-color: #1c62b9; }
+        .download-btn { background-color: var(--yt-button-hover); border: 1px solid var(--yt-search-border); border-left: none; height: 40px; padding: 0 20px; cursor: pointer; transition: background-color 0.3s ease, border-color 0.5s ease; }
+        .download-btn:last-child { border-radius: 0 40px 40px 0; }
+        .download-btn svg { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); transition: fill 0.3s ease; }
+        .download-btn.direct-btn { background-color: #3ea6ff; border-left: 1px solid var(--yt-spec-border); fill: #000; font-weight: bold; font-size: 18px; color: #000; padding: 0 16px; }
+        .download-btn.direct-btn:hover { background-color: #65b8ff; }
+        .header-right { width: 20%; display: flex; justify-content: flex-end; align-items: center; gap: 16px; }
+        .icon-btn { background: none; border: none; cursor: pointer; fill: var(--yt-spec-icon-inactive); width: 24px; height: 24px; transition: fill 0.3s ease; }
+        .user-profile-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 12px; border-radius: 20px; transition: background 0.3s ease; }
+        .user-profile-btn:hover { background-color: var(--yt-button-hover); }
+        .user-name-display { font-weight: 500; font-size: 14px; display: none; }
+        .user-avatar-placeholder { width: 32px; height: 32px; border-radius: 50%; background-color: #00897b; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; overflow: hidden; transition: border 0.3s ease; }
+        .user-avatar-placeholder img { width: 100%; height: 100%; object-fit: cover; }
+        @media (min-width: 768px) { .user-name-display { display: block; } }
+        .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 24px; flex-wrap: wrap; background-color: var(--yt-bg); padding: 12px; border-radius: 12px; border: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; }
+        .toolbar input, .toolbar select, .toolbar button { background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 8px 12px; border-radius: 8px; outline: none; cursor: pointer; transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; }
+        .app-layout { display: flex; margin-top: var(--yt-header-height); height: calc(100vh - var(--yt-header-height)); }
+        .sidebar { width: var(--yt-sidebar-width); background-color: var(--yt-bg); height: 100%; position: fixed; overflow-y: auto; padding: 12px; transition: transform 0.3s ease, background-color 0.5s ease; z-index: 90; display: flex; flex-direction: column; }
+        main { flex: 1; margin-left: var(--yt-sidebar-width); padding: 24px; overflow-y: auto; height: 100%; transition: margin-left 0.3s ease; }
+        .app-layout.sidebar-closed .sidebar { transform: translateX(-100%); }
+        .app-layout.sidebar-closed main { margin-left: 0; }
+        .sidebar-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; transition: background-color 0.2s, color 0.5s ease; text-decoration: none; }
+        .sidebar-item:hover, .sidebar-item.active { background-color: var(--yt-button-hover); }
+        .sidebar-item svg { width: 24px; height: 24px; fill: currentColor; transition: fill 0.3s ease; }
+        .sidebar-divider { height: 1px; background-color: var(--yt-spec-border); margin: 12px 0; transition: background-color 0.5s ease; }
+        .sidebar-title { padding: 8px 12px; font-size: 16px; font-weight: 500; margin-top: 8px; transition: color 0.5s ease; }
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--video-card-min-width, 310px), 1fr)); gap: 40px 16px; transition: all 0.2s; }
+        .video-grid.list-view { display: flex; flex-direction: column; gap: 16px; }
+        .video-card { display: block; text-decoration: none; background-color: var(--yt-card-bg); border-radius: 12px; position: relative; cursor: pointer; transition: background-color 0.5s ease, transform 0.2s, box-shadow 0.2s; }
+        .video-thumb { width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; background-color: #272727; overflow: hidden; position: relative; transition: background-color 0.3s ease; }
+        .video-thumb img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
+        .video-details { display: flex; gap: 12px; padding: 12px; }
+        .video-author-avatar { width: 36px; height: 36px; border-radius: 50%; background-color: #5c6bc0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: 500; overflow: hidden; transition: border 0.3s ease; }
+        .video-author-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .video-info { display: flex; flex-direction: column; width: 100%; }
+        .video-title { color: var(--yt-spec-text-primary); font-size: 16px; font-weight: 500; line-height: 22px; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; transition: color 0.5s ease; }
+        .video-meta { color: var(--yt-spec-text-secondary); font-size: 14px; line-height: 20px; transition: color 0.5s ease; }
+        .card-actions { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; opacity: 0; transition: opacity 0.2s; z-index: 10; }
+        .action-btn { background: rgba(0,0,0,0.8); border: none; border-radius: 4px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; fill: white; transition: background 0.2s, fill 0.3s ease; }
+        .action-btn:hover { background: rgba(255, 0, 0, 0.8); }
+        .action-btn svg { width: 20px; height: 20px; }
+        .fav-active { fill: #FFD700 !important; }
+        .video-card:hover .card-actions { opacity: 1; }
+        .shorts-shelf-container { margin: 40px 0; padding: 24px 0; border-top: 4px solid var(--yt-button-hover); border-bottom: 4px solid var(--yt-button-hover); width: 100%; transition: border-color 0.5s ease; }
+        .shorts-shelf { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 12px; scrollbar-width: thin; }
+        .shorts-shelf::-webkit-scrollbar { height: 6px; }
+        .short-card { flex: 0 0 auto; width: 210px; display: flex; flex-direction: column; gap: 12px; cursor: pointer; text-decoration: none; position: relative; }
+        .short-thumb { width: 100%; aspect-ratio: 9 / 16; border-radius: 12px; overflow: hidden; background-color: #272727; position: relative; transition: background-color 0.3s ease; }
+        .short-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .short-title { color: var(--yt-spec-text-primary); font-size: 16px; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; transition: color 0.5s ease; }
+        .short-card:hover .card-actions { opacity: 1; }
+        .my-videos-section { margin: 40px 0; }
+        .my-videos-section h2 { margin-bottom: 16px; display: flex; align-items: center; gap: 12px; transition: color 0.5s ease; }
+        #miniplayer-container { position: fixed; bottom: 20px; right: 20px; width: 350px; min-width: 250px; max-width: 800px; resize: horizontal; background: var(--yt-bg); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.6); border: 1px solid var(--yt-spec-border); z-index: 1000; display: flex; flex-direction: column; overflow: hidden; transition: opacity 0.3s, background-color 0.5s ease, border-color 0.5s ease; }
+        .mp-video-wrapper { width: 100%; aspect-ratio: 16/9; background: #000; cursor: pointer; position: relative; }
+        .mp-video-wrapper video { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+        .mp-controls { padding: 12px; display: flex; justify-content: space-between; align-items: center; background: var(--yt-bg); transition: background-color 0.5s ease; }
+        .mp-info { flex: 1; overflow: hidden; margin-right: 8px; }
+        .mp-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; transition: color 0.5s ease; }
+        .mp-author { font-size: 12px; color: var(--yt-spec-text-secondary); transition: color 0.5s ease; }
+        .mp-actions { display: flex; gap: 8px; flex-shrink: 0; }
+        .mp-btn { background: none; border: none; fill: var(--yt-spec-text-primary); cursor: pointer; width: 24px; height: 24px; opacity: 0.8; transition: fill 0.3s ease, opacity 0.2s; }
+        .mp-btn:hover { opacity: 1; }
+        .mp-close-btn:hover { fill: #FF0000; }
+        @media (max-width: 600px) { #miniplayer-container { width: calc(100% - 32px); bottom: 16px; right: 16px; resize: none; } }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-content { background: var(--yt-modal-bg); width: 90%; max-width: 550px; border-radius: 12px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; }
+        .modal-content h2 { margin-bottom: 20px; font-size: 22px; transition: color 0.5s ease; }
+        .modal-content h3 { margin: 20px 0 10px 0; font-size: 16px; color: var(--yt-spec-text-secondary); border-bottom: 1px solid var(--yt-spec-border); padding-bottom: 5px; transition: color 0.5s ease, border-color 0.5s ease; }
+        .setting-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+        .setting-group label { font-size: 14px; transition: color 0.5s ease; }
+        .setting-group input[type="text"], .setting-group select { background: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 10px; border-radius: 8px; width: 100%; transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+        .btn-primary { background: #3ea6ff; color: #000; border: none; padding: 10px 20px; border-radius: 20px; font-weight: 500; cursor: pointer; transition: background 0.3s ease; }
+        .btn-secondary { background: transparent; color: var(--yt-spec-text-primary); border: 1px solid var(--yt-spec-border); padding: 10px 20px; border-radius: 20px; cursor: pointer; transition: background 0.3s ease, border-color 0.5s ease, color 0.5s ease; }
+        .danger-btn { background: #ff4d4d; color: white; }
+        #progressBox { position: fixed; top: var(--yt-header-height); left: 0; right: 0; background: #212121; padding: 12px 24px; z-index: 99; display: none; color: white; transition: background 0.3s ease; }
+        .progress-bar-container { height: 4px; background-color: rgba(255,255,255,0.1); border-radius: 2px; }
+        .progress-fill { height: 100%; width: 0%; background-color: #FF0000; transition: width 0.3s, background 0.5s ease; }
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: var(--yt-button-hover); color: var(--yt-spec-text-primary); padding: 12px 20px; border-radius: 8px; animation: slideIn 0.3s ease forwards; border: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .empty-message { text-align: center; margin-top: 100px; color: var(--yt-spec-text-secondary); transition: color 0.5s ease; }
+        .avatar-upload-btn { background: none; border: none; cursor: pointer; margin-left: auto; padding: 4px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.6; transition: opacity 0.2s, background 0.2s; }
+        .avatar-upload-btn:hover { opacity: 1; background-color: var(--yt-button-hover); }
+        .info-text { font-size: 12px; color: var(--yt-spec-text-secondary); margin-top: 4px; transition: color 0.5s ease; }
+        .hide-channel-btn { background: none; border: none; cursor: pointer; margin-left: auto; padding: 4px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; opacity: 0.6; transition: opacity 0.2s, background 0.2s; }
+        .hide-channel-btn:hover { opacity: 1; background-color: var(--yt-button-hover); }
+        .hide-channel-btn svg { width: 18px; height: 18px; fill: var(--yt-spec-text-secondary); transition: fill 0.3s ease; }
+        .hidden-channel-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 8px; transition: background 0.2s; }
+        .hidden-channel-item:hover { background-color: var(--yt-button-hover); }
+        .unhide-btn { background: none; border: none; color: var(--yt-spec-text-primary); cursor: pointer; padding: 4px 8px; border-radius: 16px; background-color: var(--yt-button-hover); font-size: 12px; transition: background 0.3s ease, color 0.5s ease; }
+        .unhide-btn:hover { background-color: #3ea6ff; color: #000; }
+        .queue-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+        .queue-list { display: flex; flex-direction: column; gap: 8px; }
+        .queue-item { background-color: var(--yt-card-bg); border: 1px solid var(--yt-spec-border); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; transition: background-color 0.5s ease, border-color 0.5s ease; }
+        .queue-item-info { flex: 2; min-width: 200px; }
+        .queue-item-title { font-weight: 500; margin-bottom: 4px; transition: color 0.5s ease; }
+        .queue-item-meta { font-size: 12px; color: var(--yt-spec-text-secondary); transition: color 0.5s ease; }
+        .queue-item-progress { width: 200px; }
+        .progress-bar { height: 6px; background-color: var(--yt-spec-border); border-radius: 3px; overflow: hidden; margin-top: 4px; transition: background-color 0.5s ease; }
+        .progress-fill-queue { height: 100%; background-color: #FF0000; width: 0%; transition: width 0.3s, background 0.5s ease; }
+        .queue-item-status { min-width: 100px; text-align: right; font-size: 14px; transition: color 0.5s ease; }
+        .queue-item-actions button { background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 4px; font-size: 12px; transition: color 0.3s ease; }
+        .queue-item-actions .remove-btn { color: #ff4d4d; }
+        .queue-empty { text-align: center; padding: 40px; color: var(--yt-spec-text-secondary); transition: color 0.5s ease; }
+        .status-waiting { color: #ffa500; }
+        .status-downloading { color: #3ea6ff; }
+        .status-completed { color: #4caf50; }
+        .status-error { color: #ff4d4d; }
+        .status-paused { color: #888; }
+    </style>
+    <link id="theme-style" rel="stylesheet" href="">
+</head>
+<body>
+    <!-- Фоновые слои для кроссфейда -->
+    <div id="bg-layer-1" style="background-image:none; opacity:0;"></div>
+    <div id="bg-layer-2" style="background-image:none; opacity:1;"></div>
+
+    <header>
+        <div class="header-left">
+            <svg class="menu-icon" id="sidebarToggle" viewBox="0 0 24 24"><path d="M21,6H3V5h18V6z M21,11H3v1h18V11z M21,17H3v1h18V17z"/></svg>
+            <a href="/" class="logo"><svg viewBox="0 0 24 24"><path d="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5s-6.25,0-7.81,0.42c-0.88,0.23-1.54,0.89-1.77,1.77 C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42 c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19z M10,15V9l5.2,3L10,15z"/></svg>LocalTube</a>
+        </div>
+        <div class="header-center">
+            <div class="search-container">
+                <input type="text" id="urlInput" class="url-input" placeholder="Вставьте ссылку на YouTube...">
+                <button type="button" class="download-btn" onclick="startDownload()" title="Скачать через очередь"><svg viewBox="0 0 24 24"><path d="M17 18v1H6v-1h11zm-.5-6.6-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-4.9z"/></svg></button>
+                <button type="button" class="download-btn direct-btn" onclick="directDownload()" title="Прямое скачивание (выбор качества)">⚡</button>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="icon-btn" id="themeToggleHeader"><svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm1-11h-2v3H8v2h3v3h2v-3h3v-2h-3V8z"/></svg></button>
+            <div class="user-profile-btn" onclick="openSettings()"><span class="user-name-display" id="headerUsername">Гость</span><div class="user-avatar-placeholder" id="headerAvatar">Г</div></div>
+        </div>
+    </header>
+
+    <div class="app-layout" id="appLayout">
+        <aside class="sidebar">
+            <div style="flex:1;">
+                <div class="sidebar-item active" data-nav="all" onclick="filterNav('all')"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"/></svg><span>Главная</span></div>
+                <div class="sidebar-item" data-nav="shorts" onclick="filterNav('shorts')"><svg viewBox="0 0 24 24"><path d="M17.77,10.32l-1.2-.5L18,9.06a3.74,3.74,0,0,0-3.5-6.62L6,6.94a3.74,3.74,0,0,0,.23,6.74l1.2.49L6,14.93a3.75,3.75,0,0,0,3.5,6.63l8.5-4.5a3.74,3.74,0,0,0-.23-6.74Z"/><polygon fill="#ffffff" points="10 14.65 15 12 10 9.35 10 14.65"/></svg><span>Shorts</span></div>
+                <div class="sidebar-item" data-nav="favorites" onclick="filterNav('favorites')"><svg viewBox="0 0 24 24"><path d="M22,9.24l-7.19-0.62L12,2L9.19,8.63L2,9.24l5.46,4.73L5.82,21L12,17.27L18.18,21l-1.63-7.03L22,9.24z"/></svg><span>Избранное</span></div>
+                <div class="sidebar-item" data-nav="history" onclick="filterNav('history')"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.14-8-8s3.58-8 8-8 8 3.14 8 8-3.14 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg><span>История</span></div>
+                <div class="sidebar-item" data-nav="queue" onclick="filterNav('queue')"><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 6h8v2h-8V6zm0 4h8v2h-8v-2zm0 4h8v2h-8v-2z"/></svg><span>Очередь</span></div>
+                <div class="sidebar-divider"></div>
+                <div class="sidebar-title">Авторы</div>
+                <div id="authorsContainer">
+                    {% for author in authors %}
+                    <div class="sidebar-item" data-nav="{{ author.name }}" onclick="filterNav('{{ author.name|escape }}')">
+                        <div style="width:28px;height:28px;border-radius:50%;background:#8e24aa;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;overflow:hidden;">
+                            {% if author.avatar %}<img src="{{ author.avatar }}" style="width:100%;height:100%;object-fit:cover;">{% else %}{{ author.name[:1]|upper }}{% endif %}
+                        </div>
+                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ author.name }}</span>
+                        <button class="avatar-upload-btn" title="Загрузить аватарку" onclick="event.stopPropagation(); uploadAvatarForAuthor('{{ author.name|escape }}')"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+                        <button class="hide-channel-btn" title="Скрыть канал" onclick="event.stopPropagation(); toggleHideChannel('{{ author.name|escape }}')">
+                            <svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="sidebar-divider"></div>
+                <div class="sidebar-title">Скрытые каналы</div>
+                <div id="hiddenChannelsList"></div>
+            </div>
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-item" onclick="openSettings()"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>Настройки</span></div>
+        </aside>
+
+        <main>
+            {% if not all_videos and not user_videos and not shorts %}
+                <div class="empty-message"><h2>Здесь пока нет видео</h2><p>Вставьте ссылку в верхнюю строку поиска, чтобы скачать, или добавьте своё видео через кнопку «➕ Добавить видео».</p></div>
+            {% else %}
+                <div class="toolbar">
+                    <input type="text" id="localSearch" placeholder="Поиск по названию..." onkeyup="applyFilters()" style="flex:1;">
+                    <select id="sortSelect" onchange="applyFilters()">
+                        <option value="default">Сортировка по умолчанию</option>
+                        <option value="az">А - Я</option>
+                        <option value="za">Я - А</option>
+                        <option value="sizeAsc">По размеру (возрастание)</option>
+                        <option value="sizeDesc">По размеру (убывание)</option>
+                    </select>
+                    <button onclick="toggleView()" title="Сетка/Список"><svg style="width:20px;height:20px;fill:currentColor" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg></button>
+                    <button onclick="downloadAllAvatars()" title="Скачать/обновить аватарки авторов">📸 Аватарки</button>
+                    <button onclick="generateThumbnails()" title="Создать превью для видео, у которых их нет">🖼️ Превью</button>
+                    <button onclick="downloadAllSubtitles()" title="Скачать субтитры (ru) для всех видео">🗣️ Субтитры</button>
+                    <button onclick="window.location.href='/upload'" style="background:#4caf50; color:#000;">➕ Добавить видео</button>
+                </div>
+
+                {% if user_videos %}
+                <div class="my-videos-section">
+                    <h2>📹 Мои видео</h2>
+                    <div class="video-grid" id="myVideosGrid">
+                        {% for v in user_videos %}
+                        <a href="/watch/{{ v.id }}" class="video-card" data-id="{{ v.id }}" data-title="{{ v.title|lower|replace("'", "\\'")|replace('"', '\\"') }}" data-author="{{ v.author }}" data-size="{{ v.size_mb }}">
+                            <div class="video-thumb">
+                                {% if v.thumb and v.thumb != 'None' %}<img src="/usermedia/{{ v.author }}/{{ v.folder }}/thumbnail.jpg" loading="lazy">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#fff5;">Нет превью</div>{% endif %}
+                                <div class="card-actions" onclick="event.preventDefault();">
+                                    <button class="action-btn" title="Копировать ссылку" onclick="copyLink('{{ request.host_url }}watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+                                    <button class="action-btn fav-btn" title="В избранное" onclick="toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button>
+                                    <button class="action-btn" title="Редактировать" onclick="event.stopPropagation(); window.location.href='/edit/{{ v.id }}'"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+                                    <button class="action-btn" title="Удалить" onclick="event.stopPropagation(); deleteUserVideo('{{ v.id }}', '{{ v.author }}')"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                                </div>
+                            </div>
+                            <div class="video-details">
+                                <div class="video-author-avatar">{% if v.author_avatar %}<img src="{{ v.author_avatar }}">{% else %}{{ v.author[:1]|upper }}{% endif %}</div>
+                                <div class="video-info"><div class="video-title">{{ v.title }}</div><div class="video-meta">{{ v.author }} • {{ v.size_mb }} МБ</div></div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if shorts %}
+                <div class="shorts-shelf-container">
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
+                        <h2 style="font-size: 20px;">📱 Shorts</h2>
+                        <a href="/" onclick="filterNav('shorts'); return false;" style="color: var(--yt-spec-text-secondary); font-size: 14px;">Показать все →</a>
+                    </div>
+                    <div class="shorts-shelf">
+                        {% for s in shorts %}
+                        <a href="/watch/{{ s.id }}" class="short-card" data-id="{{ s.id }}" data-title="{{ s.title|lower }}" data-author="{{ s.author }}">
+                            <div class="short-thumb">
+                                {% if s.thumb %}<img src="{{ url_for('media', filename=s.author ~ '/' ~ s.folder ~ '/' ~ s.thumb) }}" loading="lazy">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#fff5;">Нет</div>{% endif %}
+                                <div class="card-actions" onclick="event.preventDefault();">
+                                    <button class="action-btn" title="Копировать ссылку" onclick="copyLink('{{ request.host_url }}watch/{{ s.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+                                    <button class="action-btn fav-btn" title="В избранное" onclick="toggleFav('{{ s.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button>
+                                </div>
+                            </div>
+                            <div class="short-title">{{ s.title }}</div>
+                            <div class="video-meta">{{ s.author }} • {{ s.size_mb }} МБ</div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="video-grid" id="mainGrid">
+                    {% for v in all_videos %}
+                    <a href="{{ url_for('watch', vid_id=v.id) }}" class="video-card" data-size="{{ v.size_mb }}" data-author="{{ v.author|replace("'", "\\'")|replace('"', '\\"') }}" data-id="{{ v.id }}" data-title="{{ v.title|lower|replace("'", "\\'")|replace('"', '\\"') }}" data-video-url="{{ url_for('media', filename=v.author ~ '/' ~ v.folder ~ '/' ~ v.filename) }}" onclick="markHistory('{{ v.id }}')">
+                        <div class="video-thumb">{% if v.thumb %}<img src="{{ url_for('media', filename=v.author ~ '/' ~ v.folder ~ '/' ~ v.thumb) }}" loading="lazy">{% else %}<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#fff5;">Нет превью</div>{% endif %}
+                        <div class="card-actions" onclick="event.preventDefault();">
+                            <button class="action-btn" title="Копировать ссылку" onclick="copyLink('{{ request.host_url }}watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+                            <button class="action-btn fav-btn" title="В избранное" onclick="toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button>
+                        </div>
+                        </div>
+                        <div class="video-details">
+                            <div class="video-author-avatar">{% if v.author_avatar %}<img src="{{ v.author_avatar }}" style="width:100%;height:100%;object-fit:cover;">{% else %}{{ v.author[:1]|upper }}{% endif %}</div>
+                            <div class="video-info"><div class="video-title">{{ v.title }}</div><div class="video-meta">{{ v.author }} • {{ v.size_mb }} МБ</div></div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            
+            <div id="queueContainer" style="display: none;">
+                <div class="queue-header">
+                    <h2>📋 Очередь загрузок</h2>
+                    <div class="queue-controls">
+                        <button onclick="pauseQueue()" class="btn-secondary">⏸ Пауза</button>
+                        <button onclick="resumeQueue()" class="btn-primary">▶ Возобновить</button>
+                        <button onclick="clearQueue()" class="danger-btn">🗑 Очистить</button>
+                    </div>
+                </div>
+                <div id="queueList" class="queue-list">
+                    <div class="queue-empty">Очередь пуста</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальные окна -->
+    <div id="settingsModal" class="modal-overlay"><div class="modal-content"><h2>Настройки LocalTube</h2><h3>Профиль</h3><div class="setting-group"><label>Отображаемое имя:</label><input type="text" id="prefUsername" placeholder="Например: admin"></div><div class="setting-group"><label>Ссылка на аватарку (URL или Base64):</label><input type="text" id="prefAvatarUrl" placeholder="https://..."></div><h3>Оформление</h3><div class="setting-group"><label>Тема оформления:</label><select id="themeSelect"><option value="dark">Тёмная</option><option value="light">Светлая</option><option value="frutiger-aero">Frutiger Aero</option></select></div><div class="modal-buttons"><button class="btn-secondary" onclick="closeSettings()">Отмена</button><button class="btn-secondary" onclick="downloadAllAvatars()">📸 Скачать все аватарки</button><button class="btn-primary" onclick="saveSettings()">Сохранить</button></div></div></div>
+
+    <div id="qualityModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="qualityModalTitle">Выберите качество видео</h2>
+            <div id="formatList" style="max-height:300px;overflow-y:auto;margin:16px 0;"></div>
+            <div style="margin: 12px 0;" id="containerFormatDiv">
+                <label style="margin-right: 12px;">Формат контейнера:</label>
+                <select id="containerFormat">
+                    <option value="mp4">MP4</option>
+                    <option value="avi">AVI (требуется ffmpeg)</option>
+                    <option value="mkv">MKV</option>
+                    <option value="webm">WebM</option>
+                </select>
+            </div>
+            <div style="margin: 12px 0;" id="browserCopyDiv">
+                <label>
+                    <input type="checkbox" id="browserCopyCheckbox" checked>
+                    Также скачать копию для браузера (MP4) при выборе AVI
+                </label>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeQualityModal()">Отмена</button>
+                <button class="btn-primary" id="qualityModalActionBtn" onclick="executeQualityAction()">📥 Скачать</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="playlistModal" class="modal-overlay"><div class="modal-content" style="max-width:700px;"><h2>Выберите видео для скачивания</h2><div id="playlistVideosList" style="max-height:400px;overflow-y:auto;margin:16px 0;"></div><div class="modal-buttons"><button class="btn-secondary" onclick="closePlaylistModal()">Отмена</button><button class="btn-primary" onclick="addSelectedToQueue()">Скачать</button></div></div></div>
+
+    <div id="progressBox"><div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span id="statusText">Подготовка...</span><span id="percentText">0%</span></div><div class="progress-bar-container"><div id="fillBar" class="progress-fill"></div></div></div>
+    <div id="toast-container"></div>
+
+    <div id="miniplayer-container" style="display: none;">
+        <div class="mp-video-wrapper">
+            <video id="mp-video" src=""></video>
+        </div>
+        <div class="mp-controls">
+            <div class="mp-info">
+                <div class="mp-title" id="mp-title"></div>
+                <div class="mp-author" id="mp-author"></div>
+            </div>
+            <div class="mp-actions">
+                <button class="mp-btn" id="mp-playpause"><svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg></button>
+                <button class="mp-btn mp-close-btn" id="mp-close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== МИНИ-ПЛЕЕР ==========
+        let mpVideo = null;
+        let mpContainer = null;
+        let mpPausePlayBtn = null;
+        let isDragging = false;
+        let dragStartX, dragStartY, initialLeft, initialBottom;
+
+        function initMiniPlayer() {
+            mpContainer = document.getElementById('miniplayer-container');
+            mpVideo = document.getElementById('mp-video');
+            mpPausePlayBtn = document.getElementById('mp-playpause');
+            const mpCloseBtn = document.getElementById('mp-close');
+            if (!mpContainer) return;
+
+            const savedMP = localStorage.getItem('lt_miniplayer');
+            if (savedMP) {
+                try {
+                    const data = JSON.parse(savedMP);
+                    if (data.url && data.title) {
+                        showMiniPlayer(data.url, data.title, data.author, data.time);
+                    }
+                } catch(e) {}
+            }
+
+            let header = mpContainer.querySelector('.mp-controls');
+            header.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', stopDrag);
+
+            function startDrag(e) {
+                if (e.target.closest('.mp-actions')) return;
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                const rect = mpContainer.getBoundingClientRect();
+                initialLeft = rect.left;
+                initialBottom = window.innerHeight - rect.bottom;
+                mpContainer.style.transition = 'none';
+                e.preventDefault();
+            }
+            function onDrag(e) {
+                if (!isDragging) return;
+                const dx = e.clientX - dragStartX;
+                const dy = e.clientY - dragStartY;
+                let newLeft = initialLeft + dx;
+                let newBottom = initialBottom - dy;
+                newLeft = Math.max(10, Math.min(window.innerWidth - mpContainer.offsetWidth - 10, newLeft));
+                newBottom = Math.max(10, Math.min(window.innerHeight - mpContainer.offsetHeight - 10, newBottom));
+                mpContainer.style.left = newLeft + 'px';
+                mpContainer.style.right = 'auto';
+                mpContainer.style.bottom = newBottom + 'px';
+            }
+            function stopDrag() {
+                isDragging = false;
+                mpContainer.style.transition = '';
+            }
+
+            if (mpPausePlayBtn) {
+                mpPausePlayBtn.addEventListener('click', () => {
+                    if (mpVideo.paused) mpVideo.play();
+                    else mpVideo.pause();
+                });
+            }
+            mpCloseBtn.addEventListener('click', closeMiniPlayer);
+            mpVideo.addEventListener('play', () => {
+                mpPausePlayBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+            });
+            mpVideo.addEventListener('pause', () => {
+                mpPausePlayBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+            });
+            setInterval(() => {
+                if (mpContainer.style.display !== 'none' && mpVideo && !mpVideo.paused && mpVideo.currentTime) {
+                    const data = JSON.parse(localStorage.getItem('lt_miniplayer') || '{}');
+                    data.time = mpVideo.currentTime;
+                    localStorage.setItem('lt_miniplayer', JSON.stringify(data));
+                }
+            }, 3000);
+        }
+
+        function showMiniPlayer(videoUrl, title, author, currentTime = 0) {
+            if (!mpContainer) return;
+            mpVideo.src = videoUrl;
+            document.getElementById('mp-title').innerText = title;
+            document.getElementById('mp-author').innerText = author || '';
+            mpVideo.currentTime = currentTime || 0;
+            mpVideo.play().catch(e => console.log('autoplay blocked', e));
+            mpContainer.style.display = 'flex';
+            localStorage.setItem('lt_miniplayer', JSON.stringify({ url: videoUrl, title, author, time: mpVideo.currentTime }));
+        }
+
+        function closeMiniPlayer() {
+            if (mpVideo) {
+                mpVideo.pause();
+                mpVideo.src = '';
+            }
+            mpContainer.style.display = 'none';
+            localStorage.removeItem('lt_miniplayer');
+        }
+
+        // ========== УВЕДОМЛЕНИЯ ==========
+        function showToast(msg, type = 'info', retryCallback = null) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            if (type === 'error') {
+                toast.style.background = '#ff4d4d';
+                toast.style.color = 'white';
+                toast.style.border = '1px solid #cc0000';
+                toast.style.borderRadius = '8px';
+                toast.style.padding = '12px 20px';
+                toast.style.display = 'flex';
+                toast.style.alignItems = 'center';
+                toast.style.justifyContent = 'space-between';
+                toast.style.gap = '12px';
+                toast.style.minWidth = '250px';
+                toast.style.boxShadow = '0 4px 12px rgba(255,0,0,0.3)';
+            }
+            const msgSpan = document.createElement('span');
+            msgSpan.innerText = msg;
+            toast.appendChild(msgSpan);
+
+            if (type === 'error' && retryCallback) {
+                const retryBtn = document.createElement('button');
+                retryBtn.innerText = '🔄 Повторить';
+                retryBtn.style.background = 'rgba(255,255,255,0.2)';
+                retryBtn.style.border = 'none';
+                retryBtn.style.color = 'white';
+                retryBtn.style.padding = '4px 12px';
+                retryBtn.style.borderRadius = '16px';
+                retryBtn.style.cursor = 'pointer';
+                retryBtn.style.fontWeight = 'bold';
+                retryBtn.onclick = () => {
+                    toast.remove();
+                    retryCallback();
+                };
+                toast.appendChild(retryBtn);
+            }
+
+            container.appendChild(toast);
+            if (type !== 'error' || !retryCallback) {
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    setTimeout(() => toast.remove(), 300);
+                }, 5000);
+            }
+        }
+
+        function showErrorToast(msg, retryCallback = null) {
+            showToast(msg, 'error', retryCallback);
+        }
+
+        // ========== ТЕМЫ И КРОССФЕЙД ФОНА ==========
+        let activeBgLayer = 2; // текущий активный слой (2 или 1)
+        let bgTimer = null;
+
+        function setBackgroundImage(url) {
+            const layer1 = document.getElementById('bg-layer-1');
+            const layer2 = document.getElementById('bg-layer-2');
+            let targetLayer, otherLayer;
+            if (activeBgLayer === 2) {
+                targetLayer = layer1;
+                otherLayer = layer2;
+            } else {
+                targetLayer = layer2;
+                otherLayer = layer1;
+            }
+            // Устанавливаем новую картинку на неактивный слой
+            targetLayer.style.backgroundImage = `url('${url}')`;
+            // Убеждаемся, что он скрыт
+            targetLayer.style.opacity = 0;
+            // Запускаем переход
+            requestAnimationFrame(() => {
+                targetLayer.style.opacity = 1;
+                otherLayer.style.opacity = 0;
+            });
+            // После завершения переключаем активный слой
+            setTimeout(() => {
+                activeBgLayer = (activeBgLayer === 2) ? 1 : 2;
+                // очищаем старый слой, чтобы не было накопления
+                otherLayer.style.backgroundImage = 'none';
+            }, 1600);
+        }
+
+        async function loadThemeBackground(theme) {
+            const layer1 = document.getElementById('bg-layer-1');
+            const layer2 = document.getElementById('bg-layer-2');
+            if (theme !== 'frutiger-aero') {
+                layer1.style.backgroundImage = 'none';
+                layer2.style.backgroundImage = 'none';
+                layer1.style.opacity = 0;
+                layer2.style.opacity = 0;
+                if (bgTimer) clearInterval(bgTimer);
+                bgTimer = null;
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/theme-backgrounds/${theme}`);
+                const images = await response.json();
+                if (images.length === 0) {
+                    layer1.style.backgroundImage = 'none';
+                    layer2.style.backgroundImage = 'none';
+                    layer1.style.opacity = 0;
+                    layer2.style.opacity = 0;
+                    return;
+                }
+                const randomIndex = Math.floor(Math.random() * images.length);
+                const imageName = images[randomIndex];
+                const screenW = window.innerWidth;
+                const screenH = window.innerHeight;
+                const imageUrl = `/static/images/themes/${theme}/${imageName}?w=${screenW}&h=${screenH}`;
+                setBackgroundImage(imageUrl);
+
+                if (bgTimer) clearInterval(bgTimer);
+                bgTimer = setInterval(async () => {
+                    const resp = await fetch(`/api/theme-backgrounds/${theme}`);
+                    const newImages = await resp.json();
+                    if (newImages.length === 0) return;
+                    const idx = Math.floor(Math.random() * newImages.length);
+                    const newName = newImages[idx];
+                    const newW = window.innerWidth;
+                    const newH = window.innerHeight;
+                    const newUrl = `/static/images/themes/${theme}/${newName}?w=${newW}&h=${newH}`;
+                    setBackgroundImage(newUrl);
+                }, 30000);
+
+            } catch (e) {
+                console.error('Ошибка загрузки фона:', e);
+                layer1.style.backgroundImage = 'none';
+                layer2.style.backgroundImage = 'none';
+                layer1.style.opacity = 0;
+                layer2.style.opacity = 0;
+            }
+        }
+
+        function loadTheme(theme) {
+            const link = document.getElementById('theme-style');
+            if (!theme || theme === 'dark' || theme === 'light') {
+                link.href = '';
+                document.documentElement.setAttribute('data-theme', theme || 'dark');
+                if (bgTimer) clearInterval(bgTimer);
+                bgTimer = null;
+                document.getElementById('bg-layer-1').style.backgroundImage = 'none';
+                document.getElementById('bg-layer-2').style.backgroundImage = 'none';
+                document.getElementById('bg-layer-1').style.opacity = 0;
+                document.getElementById('bg-layer-2').style.opacity = 0;
+            } else {
+                link.href = '/static/css/themes/' + theme + '.css';
+                document.documentElement.setAttribute('data-theme', theme);
+                loadThemeBackground(theme);
+            }
+            localStorage.setItem('lt_theme', theme || 'dark');
+        }
+
+        // ========== ОСТАЛЬНАЯ ЛОГИКА ==========
+        let currentNav = 'all';
+        let isListView = false;
+        let favorites = JSON.parse(localStorage.getItem('lt_favorites') || '[]');
+        let history = JSON.parse(localStorage.getItem('lt_history') || '[]');
+        let userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"username":"Гость", "avatar":"", "hideShorts":false}');
+        let hiddenChannels = JSON.parse(localStorage.getItem('lt_hidden_channels') || '[]');
+        // Инициализация темы
+        const savedTheme = localStorage.getItem('lt_theme') || 'dark';
+        loadTheme(savedTheme);
+
+        let pendingUrl = null;
+        let pollInterval = null;
+        let playlistData = null;
+        let selectedVideoIndices = [];
+        let pendingQualityCallback = null;
+        let isRefreshingTitles = false;
+        let directPendingUrl = null;
+        let qualityModalMode = 'queue';
+
+        function openSettings() {
+            document.getElementById('prefUsername').value = userSettings.username || '';
+            document.getElementById('prefAvatarUrl').value = userSettings.avatar || '';
+            const currentTheme = localStorage.getItem('lt_theme') || 'dark';
+            document.getElementById('themeSelect').value = currentTheme;
+            document.getElementById('settingsModal').classList.add('active');
+        }
+        function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
+        function saveSettings() {
+            const theme = document.getElementById('themeSelect').value;
+            userSettings = {
+                username: document.getElementById('prefUsername').value.trim(),
+                avatar: document.getElementById('prefAvatarUrl').value.trim(),
+                hideShorts: userSettings.hideShorts
+            };
+            localStorage.setItem('lt_settings', JSON.stringify(userSettings));
+            loadTheme(theme);
+            applyProfileUI();
+            closeSettings();
+            showToast('Настройки сохранены');
+        }
+        function applyProfileUI() {
+            document.getElementById('headerUsername').innerText = userSettings.username || 'Гость';
+            const avatarBox = document.getElementById('headerAvatar');
+            if(userSettings.avatar) avatarBox.innerHTML = `<img src="${userSettings.avatar}" alt="Аватар">`;
+            else avatarBox.innerHTML = (userSettings.username || 'Г').charAt(0).toUpperCase();
+        }
+        applyProfileUI();
+
+        document.getElementById('sidebarToggle').addEventListener('click', () => {
+            document.getElementById('appLayout').classList.toggle('sidebar-closed');
+        });
+
+        function saveHiddenChannels() {
+            localStorage.setItem('lt_hidden_channels', JSON.stringify(hiddenChannels));
+        }
+        function toggleHideChannel(channelName) {
+            if (hiddenChannels.includes(channelName)) {
+                hiddenChannels = hiddenChannels.filter(c => c !== channelName);
+                showToast(`Канал "${channelName}" больше не скрыт`);
+            } else {
+                hiddenChannels.push(channelName);
+                showToast(`Канал "${channelName}" скрыт`);
+            }
+            saveHiddenChannels();
+            updateHiddenChannelsList();
+            applyFilters();
+        }
+        function updateHiddenChannelsList() {
+            const container = document.getElementById('hiddenChannelsList');
+            if (!container) return;
+            if (hiddenChannels.length === 0) {
+                container.innerHTML = '<div style="padding: 8px 12px; color: var(--yt-spec-text-secondary); font-size: 13px;">Нет скрытых каналов</div>';
+                return;
+            }
+            let html = '';
+            hiddenChannels.forEach(channel => {
+                html += `
+                    <div class="hidden-channel-item">
+                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(channel)}</span>
+                        <button class="unhide-btn" onclick="toggleHideChannel('${escapeHtml(channel)}')">Показать</button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+        function isChannelHidden(author) {
+            return hiddenChannels.includes(author);
+        }
+
+        function filterNav(nav) {
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+            const target = document.querySelector(`.sidebar-item[data-nav="${nav}"]`);
+            if (target) target.classList.add('active');
+            currentNav = nav;
+
+            const mainGrid = document.getElementById('mainGrid');
+            const shortsContainer = document.querySelector('.shorts-shelf-container');
+            const myVideosSection = document.querySelector('.my-videos-section');
+            const queueContainer = document.getElementById('queueContainer');
+
+            if (mainGrid) mainGrid.style.display = 'none';
+            if (shortsContainer) shortsContainer.style.display = 'none';
+            if (myVideosSection) myVideosSection.style.display = 'none';
+            if (queueContainer) queueContainer.style.display = 'none';
+
+            if (nav === 'queue') {
+                if (queueContainer) queueContainer.style.display = 'block';
+                loadQueue();
+            } else {
+                if (mainGrid) mainGrid.style.display = 'grid';
+                if (shortsContainer) shortsContainer.style.display = 'block';
+                if (myVideosSection) myVideosSection.style.display = 'block';
+                applyFilters();
+            }
+        }
+
+        function applyFilters() {
+            if (currentNav === 'queue') return;
+            
+            const query = document.getElementById('localSearch').value.toLowerCase();
+            const sort = document.getElementById('sortSelect').value;
+            const grid = document.getElementById('mainGrid');
+            const shortsContainer = document.querySelector('.shorts-shelf-container');
+            const myGrid = document.getElementById('myVideosGrid');
+            
+            function shouldShow(card) {
+                const title = card.getAttribute('data-title');
+                const author = card.getAttribute('data-author');
+                const vid = card.getAttribute('data-id');
+                let show = title.includes(query);
+                if (currentNav === 'favorites') show = show && favorites.includes(vid);
+                else if (currentNav === 'history') show = show && history.includes(vid);
+                else if (currentNav !== 'all') show = show && (author === currentNav);
+                if (show && isChannelHidden(author)) show = false;
+                return show;
+            }
+            
+            if (grid) {
+                let cards = Array.from(grid.querySelectorAll('.video-card'));
+                cards.forEach(card => {
+                    card.style.display = shouldShow(card) ? 'block' : 'none';
+                });
+                if (sort !== 'default') {
+                    cards.sort((a,b) => {
+                        if (sort === 'az' || sort === 'za') {
+                            const tA = a.getAttribute('data-title'), tB = b.getAttribute('data-title');
+                            return sort === 'az' ? tA.localeCompare(tB) : tB.localeCompare(tA);
+                        } else {
+                            const sA = parseFloat(a.getAttribute('data-size')) || 0, sB = parseFloat(b.getAttribute('data-size')) || 0;
+                            return sort === 'sizeAsc' ? sA - sB : sB - sA;
+                        }
+                    });
+                    cards.forEach(card => grid.appendChild(card));
+                }
+            }
+            
+            if (shortsContainer) {
+                const shortCards = document.querySelectorAll('.short-card');
+                shortCards.forEach(card => {
+                    const title = card.getAttribute('data-title');
+                    const author = card.getAttribute('data-author');
+                    const vid = card.getAttribute('data-id');
+                    let show = title.includes(query);
+                    if (currentNav === 'favorites') show = show && favorites.includes(vid);
+                    else if (currentNav === 'history') show = show && history.includes(vid);
+                    else if (currentNav !== 'all' && currentNav !== 'shorts') show = show && (author === currentNav);
+                    else if (currentNav === 'shorts') show = true;
+                    if (show && isChannelHidden(author)) show = false;
+                    card.style.display = show ? 'flex' : 'none';
+                });
+                if (currentNav === 'shorts') {
+                    shortsContainer.style.display = 'block';
+                } else {
+                    const anyVisible = Array.from(shortCards).some(card => card.style.display !== 'none');
+                    shortsContainer.style.display = anyVisible ? 'block' : 'none';
+                }
+            }
+            
+            if (myGrid) {
+                let myCards = Array.from(myGrid.querySelectorAll('.video-card'));
+                myCards.forEach(card => {
+                    card.style.display = shouldShow(card) ? 'block' : 'none';
+                });
+                if (sort !== 'default') {
+                    myCards.sort((a,b) => {
+                        if (sort === 'az' || sort === 'za') {
+                            const tA = a.getAttribute('data-title'), tB = b.getAttribute('data-title');
+                            return sort === 'az' ? tA.localeCompare(tB) : tB.localeCompare(tA);
+                        } else {
+                            const sA = parseFloat(a.getAttribute('data-size')) || 0, sB = parseFloat(b.getAttribute('data-size')) || 0;
+                            return sort === 'sizeAsc' ? sA - sB : sB - sA;
+                        }
+                    });
+                    myCards.forEach(card => myGrid.appendChild(card));
+                }
+            }
+        }
+
+        function toggleView() {
+            isListView = !isListView;
+            const grid = document.getElementById('mainGrid');
+            const myGrid = document.getElementById('myVideosGrid');
+            if (isListView) {
+                if(grid) grid.classList.add('list-view');
+                if(myGrid) myGrid.classList.add('list-view');
+            } else {
+                if(grid) grid.classList.remove('list-view');
+                if(myGrid) myGrid.classList.remove('list-view');
+            }
+        }
+
+        function toggleFav(id, btn) {
+            if (favorites.includes(id)) {
+                favorites = favorites.filter(x => x !== id);
+                btn.classList.remove('fav-active');
+                showToast('Удалено из избранного');
+            } else {
+                favorites.push(id);
+                btn.classList.add('fav-active');
+                showToast('Добавлено в избранное');
+            }
+            localStorage.setItem('lt_favorites', JSON.stringify(favorites));
+            if(currentNav === 'favorites') applyFilters();
+        }
+        function markHistory(id) {
+            history = history.filter(x => x !== id);
+            history.unshift(id);
+            localStorage.setItem('lt_history', JSON.stringify(history));
+        }
+        function copyLink(url) { navigator.clipboard.writeText(url).then(() => showToast('Ссылка скопирована!')); }
+
+        // ========== ПРЯМОЕ СКАЧИВАНИЕ ==========
+        function directDownload() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) return showToast("Введите ссылку");
+            directPendingUrl = url;
+            showDirectQualityModal(url);
+        }
+
+        async function showDirectQualityModal(url) {
+            const formatListDiv = document.getElementById('formatList');
+            formatListDiv.innerHTML = '<div>Загрузка форматов...</div>';
+            
+            document.getElementById('qualityModalTitle').textContent = '⚡ Выберите качество (прямое скачивание)';
+            document.getElementById('qualityModalActionBtn').textContent = '⚡ Скачать напрямую';
+            document.getElementById('containerFormatDiv').style.display = 'none';
+            document.getElementById('browserCopyDiv').style.display = 'none';
+            qualityModalMode = 'direct';
+            
+            document.getElementById('qualityModal').classList.add('active');
+            
+            try {
+                const res = await fetch('/api/direct_formats', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                const data = await res.json();
+                if (data.error || !data.formats) {
+                    formatListDiv.innerHTML = `<div style="color:red;">Ошибка: ${data.error || 'Нет форматов'}</div>`;
+                    return;
+                }
+                let html = '';
+                data.formats.forEach((f) => {
+                    let label = f.resolution;
+                    if (f.filesize) label += ` (${(f.filesize / (1024*1024)).toFixed(1)} МБ)`;
+                    if (f.codec) label += ` [${f.codec}]`;
+                    const checked = (f.format_id === null) ? 'checked' : '';
+                    html += `<div class="format-option"><label><input type="radio" name="direct_format" value="${f.format_id === null ? '' : f.format_id}" ${checked}> ${label}</label></div>`;
+                });
+                formatListDiv.innerHTML = html;
+            } catch(e) {
+                formatListDiv.innerHTML = '<div style="color:red;">Ошибка загрузки форматов</div>';
+                console.error(e);
+            }
+        }
+
+        function directDownloadWithFormat() {
+            const selectedRadio = document.querySelector('input[name="direct_format"]:checked');
+            let formatId = selectedRadio ? (selectedRadio.value === '' ? null : selectedRadio.value) : null;
+            if (!directPendingUrl) {
+                showToast('Нет ссылки');
+                return;
+            }
+            
+            showToast('⏳ Прямое скачивание...');
+            fetch('/api/direct_download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: directPendingUrl, format_id: formatId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    showErrorToast('Ошибка: ' + data.error);
+                } else {
+                    showToast('✅ Скачано: ' + data.title);
+                    setTimeout(() => window.location.reload(), 2000);
+                }
+            })
+            .catch(err => {
+                showErrorToast('Ошибка соединения');
+            });
+            
+            closeQualityModal();
+            directPendingUrl = null;
+        }
+
+        // ========== ОЧЕРЕДЬ ==========
+        function showQualityModalForUrls(urls, callback) {
+            if (!urls || urls.length === 0) {
+                showToast('Не выбрано ни одного видео');
+                return;
+            }
+            const sampleUrl = urls[0];
+            pendingQualityCallback = { urls, callback };
+            
+            const formatListDiv = document.getElementById('formatList');
+            formatListDiv.innerHTML = '<div>Загрузка форматов...</div>';
+            
+            document.getElementById('qualityModalTitle').textContent = 'Выберите качество видео';
+            document.getElementById('qualityModalActionBtn').textContent = '📥 Скачать';
+            document.getElementById('containerFormatDiv').style.display = 'block';
+            document.getElementById('browserCopyDiv').style.display = 'block';
+            qualityModalMode = 'queue';
+            
+            document.getElementById('qualityModal').classList.add('active');
+            
+            fetch('/api/formats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: sampleUrl })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error || !data.formats) {
+                    formatListDiv.innerHTML = `<div style="color:red;">Ошибка: ${data.error || 'Нет форматов'}</div>`;
+                    return;
+                }
+                let html = '';
+                let hasCombo = false;
+                data.formats.forEach(f => {
+                    if (f.type === 'video_combo') {
+                        hasCombo = true;
+                        let label = f.resolution;
+                        if (f.size_mb) label += ` (${f.size_mb} МБ)`;
+                        if (f.note) label += ` [${f.note}]`;
+                        html += `<div class="format-option"><label><input type="radio" name="playlist_format" value="${f.format_id === null ? '' : f.format_id}"> ${label}</label></div>`;
+                    } else if (f.type === 'video') {
+                        let label = `Видео: ${f.resolution} (${f.codec})`;
+                        if (f.size_mb) label += ` ${f.size_mb} МБ`;
+                        html += `<div class="format-option"><label><input type="radio" name="playlist_format" value="${f.format_id}"> ${label}</label></div>`;
+                    } else if (f.type === 'audio') {
+                        let label = `Аудио: ${f.resolution} (${f.codec})`;
+                        if (f.size_mb) label += ` ${f.size_mb} МБ`;
+                        html += `<div class="format-option"><label><input type="radio" name="playlist_format" value="${f.format_id}"> ${label}</label></div>`;
+                    }
+                });
+                if (!hasCombo && html !== '') {
+                    html += '<div style="margin-top:10px; font-size:12px; color:orange;">⚠️ Это отдельные видео и аудио — они скачаются отдельными файлами (если не выбран авто-формат).</div>';
+                }
+                if (html === '') {
+                    html = '<div style="color:orange;">Нет доступных форматов, будет использовано авто</div>';
+                    html += `<div class="format-option"><label><input type="radio" name="playlist_format" value=""> Авто (bestvideo+bestaudio)</label></div>`;
+                }
+                formatListDiv.innerHTML = html;
+                const firstRadio = document.querySelector('input[name="playlist_format"]');
+                if (firstRadio) firstRadio.checked = true;
+            })
+            .catch(err => {
+                formatListDiv.innerHTML = '<div style="color:red;">Ошибка загрузки форматов</div>';
+                console.error(err);
+            });
+        }
+
+        async function startDownload() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) return showToast("Введите ссылку");
+            try {
+                const res = await fetch('/api/playlist/info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    showErrorToast('Ошибка: ' + data.error);
+                    return;
+                }
+
+                if (data.is_playlist === true && data.videos && data.videos.length > 0) {
+                    playlistData = data;
+                    selectedVideoIndices = [];
+                    let html = `<div><strong>${escapeHtml(data.title)}</strong> (${data.count} видео)</div>`;
+                    html += '<div><label><input type="checkbox" id="selectAllPlaylist"> Выбрать все</label></div><div id="playlistItems">';
+                    data.videos.forEach((video, idx) => {
+                        let duration = video.duration ? `${Math.floor(video.duration/60)}:${(video.duration%60).toString().padStart(2,'0')}` : '??';
+                        html += `<div class="playlist-item"><label><input type="checkbox" class="playlist-video-checkbox" data-index="${idx}"> ${idx+1}. ${escapeHtml(video.title)} (${duration})</label></div>`;
+                    });
+                    html += '</div>';
+                    document.getElementById('playlistVideosList').innerHTML = html;
+                    document.getElementById('playlistModal').classList.add('active');
+                    document.getElementById('selectAllPlaylist').addEventListener('change', (e) => {
+                        document.querySelectorAll('.playlist-video-checkbox').forEach(cb => cb.checked = e.target.checked);
+                        updateSelectedIndices();
+                    });
+                    document.querySelectorAll('.playlist-video-checkbox').forEach(cb => cb.addEventListener('change', updateSelectedIndices));
+                    function updateSelectedIndices() {
+                        selectedVideoIndices = Array.from(document.querySelectorAll('.playlist-video-checkbox:checked')).map(cb => parseInt(cb.getAttribute('data-index')));
+                    }
+                    return;
+                }
+
+                if (data.is_playlist === false || data.count === 0 || !data.is_playlist) {
+                    const singleUrl = data.videos && data.videos.length > 0 ? data.videos[0].url : url;
+                    pendingUrl = singleUrl;
+                    showQualityModalForUrls([singleUrl], (urls, formatId) => {
+                        const title = data.title || 'Видео';
+                        addToQueue(urls, formatId, title, document.getElementById('containerFormat').value);
+                        showToast(`Добавлено в очередь: ${title}`);
+                    });
+                } else {
+                    showToast('Не удалось распознать ссылку');
+                }
+            } catch(e) {
+                console.error('Ошибка в startDownload:', e);
+                showErrorToast('Ошибка проверки ссылки: ' + e.message, () => startDownload());
+            }
+        }
+
+        function addSelectedToQueue() {
+            if (!playlistData || !selectedVideoIndices.length) {
+                showToast('Не выбрано ни одного видео');
+                return;
+            }
+            const urls = selectedVideoIndices.map(i => playlistData.videos[i].url);
+            const title = `Плейлист (${urls.length} видео)`;
+            closePlaylistModal();
+            showQualityModalForUrls(urls, (selectedUrls, formatId) => {
+                addToQueue(selectedUrls, formatId, title, document.getElementById('containerFormat').value);
+                showToast(`Добавлено в очередь: ${title}`);
+            });
+        }
+
+        function closePlaylistModal() { 
+            document.getElementById('playlistModal').classList.remove('active'); 
+            playlistData = null; 
+            selectedVideoIndices = []; 
+        }
+        
+        function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;')); }
+
+        async function downloadAllAvatars() { showToast('Запущено скачивание аватарок...'); try { const res = await fetch('/api/avatars/download_all', { method: 'POST' }); const data = await res.json(); if (data.status === 'started') showToast('Аватарки скачиваются в фоне. Обновите страницу через минуту.'); else showErrorToast('Ошибка: ' + data.message); } catch(e) { showErrorToast('Ошибка соединения'); } }
+        async function generateThumbnails() { showToast('Запущено создание превью...'); try { const res = await fetch('/api/thumbnails/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force: false }) }); const data = await res.json(); if (data.status === 'started') showToast('Превью создаются в фоне. Обновите страницу через минуту.'); else showErrorToast('Ошибка: ' + data.message); } catch(e) { showErrorToast('Ошибка соединения'); } }
+
+        async function downloadAllSubtitles() {
+            const lang = prompt('Введите код языка (например, ru, en)', 'ru');
+            if (!lang) return;
+            showToast('Запущено скачивание субтитров...');
+            try {
+                const res = await fetch('/api/subtitles/download_all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lang: lang })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast(`Скачано субтитров: ${data.downloaded} из ${data.total}`);
+                } else {
+                    showErrorToast('Ошибка: ' + data.error);
+                }
+            } catch(e) {
+                showErrorToast('Ошибка соединения');
+            }
+        }
+
+        // ========== ОЧЕРЕДЬ ==========
+        let queuePollInterval = null;
+
+        function loadQueue() {
+            fetch('/api/queue/list')
+                .then(res => {
+                    if (!res.ok) throw new Error('Сервер вернул ошибку ' + res.status);
+                    return res.json();
+                })
+                .then(data => renderQueue(data.tasks))
+                .catch(err => {
+                    console.error('Ошибка загрузки очереди:', err);
+                    showErrorToast('Не удалось загрузить очередь: ' + err.message, loadQueue);
+                });
+        }
+
+        function renderQueue(tasks) {
+            const container = document.getElementById('queueList');
+            if (container && container.style.display !== 'none') {
+                if (!tasks || tasks.length === 0) {
+                    container.innerHTML = '<div class="queue-empty">Очередь пуста</div>';
+                } else {
+                    let html = '';
+                    tasks.forEach(task => {
+                        let statusText = '', statusClass = '';
+                        switch(task.status) {
+                            case 'waiting': statusText = '⏳ Ожидание'; statusClass = 'status-waiting'; break;
+                            case 'downloading': statusText = '⬇️ Загрузка'; statusClass = 'status-downloading'; break;
+                            case 'completed': statusText = '✅ Завершено'; statusClass = 'status-completed'; break;
+                            case 'error': statusText = '❌ Ошибка'; statusClass = 'status-error'; break;
+                            case 'paused': statusText = '⏸ Пауза'; statusClass = 'status-paused'; break;
+                            default: statusText = task.status; statusClass = '';
+                        }
+                        let progress = task.progress || 0;
+                        html += `
+                            <div class="queue-item" data-id="${task.id}">
+                                <div class="queue-item-info">
+                                    <div class="queue-item-title">${escapeHtml(task.title)}</div>
+                                    <div class="queue-item-meta">${task.urls.length} видео • Добавлено: ${new Date(task.added_at).toLocaleString()}</div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill-queue" style="width: ${progress}%;"></div>
+                                    </div>
+                                </div>
+                                <div class="queue-item-status ${statusClass}">${statusText}</div>
+                                <div class="queue-item-actions">
+                                    ${task.status === 'waiting' ? `<button onclick="removeQueueTask('${task.id}')" class="remove-btn" title="Удалить">🗑️</button>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    container.innerHTML = html;
+                }
+            }
+
+            if (tasks && tasks.some(t => t.status === 'completed') && !isRefreshingTitles) {
+                isRefreshingTitles = true;
+                setTimeout(() => {
+                    refreshVideoTitles();
+                }, 3000);
+            }
+        }
+
+        async function refreshVideoTitles() {
+            try {
+                const refreshRes = await fetch('/api/refresh', { method: 'POST' });
+                if (!refreshRes.ok) throw new Error('Ошибка обновления на сервере');
+
+                const indexRes = await fetch('/');
+                const html = await indexRes.text();
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newCards = doc.querySelectorAll('#mainGrid .video-card');
+
+                const currentCards = document.querySelectorAll('#mainGrid .video-card');
+                const titleMap = {};
+                newCards.forEach(card => {
+                    const id = card.getAttribute('data-id');
+                    const title = card.getAttribute('data-title');
+                    if (id && title) titleMap[id] = title;
+                });
+
+                currentCards.forEach(card => {
+                    const id = card.getAttribute('data-id');
+                    if (id && titleMap[id]) {
+                        const titleDiv = card.querySelector('.video-title');
+                        if (titleDiv) {
+                            titleDiv.textContent = titleMap[id];
+                            card.setAttribute('data-title', titleMap[id]);
+                        }
+                    }
+                });
+
+                const newShorts = doc.querySelectorAll('.short-card');
+                const shortsMap = {};
+                newShorts.forEach(card => {
+                    const id = card.getAttribute('data-id');
+                    const title = card.getAttribute('data-title');
+                    if (id && title) shortsMap[id] = title;
+                });
+                document.querySelectorAll('.short-card').forEach(card => {
+                    const id = card.getAttribute('data-id');
+                    if (id && shortsMap[id]) {
+                        const titleDiv = card.querySelector('.short-title');
+                        if (titleDiv) {
+                            titleDiv.textContent = shortsMap[id];
+                            card.setAttribute('data-title', shortsMap[id]);
+                        }
+                    }
+                });
+
+                const newUserCards = doc.querySelectorAll('#myVideosGrid .video-card');
+                const userMap = {};
+                newUserCards.forEach(card => {
+                    const id = card.getAttribute('data-id');
+                    const title = card.getAttribute('data-title');
+                    if (id && title) userMap[id] = title;
+                });
+                document.querySelectorAll('#myVideosGrid .video-card').forEach(card => {
+                    const id = card.getAttribute('data-id');
+                    if (id && userMap[id]) {
+                        const titleDiv = card.querySelector('.video-title');
+                        if (titleDiv) {
+                            titleDiv.textContent = userMap[id];
+                            card.setAttribute('data-title', userMap[id]);
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('Ошибка обновления названий:', e);
+                showErrorToast('Не удалось обновить названия, обновите страницу вручную', () => refreshVideoTitles());
+            } finally {
+                isRefreshingTitles = false;
+            }
+        }
+
+        function addToQueue(urls, formatId, title, mergeFormat = 'mp4') {
+            fetch('/api/queue/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ urls: urls, format_id: formatId, title: title, merge_format: mergeFormat })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    showErrorToast('Ошибка: ' + data.error);
+                } else {
+                    showToast('Добавлено в очередь');
+                    if (currentNav === 'queue') loadQueue();
+                }
+            })
+            .catch(err => {
+                showErrorToast('Ошибка добавления в очередь: ' + err.message, () => addToQueue(urls, formatId, title, mergeFormat));
+            });
+        }
+
+        function addToQueueFromQuality() {
+            const selectedRadio = document.querySelector('input[name="playlist_format"]:checked');
+            let formatId = selectedRadio ? (selectedRadio.value === '' ? null : selectedRadio.value) : null;
+            const containerFormat = document.getElementById('containerFormat').value;
+            const browserCopy = document.getElementById('browserCopyCheckbox')?.checked || false;
+            let urls = [];
+            if (pendingUrl) {
+                urls = [pendingUrl];
+            } else if (pendingQualityCallback && pendingQualityCallback.urls) {
+                urls = pendingQualityCallback.urls;
+            } else {
+                showToast('Нет ссылки для добавления');
+                console.warn('addToQueueFromQuality: нет ссылки');
+                return;
+            }
+            const title = urls.length === 1 ? 'Видео' : 'Плейлист';
+
+            addToQueue(urls, formatId, title, containerFormat);
+
+            if (containerFormat === 'avi' && browserCopy) {
+                let bestMP4 = null;
+                const allFormats = document.querySelectorAll('input[name="playlist_format"]');
+                for (let radio of allFormats) {
+                    const val = radio.value;
+                    if (val && val.includes('+')) {
+                        const text = radio.parentElement.innerText;
+                        if (text.includes('mp4') || text.includes('h264')) {
+                            bestMP4 = val;
+                            break;
+                        }
+                    }
+                }
+                if (!bestMP4 && formatId) bestMP4 = formatId;
+                if (bestMP4) {
+                    setTimeout(() => {
+                        addToQueue(urls, bestMP4, title + " (браузер)", 'mp4');
+                        showToast('Добавлена копия для браузера (MP4)');
+                    }, 500);
+                } else {
+                    showToast('Не удалось найти подходящий MP4-формат для браузера');
+                }
+            }
+
+            closeQualityModal();
+            if (pendingQualityCallback && pendingQualityCallback.callback) {
+                pendingQualityCallback.callback(urls, formatId);
+                pendingQualityCallback = null;
+            }
+            pendingUrl = null;
+        }
+
+        function removeQueueTask(taskId) {
+            fetch(`/api/queue/remove/${taskId}`, { method: 'DELETE' })
+                .then(() => {
+                    loadQueue();
+                    showToast('Задача удалена');
+                })
+                .catch(err => showErrorToast('Ошибка удаления', () => removeQueueTask(taskId)));
+        }
+
+        function pauseQueue() {
+            fetch('/api/queue/pause', { method: 'POST' })
+                .then(() => showToast('Очередь приостановлена'))
+                .catch(err => showErrorToast('Ошибка', () => pauseQueue()));
+        }
+
+        function resumeQueue() {
+            fetch('/api/queue/resume', { method: 'POST' })
+                .then(() => showToast('Очередь возобновлена'))
+                .catch(err => showErrorToast('Ошибка', () => resumeQueue()));
+        }
+
+        function clearQueue() {
+            if (!confirm('Очистить всю очередь?')) return;
+            fetch('/api/queue/clear', { method: 'POST' })
+                .then(() => {
+                    loadQueue();
+                    showToast('Очередь очищена');
+                })
+                .catch(err => showErrorToast('Ошибка', () => clearQueue()));
+        }
+
+        function startQueuePolling() {
+            if (queuePollInterval) clearInterval(queuePollInterval);
+            queuePollInterval = setInterval(() => {
+                loadQueue();
+            }, 3000);
+        }
+        startQueuePolling();
+
+        document.getElementById('urlInput').addEventListener('keypress', e => { if (e.key === 'Enter') startDownload(); });
+        
+        updateHiddenChannelsList();
+        document.querySelectorAll('.video-card, .short-card').forEach(card => {
+            const vid = card.getAttribute('data-id');
+            const btn = card.querySelector('.fav-btn');
+            if (favorites.includes(vid) && btn) btn.classList.add('fav-active');
+        });
+
+        initMiniPlayer();
+
+        function preloadAllThumbnails() {
+            const cards = document.querySelectorAll('.video-card, .short-card');
+            cards.forEach(card => {
+                const videoId = card.getAttribute('data-id');
+                if (!videoId) return;
+                const thumbImg = card.querySelector('.video-thumb img, .short-thumb img');
+                if (!thumbImg) return;
+                const currentSrc = thumbImg.src;
+                if (currentSrc && currentSrc !== '' && currentSrc !== 'about:blank' && !currentSrc.includes('/api/thumbnail/')) {
+                    return;
+                }
+                thumbImg.style.background = '#272727';
+                fetch(`/api/thumbnail/${videoId}`)
+                    .then(res => {
+                        if (res.ok) return res.blob();
+                        throw new Error();
+                    })
+                    .then(blob => {
+                        const url = URL.createObjectURL(blob);
+                        thumbImg.src = url;
+                        thumbImg.onload = () => URL.revokeObjectURL(url);
+                    })
+                    .catch(() => {
+                        thumbImg.alt = 'Нет превью';
+                        thumbImg.src = '';
+                    });
+            });
+        }
+        document.addEventListener('DOMContentLoaded', preloadAllThumbnails);
+        const originalApplyFilters = window.applyFilters;
+        if (originalApplyFilters) {
+            window.applyFilters = function() {
+                originalApplyFilters();
+                setTimeout(preloadAllThumbnails, 200);
+            };
+        }
+
+        // Закрытие модального окна с восстановлением заголовка
+        const origCloseQualityModal = closeQualityModal;
+        closeQualityModal = function() {
+            document.getElementById('qualityModalTitle').textContent = 'Выберите качество видео';
+            document.getElementById('qualityModalActionBtn').textContent = '📥 Скачать';
+            document.getElementById('containerFormatDiv').style.display = 'block';
+            document.getElementById('browserCopyDiv').style.display = 'block';
+            qualityModalMode = 'queue';
+            origCloseQualityModal();
+        };
+        window.closeQualityModal = closeQualityModal;
+
+        function executeQualityAction() {
+            if (qualityModalMode === 'direct') {
+                directDownloadWithFormat();
+            } else {
+                addToQueueFromQuality();
+            }
+        }
+        window.executeQualityAction = executeQualityAction;
+
+        // Для совместимости
+        window.directDownload = directDownload;
+        window.directDownloadWithFormat = directDownloadWithFormat;
+        window.showDirectQualityModal = showDirectQualityModal;
+    </script>
+</body>
+</html>

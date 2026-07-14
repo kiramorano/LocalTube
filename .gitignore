@@ -1,0 +1,86 @@
+# ===== FFmpeg (большие бинарники) =====
+ffmpeg.exe
+ffmpeg
+ffmpeg-*.zip
+*.exe
+*.dll
+*.so
+*.dylib
+bin/
+lib/
+
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+buildozer_env/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ===== Логи и временные файлы =====
+logs.txt
+*.log
+*.tmp
+temp_*
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ===== Медиа-файлы (видео, аватарки, превью) =====
+videos/
+avas/
+thumbnails/
+playlists/
+subtitles/
+uservideos/
+static/images/cache/
+
+# ===== Файлы загрузок и кэш =====
+*.mp4
+*.mkv
+*.webm
+*.avi
+*.srt
+*.vtt
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.gif
+
+# ===== Кэш yt-dlp =====
+.cache/
+.pytest_cache/
+.coverage
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+
+# ===== Gradle (если есть) =====
+.gradle/
+build/
+*.apk
+*.aab
+
+# ===== Файлы конфигурации пользователя =====
+config.json
+cookies.txt
+queue.json
+
+# ===== Временные файлы Android =====
+*.apk
+*.aab
+*.keystore
+*.jks

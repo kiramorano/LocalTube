@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Редактировать видео</title>
+    <link id="theme-style" rel="stylesheet" href="">
+    <style>
+        body { background: var(--yt-bg, #0f0f0f); color: var(--yt-spec-text-primary, #f1f1f1); font-family: sans-serif; padding: 80px 20px; transition: background 0.5s ease, color 0.5s ease; }
+        .container { max-width: 600px; margin: 0 auto; background: var(--yt-card-bg, #1a1a1a); padding: 20px; border-radius: 12px; border: 1px solid var(--yt-spec-border, #3f3f3f); transition: background 0.5s ease, border 0.5s ease; }
+        input, textarea, button { width: 100%; margin-bottom: 15px; padding: 10px; border-radius: 8px; border: none; }
+        input, textarea { background: var(--yt-search-bg, #333); color: var(--yt-spec-text-primary, #fff); border: 1px solid var(--yt-spec-border, #3f3f3f); transition: background 0.5s ease, color 0.5s ease, border 0.5s ease; }
+        button { background: #3ea6ff; color: #000; font-weight: bold; cursor: pointer; transition: background 0.3s ease; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: var(--yt-spec-text-primary, #fff); background: var(--yt-button-hover, #333); padding: 8px 16px; border-radius: 20px; text-decoration: none; transition: background 0.5s ease, color 0.5s ease; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← На главную</a>
+        <h2>Редактировать видео</h2>
+        <form id="editForm" enctype="multipart/form-data">
+            <input type="text" id="username" readonly>
+            <input type="text" id="title" placeholder="Название">
+            <textarea id="description" placeholder="Описание"></textarea>
+            <input type="file" id="thumbFile" accept="image/jpeg,image/png,image/webp">
+            <button type="submit">Сохранить</button>
+        </form>
+        <div id="message"></div>
+    </div>
+    <script>
+        // Поддержка темы
+        function loadTheme(theme) {
+            const link = document.getElementById('theme-style');
+            if (!theme || theme === 'dark' || theme === 'light') {
+                link.href = '';
+                document.documentElement.setAttribute('data-theme', theme || 'dark');
+            } else {
+                link.href = '/static/css/themes/' + theme + '.css';
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+            localStorage.setItem('lt_theme', theme || 'dark');
+        }
+        const savedTheme = localStorage.getItem('lt_theme') || 'dark';
+        loadTheme(savedTheme);
+
+        // Остальная логика
+        const videoId = window.location.pathname.split('/').pop();
+        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"username":"Гость"}');
+        async function load() {
+            const res = await fetch(`/api/user_video/info/${videoId}`);
+            const data = await res.json();
+            document.getElementById('username').value = data.author;
+            document.getElementById('title').value = data.title;
+            document.getElementById('description').value = data.description || '';
+        }
+        load();
+        const form = document.getElementById('editForm');
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('username', document.getElementById('username').value);
+            formData.append('title', document.getElementById('title').value);
+            formData.append('description', document.getElementById('description').value);
+            const thumb = document.getElementById('thumbFile').files[0];
+            if (thumb) formData.append('thumbnail_file', thumb);
+            const response = await fetch(`/api/user_video/edit/${videoId}`, { method: 'POST', body: formData });
+            const data = await response.json();
+            if (response.ok) {
+                alert('Сохранено');
+                window.location.href = '/';
+            } else {
+                alert('Ошибка: ' + data.error);
+            }
+        };
+    </script>
+</body>
+</html>

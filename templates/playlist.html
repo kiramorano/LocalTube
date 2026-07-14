@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ playlist.title }} - LocalTube</title>
+    <link id="theme-style" rel="stylesheet" href="">
+    <style>
+        @font-face { font-family: 'Roboto'; src: url('/static/fonts/Roboto-Regular.woff2') format('woff2'); font-weight: 400; }
+        @font-face { font-family: 'Roboto'; src: url('/static/fonts/Roboto-Medium.woff2') format('woff2'); font-weight: 500; }
+        @font-face { font-family: 'Roboto'; src: url('/static/fonts/Roboto-Bold.woff2') format('woff2'); font-weight: 700; }
+        :root[data-theme="dark"] { --yt-bg: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa; --yt-spec-border: #3f3f3f; --yt-button-hover: #272727; }
+        :root[data-theme="light"] { --yt-bg: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060; --yt-spec-border: #e5e5e5; --yt-button-hover: #f2f2f2; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; }
+        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); transition: background-color 0.5s ease, color 0.5s ease; }
+        .container { max-width: 1280px; margin: 0 auto; padding: 80px 24px 40px; }
+        .btn-back { background: var(--yt-button-hover); border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; margin-bottom: 20px; display: inline-flex; align-items: center; gap: 8px; transition: background 0.5s ease, color 0.5s ease; }
+        .playlist-header { display: flex; gap: 24px; margin-bottom: 32px; align-items: center; flex-wrap: wrap; }
+        .playlist-thumb { width: 200px; height: 200px; background: #272727; border-radius: 12px; object-fit: cover; transition: background 0.5s ease; }
+        .playlist-info h1 { margin: 0 0 8px; font-size: 28px; color: var(--yt-spec-text-primary); transition: color 0.5s ease; }
+        .playlist-meta { color: var(--yt-spec-text-secondary); margin-bottom: 16px; transition: color 0.5s ease; }
+        .video-list { display: flex; flex-direction: column; gap: 12px; }
+        .video-item { display: flex; gap: 12px; padding: 8px; border-radius: 8px; text-decoration: none; color: var(--yt-spec-text-primary); transition: background 0.3s ease, color 0.5s ease; }
+        .video-item:hover { background: var(--yt-button-hover); }
+        .video-thumb { width: 160px; height: 90px; background: #272727; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+        .video-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .video-details { flex: 1; }
+        .video-title { font-weight: 500; margin-bottom: 4px; }
+        .video-meta { font-size: 14px; color: var(--yt-spec-text-secondary); transition: color 0.5s ease; }
+        @media (max-width: 600px) {
+            .playlist-thumb { width: 120px; height: 120px; }
+            .video-thumb { width: 120px; height: 68px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="btn-back" onclick="window.location.href='/'">&larr; На главную</button>
+        <div class="playlist-header">
+            {% if playlist.thumbnail %}
+                <img class="playlist-thumb" src="{{ playlist.thumbnail }}" alt="{{ playlist.title }}">
+            {% else %}
+                <div class="playlist-thumb" style="background:#3f3f3f; display:flex; align-items:center; justify-content:center;">
+                    <svg width="60" height="60" viewBox="0 0 24 24" fill="white"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM12 6v8l5-4-5-4z"/></svg>
+                </div>
+            {% endif %}
+            <div class="playlist-info">
+                <h1>{{ playlist.title }}</h1>
+                <div class="playlist-meta">{{ playlist.uploader }} • {{ playlist.video_count }} видео</div>
+                <div>{{ playlist.description[:200] }}</div>
+            </div>
+        </div>
+        <div class="video-list">
+            {% for v in videos %}
+            <a href="{{ url_for('watch', vid_id=v.id) }}" class="video-item">
+                <div class="video-thumb">
+                    {% if v.thumb %}
+                        <img src="{{ url_for('media', filename=v.author ~ '/' ~ v.thumb) }}" loading="lazy">
+                    {% else %}
+                        <div style="background:#272727; width:100%; height:100%; display:flex; align-items:center; justify-content:center;">Нет</div>
+                    {% endif %}
+                </div>
+                <div class="video-details">
+                    <div class="video-title">{{ v.title }}</div>
+                    <div class="video-meta">{{ v.author }}</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    <script>
+        function loadTheme(theme) {
+            const link = document.getElementById('theme-style');
+            if (!theme || theme === 'dark' || theme === 'light') {
+                link.href = '';
+                document.documentElement.setAttribute('data-theme', theme || 'dark');
+            } else {
+                link.href = '/static/css/themes/' + theme + '.css';
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+            localStorage.setItem('lt_theme', theme || 'dark');
+        }
+        const savedTheme = localStorage.getItem('lt_theme') || 'dark';
+        loadTheme(savedTheme);
+    </script>
+</body>
+</html>
