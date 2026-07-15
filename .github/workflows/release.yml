@@ -293,6 +293,8 @@ jobs:
             --add-data "build_linux/bin:bin" \
             --collect-all yt_dlp \
             --collect-all webview \
+            --collect-all backports \
+            --hidden-import backports.tarfile \
             desktop/launcher.py
           file dist/localtube | grep -q 'x86-64'
       - name: Smoke-test packaged server
