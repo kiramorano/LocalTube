@@ -320,8 +320,8 @@ jobs:
           chmod +x AppDir/AppRun AppDir/usr/bin/localtube
           curl -fL https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
           chmod +x appimagetool
-          ARCH=x86_64 ./appimagetool AppDir LocalTube-x86_64.AppImage
-          ./LocalTube-x86_64.AppImage --appimage-extract >/dev/null
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 ./appimagetool AppDir LocalTube-x86_64.AppImage
+          APPIMAGE_EXTRACT_AND_RUN=1 ./LocalTube-x86_64.AppImage --appimage-extract >/dev/null
       - name: Build DEB
         run: |
           VERSION="${GITHUB_REF_NAME#v}"; [ "$GITHUB_REF_TYPE" = tag ] || VERSION="0.0.${GITHUB_RUN_NUMBER}"
