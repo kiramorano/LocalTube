@@ -168,6 +168,8 @@
         .status-paused { color: #888; }
     </style>
     <link id="theme-style" rel="stylesheet" href="">
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    <script src="/static/js/mobile.js" defer></script>
 </head>
 <body>
     <!-- Фоновые слои для кроссфейда -->
@@ -1202,7 +1204,7 @@
                             case 'waiting': statusText = '⏳ Ожидание'; statusClass = 'status-waiting'; break;
                             case 'downloading': statusText = '⬇️ Загрузка'; statusClass = 'status-downloading'; break;
                             case 'completed': statusText = '✅ Завершено'; statusClass = 'status-completed'; break;
-                            case 'error': statusText = '❌ Ошибка'; statusClass = 'status-error'; break;
+                            case 'error': statusText = '��� Ошибка'; statusClass = 'status-error'; break;
                             case 'paused': statusText = '⏸ Пауза'; statusClass = 'status-paused'; break;
                             default: statusText = task.status; statusClass = '';
                         }

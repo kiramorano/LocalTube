@@ -194,10 +194,56 @@ def build_user_video_map():
         }
     logger.info(f"Найдено пользовательских видео: {len(USER_VIDEO_MAP)}")
 
+def _send_media_file(file_path):
+    """Отдаёт локальное видео с поддержкой HTTP Range для seek в WebView."""
+    if not os.path.isfile(file_path):
+        abort(404)
+    file_size = os.path.getsize(file_path)
+    mime = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
+    range_header = request.headers.get('Range')
+    if not range_header:
+        response = send_file(file_path, mimetype=mime, conditional=True)
+        response.headers['Accept-Ranges'] = 'bytes'
+        response.headers['Content-Disposition'] = 'inline'
+        return response
+
+    match = re.match(r'bytes=(\d*)-(\d*)', range_header)
+    if not match:
+        return jsonify({'error': 'Некорректный Range-заголовок'}), 416
+    start_text, end_text = match.groups()
+    if not start_text and not end_text:
+        return jsonify({'error': 'Некорректный диапазон'}), 416
+    if start_text:
+        start = int(start_text)
+        end = int(end_text) if end_text else file_size - 1
+    else:
+        suffix_length = int(end_text)
+        start = max(file_size - suffix_length, 0)
+        end = file_size - 1
+    if start >= file_size or start > end:
+        response = jsonify({'error': 'Диапазон вне файла'})
+        response.status_code = 416
+        response.headers['Content-Range'] = f'bytes */{file_size}'
+        return response
+    end = min(end, file_size - 1)
+    length = end - start + 1
+    with open(file_path, 'rb') as media_file:
+        media_file.seek(start)
+        chunk = media_file.read(length)
+    response = app.response_class(chunk, status=206, mimetype=mime, direct_passthrough=True)
+    response.headers['Content-Range'] = f'bytes {start}-{end}/{file_size}'
+    response.headers['Accept-Ranges'] = 'bytes'
+    response.headers['Content-Length'] = str(length)
+    response.headers['Content-Disposition'] = 'inline'
+    return response
+
 @app.route('/usermedia/<path:filename>')
 def usermedia(filename):
-    base = os.path.join(SCRIPT_DIR, USER_VIDEOS_ROOT)
-    return send_from_directory(base, filename)
+    base = os.path.realpath(os.path.join(SCRIPT_DIR, USER_VIDEOS_ROOT))
+    file_path = os.path.realpath(os.path.join(base, filename))
+    if not file_path.startswith(base + os.sep):
+        abort(403)
+    return _send_media_file(file_path)
 
 @app.route('/subtitles/<video_id>/<lang>.<ext>')
 def serve_subtitle(video_id, lang, ext):
@@ -580,14 +626,20 @@ def direct_download():
             json.dump(info, f, indent=2, ensure_ascii=False)
 
         if not format_id:
-            format_str = 'bestvideo+bestaudio/best'
+            # Предпочитаем H.264/AAC MP4: он воспроизводится и в Android WebView,
+            # и в Windows WebView2. Последние варианты — безопасные fallback.
+            format_str = 'bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best'
         else:
             if '+' not in format_id:
-                format_str = f"{format_id}+bestaudio/best"
+                format_str = f"{format_id}+bestaudio[ext=m4a]/{format_id}+bestaudio/{format_id}/best[ext=mp4]/best"
             else:
                 format_str = format_id
 
         logger.info(f"📥 Используем формат для загрузки: {format_str}")
+
+        ffmpeg_path = shutil.which('ffmpeg')
+        if not ffmpeg_path:
+            return jsonify({"error": "FFmpeg не найден. Откройте /api/health для диагностики сборки."}), 500
 
         ydl_opts_download = {
             'format': format_str,
@@ -595,7 +647,8 @@ def direct_download():
             'outtmpl': output_path,
             'quiet': False,
             'no_warnings': True,
-            'ignoreerrors': True,
+            'ignoreerrors': False,
+            'ffmpeg_location': os.path.dirname(ffmpeg_path),
             'socket_timeout': 30,
             'retries': 5,
             'cookiefile': COOKIES_PATH if os.path.exists(COOKIES_PATH) else None,
@@ -604,7 +657,9 @@ def direct_download():
             ydl_opts_download.update(po_args)
 
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
-            ydl.download([url])
+            result_code = ydl.download([url])
+        if result_code != 0 or not os.path.isfile(output_path) or os.path.getsize(output_path) == 0:
+            return jsonify({"error": "yt-dlp не создал итоговый MP4. Проверьте cookies и /api/health."}), 500
 
         build_video_map()
 
@@ -798,6 +853,35 @@ def media(filename):
     response = send_file(filepath, mimetype=mime_type, conditional=True)
     response.headers['Accept-Ranges'] = 'bytes'
     return response
+
+@app.route('/api/health', methods=['GET'])
+def health():
+    ffmpeg_path = shutil.which('ffmpeg')
+    ffprobe_path = shutil.which('ffprobe')
+    writable = os.access(SCRIPT_DIR, os.W_OK)
+    try:
+        yt_dlp_version = yt_dlp.version.__version__
+    except Exception:
+        yt_dlp_version = 'unknown'
+    checks = {
+        'ffmpeg': bool(ffmpeg_path),
+        'ffprobe': bool(ffprobe_path),
+        'data_writable': writable,
+    }
+    return jsonify({
+        'status': 'ok' if all(checks.values()) else 'degraded',
+        'checks': checks,
+        'python': sys.version.split()[0],
+        'yt_dlp': yt_dlp_version,
+        'ffmpeg_path': ffmpeg_path,
+        'ffprobe_path': ffprobe_path,
+        'data_dir': SCRIPT_DIR,
+        'cookies': os.path.exists(COOKIES_PATH),
+    }), 200
+
+@app.errorhandler(413)
+def content_too_large(_error):
+    return jsonify({'error': 'Файл превышает лимит 500 МБ'}), 413
 
 @app.route('/api/refresh', methods=['POST'])
 def refresh():
@@ -1071,12 +1155,22 @@ def api_upload_user_video():
     if not video_file:
         return jsonify({"error": "Видеофайл не загружен"}), 400
 
+    original_name = os.path.basename(video_file.filename or '')
+    video_ext = os.path.splitext(original_name)[1].lower()
+    allowed_video_exts = {'.mp4', '.mkv', '.webm', '.avi', '.mov'}
+    if video_ext not in allowed_video_exts:
+        return jsonify({"error": "Поддерживаются MP4, MKV, WebM, AVI и MOV"}), 400
+    if request.content_length and request.content_length > app.config['MAX_CONTENT_LENGTH']:
+        return jsonify({"error": "Файл превышает лимит 500 МБ"}), 413
+
     import tempfile
-    fd, temp_video_path = tempfile.mkstemp(suffix=".mp4", dir=SCRIPT_DIR)
+    fd, temp_video_path = tempfile.mkstemp(suffix=video_ext, dir=SCRIPT_DIR)
     os.close(fd)
     temp_thumb_path = None
     try:
         video_file.save(temp_video_path)
+        if os.path.getsize(temp_video_path) == 0:
+            raise ValueError("Загруженный видеофайл пуст")
         if thumbnail_file:
             fd, temp_thumb_path = tempfile.mkstemp(suffix=".jpg", dir=SCRIPT_DIR)
             os.close(fd)
