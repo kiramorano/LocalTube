@@ -2,6 +2,8 @@ name: Build Releases (EXE + APK)
 
 on:
   push:
+    branches:
+      - "apk-and-exe-releases"
     tags:
       - "v*"
   workflow_dispatch:
