@@ -104,3 +104,20 @@ button, input, select, textarea { font: inherit; }
 @media (min-width: 769px) and (max-width: 1100px) {
   .video-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
+
+/* Remote-first layout used by the separate Android TV flavor. */
+.lt-tv body { font-size: 18px; }
+.lt-tv .lt-mobile-nav { display: none !important; }
+.lt-tv button, .lt-tv a, .lt-tv input, .lt-tv select, .lt-tv [tabindex] {
+  outline: 3px solid transparent;
+  outline-offset: 3px;
+}
+.lt-tv button:focus, .lt-tv a:focus, .lt-tv input:focus, .lt-tv select:focus,
+.lt-tv [tabindex]:focus {
+  outline-color: #ff3030;
+  transform: scale(1.03);
+}
+.lt-tv button, .lt-tv input, .lt-tv select { min-height: 56px; }
+.lt-tv .video-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 24px !important; }
+.lt-tv .sidebar-item { min-height: 56px; }
+.lt-tv .modal-content { max-width: 760px !important; }

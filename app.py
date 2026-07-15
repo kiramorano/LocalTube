@@ -507,66 +507,52 @@ def direct_formats():
             logger.warning("Форматы не найдены или видео недоступно")
             return jsonify({"error": "Видео недоступно или форматы не найдены"}), 500
 
-        formats = []
-        seen_resolutions = set()
-
+        # YouTube обычно отдаёт качество выше 360p отдельным видеопотоком.
+        # Показываем один совместимый MP4-вариант на каждую высоту и поручаем
+        # yt-dlp подобрать H.264/AAC потоки и склеить их через FFmpeg.
+        by_height = {}
         for f in info.get('formats', []):
-            if not f.get('url'):
+            if not f.get('url') or f.get('vcodec', 'none') == 'none':
                 continue
-            vcodec = f.get('vcodec', 'none')
-            acodec = f.get('acodec', 'none')
-            height = f.get('height', 0)
-            format_id = f.get('format_id')
-            ext = f.get('ext', 'mp4')
-            filesize = f.get('filesize') or f.get('filesize_approx')
+            height = int(f.get('height') or 0)
+            if height <= 0:
+                continue
+            current = by_height.get(height)
+            score = (
+                f.get('ext') == 'mp4',
+                str(f.get('vcodec', '')).startswith('avc1'),
+                f.get('filesize') is not None,
+                f.get('tbr') or 0,
+            )
+            if current is None or score > current['_score']:
+                by_height[height] = {
+                    'format_id': (
+                        f"bestvideo[height<={height}][ext=mp4][vcodec^=avc1]+"
+                        "bestaudio[ext=m4a]/"
+                        f"bestvideo[height<={height}]+bestaudio/"
+                        f"best[height<={height}]"
+                    ),
+                    'resolution': f"{height}p",
+                    'ext': 'mp4',
+                    'codec': 'H.264 + AAC (FFmpeg)',
+                    'filesize': f.get('filesize') or f.get('filesize_approx'),
+                    'height': height,
+                    '_score': score,
+                }
 
-            if vcodec != 'none' and acodec != 'none' and height > 0:
-                res_key = f"{height}p"
-                if res_key not in seen_resolutions:
-                    seen_resolutions.add(res_key)
-                    formats.append({
-                        'format_id': format_id,
-                        'resolution': res_key,
-                        'ext': ext,
-                        'codec': f"{vcodec.split('.')[0]}+{acodec.split('.')[0]}",
-                        'filesize': filesize,
-                        'height': height
-                    })
-
-        if not formats:
-            video_formats = []
-            audio_formats = []
-            for f in info.get('formats', []):
-                if not f.get('url'):
-                    continue
-                vcodec = f.get('vcodec', 'none')
-                acodec = f.get('acodec', 'none')
-                height = f.get('height', 0)
-                if vcodec != 'none' and height > 0:
-                    video_formats.append({
-                        'format_id': f['format_id'],
-                        'resolution': f"{height}p",
-                        'ext': f.get('ext', 'mp4'),
-                        'codec': vcodec.split('.')[0],
-                        'filesize': f.get('filesize') or f.get('filesize_approx'),
-                        'height': height
-                    })
-                elif acodec != 'none':
-                    audio_formats.append({
-                        'format_id': f['format_id'],
-                        'resolution': f"{f.get('tbr', 0)}k",
-                        'ext': f.get('ext', 'm4a'),
-                        'codec': acodec.split('.')[0],
-                        'filesize': f.get('filesize') or f.get('filesize_approx')
-                    })
-
-            video_formats.sort(key=lambda x: x.get('height', 0), reverse=True)
-            formats.extend(video_formats[:10])
-            if audio_formats:
-                formats.extend(audio_formats[:3])
-
-        formats.sort(key=lambda x: x.get('height', 0), reverse=True)
-        formats.insert(0, {'format_id': None, 'resolution': 'Авто (лучшее)', 'ext': 'mp4', 'codec': 'best', 'filesize': None, 'height': 0})
+        formats = []
+        for height in sorted(by_height, reverse=True):
+            item = by_height[height]
+            item.pop('_score', None)
+            formats.append(item)
+        formats.insert(0, {
+            'format_id': None,
+            'resolution': 'Авто (максимум)',
+            'ext': 'mp4',
+            'codec': 'лучший H.264/AAC',
+            'filesize': None,
+            'height': 0,
+        })
 
         logger.info(f"Найдено доступных форматов: {len(formats)}")
         return jsonify({"formats": formats})
@@ -1340,7 +1326,7 @@ def config_api():
 # ------------------ COOKIES ------------------
 def _json_cookies_to_netscape(cookies_list):
     """Конвертирует JSON-экспорт cookies (Cookie-Editor, EditThisCookie и т.п.)
-    в формат Netscape, который понимает yt-dlp."""
+    в формат Netscape, ко��орый понимает yt-dlp."""
     lines = [
         "# Netscape HTTP Cookie File",
         "# Импортировано через LocalTube",
@@ -1626,7 +1612,9 @@ def api_generate_thumbnails():
 
 # ================== ОЧЕРЕДЬ ЗАГРУЗОК ==================
 queue_tasks = []
-queue_lock = threading.Lock()
+# save_queue is intentionally callable from progress callbacks while the queue
+# state is already locked. RLock prevents the previous mobile-download deadlock.
+queue_lock = threading.RLock()
 queue_processing = False
 queue_processor_thread = None
 
@@ -1639,6 +1627,8 @@ class QueueTask:
         self.merge_format = merge_format
         self.status = "waiting"
         self.progress = 0
+        self.message = "Ожидание загрузки"
+        self.error = None
         self.added_at = datetime.now().isoformat()
 
 def save_queue():
@@ -1653,6 +1643,8 @@ def save_queue():
                 "merge_format": t.merge_format,
                 "status": t.status,
                 "progress": t.progress,
+                "message": t.message,
+                "error": t.error,
                 "added_at": t.added_at
             })
     try:
@@ -1677,7 +1669,9 @@ def load_queue():
                 else:
                     task.status = td["status"]
                 task.progress = td.get("progress", 0)
-                task.added_at = td["added_at"]
+                task.message = td.get("message", "Ожидание загрузки")
+                task.error = td.get("error")
+                task.added_at = td.get("added_at", datetime.now().isoformat())
                 queue_tasks.append(task)
     except Exception as e:
         logger.error(f"Ошибка загрузки очереди: {e}")
@@ -1710,7 +1704,8 @@ def _process_queue():
 
         def progress_callback(percent, message):
             with queue_lock:
-                current_task.progress = percent
+                current_task.progress = max(0, min(100, float(percent or 0)))
+                current_task.message = message
             save_queue()
 
         try:
@@ -1718,15 +1713,21 @@ def _process_queue():
             if success:
                 current_task.status = "completed"
                 current_task.progress = 100
+                current_task.message = "Загрузка завершена"
+                current_task.error = None
                 def update_cache():
                     time.sleep(2)
                     build_video_map()
                 threading.Thread(target=update_cache, daemon=True).start()
             else:
                 current_task.status = "error"
+                current_task.message = "Загрузка не завершена"
+                current_task.error = "Проверьте ссылку, cookies, свободное место и FFmpeg"
         except Exception as e:
             logger.error(f"Ошибка выполнения задачи {current_task.id}: {e}")
             current_task.status = "error"
+            current_task.message = "Ошибка загрузки"
+            current_task.error = str(e)
         save_queue()
         time.sleep(1)
     queue_processing = False
@@ -1741,6 +1742,8 @@ def api_queue_list():
                 "title": t.title,
                 "status": t.status,
                 "progress": t.progress,
+                "message": t.message,
+                "error": t.error,
                 "added_at": t.added_at,
                 "urls": t.urls
             })
@@ -1759,6 +1762,13 @@ def api_queue_add():
         return jsonify({"error": "No URLs"}), 400
     if isinstance(urls, str):
         urls = [urls]
+    if not isinstance(urls, list) or len(urls) > 500:
+        return jsonify({"error": "Некорректный список ссылок"}), 400
+    urls = [str(url).strip() for url in urls if str(url).strip()]
+    if not urls or any(not re.match(r'^https?://', url, re.I) for url in urls):
+        return jsonify({"error": "Разрешены только HTTP/HTTPS ссылки"}), 400
+    if merge_format not in ('mp4', 'mkv', 'webm', 'avi'):
+        return jsonify({"error": "Неподдерживаемый формат контейнера"}), 400
     task_id = hashlib.md5(f"{time.time()}_{random.randint(0,100000)}".encode()).hexdigest()[:8]
     task = QueueTask(task_id, urls, format_id, title or (urls[0] if len(urls) == 1 else f"Плейлист ({len(urls)} видео)"), merge_format)
     with queue_lock:
@@ -1774,6 +1784,22 @@ def api_queue_remove(task_id):
         queue_tasks = [t for t in queue_tasks if t.id != task_id]
     save_queue()
     return jsonify({"status": "ok"})
+
+@app.route('/api/queue/retry/<task_id>', methods=['POST'])
+def api_queue_retry(task_id):
+    with queue_lock:
+        task = next((item for item in queue_tasks if item.id == task_id), None)
+        if task is None:
+            return jsonify({"error": "Задача не найдена"}), 404
+        if task.status == "downloading":
+            return jsonify({"error": "Задача уже выполняется"}), 409
+        task.status = "waiting"
+        task.progress = 0
+        task.message = "Повторная попытка"
+        task.error = None
+    save_queue()
+    start_queue_processor()
+    return jsonify({"status": "waiting"})
 
 @app.route('/api/queue/pause', methods=['POST'])
 def api_queue_pause():

@@ -154,10 +154,15 @@ jobs:
             --add-data "build_win7/localtube_src;localtube_src" `
             --add-data "build_win7/bin;bin" `
             --collect-all yt_dlp `
-            --collect-all webview `
-            --collect-all clr_loader `
-            --collect-all pythonnet `
+            --collect-all cefpython3 `
+            --hidden-import cefpython3.cefpython `
             desktop/launcher.py
+
+      - name: Verify bundled Chromium
+        shell: pwsh
+        run: |
+          python -c "from cefpython3 import cefpython as cef; print('CEF', cef.GetVersion())"
+          if (-not (Test-Path "dist/LocalTube-Windows7-${{ matrix.arch }}-portable.exe")) { throw "Missing legacy executable" }
 
       - name: Smoke-test packaged server
         shell: pwsh
@@ -240,20 +245,106 @@ jobs:
         with:
           gradle-version: "8.6"
 
-      - name: Build APK
+      - name: Build and lint phone + TV APKs
         env:
           ANDROID_VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || format('0.0.0-dev.{0}', github.run_number) }}
           ANDROID_VERSION_CODE: ${{ github.run_number }}
-        run: gradle -p android assembleRelease --no-daemon
+        run: gradle -p android assemblePhoneRelease assembleTvRelease lintPhoneRelease lintTvRelease --no-daemon
 
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk LocalTube.apk
+      - name: Rename APKs
+        run: |
+          cp android/app/build/outputs/apk/phone/release/app-phone-release.apk LocalTube-Android.apk
+          cp android/app/build/outputs/apk/tv/release/app-tv-release.apk LocalTube-AndroidTV.apk
+          test -s LocalTube-Android.apk
+          test -s LocalTube-AndroidTV.apk
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: LocalTube-apk
-          path: LocalTube.apk
+          name: LocalTube-android-apks
+          path: |
+            LocalTube-Android.apk
+            LocalTube-AndroidTV.apk
+
+  # ============================================================
+  # Linux x86_64: portable AppImage + Debian installer
+  # ============================================================
+  linux-packages:
+    name: Linux x86_64 AppImage + DEB
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.0-37 file
+          python -m pip install -r desktop/requirements-linux.txt
+      - name: Stage sources and FFmpeg
+        run: |
+          mkdir -p build_linux/localtube_src build_linux/bin
+          cp *.py build_linux/localtube_src/
+          cp -r templates static build_linux/localtube_src/
+          [ -f config.json ] && cp config.json build_linux/localtube_src/ || true
+          curl -fL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg-linux.tar.xz
+          mkdir ffmpeg-linux
+          tar -xJf ffmpeg-linux.tar.xz -C ffmpeg-linux --strip-components=1
+          cp ffmpeg-linux/ffmpeg ffmpeg-linux/ffprobe build_linux/bin/
+          chmod +x build_linux/bin/*
+      - name: Build Linux executable
+        run: |
+          pyinstaller --onefile --clean --name localtube \
+            --add-data "build_linux/localtube_src:localtube_src" \
+            --add-data "build_linux/bin:bin" \
+            --collect-all yt_dlp \
+            --collect-all webview \
+            desktop/launcher.py
+          file dist/localtube | grep -q 'x86-64'
+      - name: Smoke-test packaged server
+        run: |
+          export LOCALTUBE_HEADLESS=1 LOCALTUBE_DATA_DIR="$RUNNER_TEMP/localtube-smoke"
+          dist/localtube > "$RUNNER_TEMP/localtube.log" 2>&1 & PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            curl -fsS http://127.0.0.1:8000/api/health >/dev/null && break
+            kill -0 $PID || { cat "$RUNNER_TEMP/localtube.log"; exit 1; }
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8000/api/queue/list | python -m json.tool
+      - name: Build AppImage
+        run: |
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/512x512/apps
+          cp dist/localtube AppDir/usr/bin/localtube
+          cp desktop/localtube.desktop AppDir/localtube.desktop
+          cp desktop/localtube.desktop AppDir/usr/share/applications/localtube.desktop
+          cp desktop/localtube.png AppDir/localtube.png
+          cp desktop/localtube.png AppDir/usr/share/icons/hicolor/512x512/apps/localtube.png
+          printf '#!/bin/sh\nexec "$APPDIR/usr/bin/localtube" "$@"\n' > AppDir/AppRun
+          chmod +x AppDir/AppRun AppDir/usr/bin/localtube
+          curl -fL https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool AppDir LocalTube-x86_64.AppImage
+          ./LocalTube-x86_64.AppImage --appimage-extract >/dev/null
+      - name: Build DEB
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"; [ "$GITHUB_REF_TYPE" = tag ] || VERSION="0.0.${GITHUB_RUN_NUMBER}"
+          ROOT=debroot
+          mkdir -p "$ROOT/DEBIAN" "$ROOT/usr/bin" "$ROOT/usr/share/applications" "$ROOT/usr/share/icons/hicolor/512x512/apps"
+          cp dist/localtube "$ROOT/usr/bin/localtube"
+          cp desktop/localtube.desktop "$ROOT/usr/share/applications/localtube.desktop"
+          cp desktop/localtube.png "$ROOT/usr/share/icons/hicolor/512x512/apps/localtube.png"
+          printf 'Package: localtube\nVersion: %s\nSection: video\nPriority: optional\nArchitecture: amd64\nMaintainer: LocalTube\nDepends: libgtk-3-0, libwebkit2gtk-4.0-37\nDescription: Local video library and downloader\n' "$VERSION" > "$ROOT/DEBIAN/control"
+          dpkg-deb --build --root-owner-group "$ROOT" "localtube_${VERSION}_amd64.deb"
+          dpkg-deb --info "localtube_${VERSION}_amd64.deb"
+          cp "localtube_${VERSION}_amd64.deb" localtube_amd64.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalTube-linux-x86_64
+          path: |
+            LocalTube-x86_64.AppImage
+            localtube_amd64.deb
 
   # ============================================================
   # Публикация GitHub Release (только для тегов v*)
@@ -261,7 +352,7 @@ jobs:
   release:
     name: Publish GitHub Release
     if: github.ref_type == 'tag'
-    needs: [windows-exe, windows7-exe, android-apk]
+    needs: [windows-exe, windows7-exe, android-apk, linux-packages]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

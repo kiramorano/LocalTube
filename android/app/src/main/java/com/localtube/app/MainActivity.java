@@ -150,7 +150,10 @@ public class MainActivity extends Activity {
             pageLoaded = true;
             findViewById(R.id.loading_view).setVisibility(android.view.View.GONE);
             webView.setVisibility(android.view.View.VISIBLE);
-            webView.loadUrl(SERVER_URL);
+            String appUrl = getPackageName().endsWith(".tv")
+                    ? SERVER_URL + "?platform=tv"
+                    : SERVER_URL;
+            webView.loadUrl(appUrl);
         }
     }
 

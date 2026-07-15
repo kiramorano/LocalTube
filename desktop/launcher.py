@@ -34,6 +34,10 @@ def _pyinstaller_hidden_imports():  # pragma: no cover
     import requests  # noqa: F401
     import PIL.Image  # noqa: F401
     import yt_dlp  # noqa: F401
+    try:
+        import cefpython3  # noqa: F401
+    except ImportError:
+        pass
 
 # Файлы/папки кода, которые перезаписываются при каждом запуске (обновление версии)
 CODE_ITEMS = [
@@ -48,7 +52,11 @@ DATA_ITEMS = ["config.json", "cookies.txt"]
 # static: код + пользовательский кэш вперемешку — обновляем файлы кода,
 # но не удаляем ничего лишнего
 STATIC_DIR = "static"
-BIN_ITEMS = ["ffmpeg.exe", "ffprobe.exe"]
+BIN_ITEMS = (
+    ["ffmpeg.exe", "ffprobe.exe"]
+    if sys.platform.startswith("win")
+    else ["ffmpeg", "ffprobe"]
+)
 
 PORT = int(os.environ.get("PORT", "8000"))
 
@@ -63,6 +71,17 @@ def get_exe_dir() -> str:
     if getattr(sys, "frozen", False):
         return os.path.dirname(os.path.abspath(sys.executable))
     return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_data_dir(exe_dir: str) -> str:
+    """Writable persistent data on Linux, adjacent portable data on Windows."""
+    override = os.environ.get("LOCALTUBE_DATA_DIR")
+    if override:
+        return os.path.abspath(os.path.expanduser(override))
+    if sys.platform.startswith("linux"):
+        root = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+        return os.path.join(root, "localtube")
+    return os.path.join(exe_dir, "LocalTube_Data")
 
 
 def copy_tree_overwrite(src: str, dst: str) -> None:
@@ -115,6 +134,8 @@ def prepare_data_dir(bundle: str, data_dir: str) -> None:
         dst = os.path.join(bin_dir, item)
         if os.path.exists(src):
             shutil.copy2(src, dst)
+            if not sys.platform.startswith("win"):
+                os.chmod(dst, os.stat(dst).st_mode | 0o111)
 
 
 def wait_for_server(url: str, attempts: int = 240) -> bool:
@@ -169,7 +190,7 @@ def show_error(message: str, data_dir: str = "") -> None:
 def main() -> None:
     bundle = get_bundle_dir()
     exe_dir = get_exe_dir()
-    data_dir = os.path.join(exe_dir, "LocalTube_Data")
+    data_dir = get_data_dir(exe_dir)
 
     print("=" * 60)
     print("  LocalTube NEO — Portable")
@@ -212,20 +233,33 @@ def main() -> None:
 
     legacy_mode = os.environ.get("LOCALTUBE_WINDOWS7") == "1" or is_windows_7()
 
-    # MSHTML (IE11) не умеет отображать современный интерфейс LocalTube и
-    # показывает пустое окно. Поэтому legacy-сборка надёжно открывает сервер
-    # в установленном браузере, а EXE продолжает держать сервер в фоне.
+    # Windows 7 uses CEF 66: the last cefpython runtime which supports the OS.
+    # If initialization fails we retain a browser fallback and a launcher log.
     if legacy_mode:
-        opened = webbrowser.open(url, new=1, autoraise=True)
-        if not opened:
+        try:
+            from cefpython3 import cefpython as cef
+            cache_dir = os.path.join(data_dir, "cef-cache")
+            os.makedirs(cache_dir, exist_ok=True)
+            cef.Initialize(settings={
+                "cache_path": cache_dir,
+                "persist_session_cookies": True,
+                "user_agent": "LocalTube-Windows7",
+            })
+            cef.CreateBrowserSync(url=url, window_title="LocalTube")
+            cef.MessageLoop()
+            cef.Shutdown()
+            return
+        except Exception as exc:  # noqa: BLE001
             show_error(
-                "LocalTube запущен, но не удалось открыть браузер.\n\n"
-                "Откройте вручную Chrome или Firefox и перейдите по адресу:\n"
-                + url,
+                "Встроенный Chromium не запустился: {}\n"
+                "LocalTube откроется в системном браузере.".format(exc),
                 data_dir,
             )
-        server_thread.join()
-        return
+            opened = webbrowser.open(url, new=1, autoraise=True)
+            if not opened:
+                show_error("Откройте вручную: " + url, data_dir)
+            server_thread.join()
+            return
 
     # На современных Windows используем собственное окно WebView2.
     try:

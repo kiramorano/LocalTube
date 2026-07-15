@@ -52,11 +52,15 @@ def get_ydl_opts(format_id, merge_format, progress_hook, temp_dir):
     os.makedirs(temp_dir, exist_ok=True)
     
     if format_id and '+' not in format_id and format_id.isdigit():
-        actual_format = f"{format_id}+bestaudio/best"
+        actual_format = f"{format_id}+bestaudio[ext=m4a]/{format_id}+bestaudio/{format_id}"
     else:
-        actual_format = format_id or 'bestvideo+bestaudio/best'
+        actual_format = format_id or (
+            'bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/'
+            'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+        )
 
     po_args = get_po_args()
+    ffmpeg_path = shutil.which('ffmpeg')
 
     opts = {
         'format': actual_format,
@@ -66,11 +70,14 @@ def get_ydl_opts(format_id, merge_format, progress_hook, temp_dir):
         'writeinfojson': True,
         'quiet': False,
         'no_warnings': True,
-        'ignoreerrors': True, # БАГФИКС: Защита от краша при загрузке
+        'ignoreerrors': False,
         'socket_timeout': 30,
         'retries': 5,
+        'fragment_retries': 5,
+        'continuedl': True,
         'cookiefile': COOKIES_PATH if os.path.exists(COOKIES_PATH) else None,
         'progress_hooks': [progress_hook],
+        **({'ffmpeg_location': os.path.dirname(ffmpeg_path)} if ffmpeg_path else {}),
     }
 
     if po_args:

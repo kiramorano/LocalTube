@@ -32,6 +32,20 @@ android {
         }
     }
 
+    flavorDimensions += "device"
+    productFlavors {
+        phone {
+            dimension "device"
+            applicationIdSuffix ".phone"
+            resValue "string", "app_name", "LocalTube"
+        }
+        tv {
+            dimension "device"
+            applicationIdSuffix ".tv"
+            resValue "string", "app_name", "LocalTube TV"
+        }
+    }
+
     // Нативные библиотеки (ffmpeg/ffprobe) должны быть распакованы на диск,
     // чтобы их можно было исполнять как обычные бинарники
     packagingOptions {

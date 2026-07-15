@@ -10,3 +10,4 @@ yt-dlp==2024.10.22
 pywebview==4.4.1
 pythonnet==3.0.3
 clr-loader==0.2.6
+cefpython3==66.1

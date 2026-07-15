@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=LocalTube
+Comment=Локальная медиатека и загрузчик видео
+Exec=localtube
+Icon=localtube
+Terminal=false
+Categories=AudioVideo;Video;
+StartupNotify=true

@@ -1000,27 +1000,12 @@
                 return;
             }
             
-            showToast('⏳ Прямое скачивание...');
-            fetch('/api/direct_download', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: directPendingUrl, format_id: formatId })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.error) {
-                    showErrorToast('Ошибка: ' + data.error);
-                } else {
-                    showToast('✅ Скачано: ' + data.title);
-                    setTimeout(() => window.location.reload(), 2000);
-                }
-            })
-            .catch(err => {
-                showErrorToast('Ошибка соединения');
-            });
-            
+            const queuedUrl = directPendingUrl;
+            addToQueue([queuedUrl], formatId, 'Видео', 'mp4');
+            showToast('Видео добавлено в очередь');
             closeQualityModal();
             directPendingUrl = null;
+            filterNav('queue');
         }
 
         // ========== ОЧЕРЕДЬ ==========
@@ -1230,14 +1215,16 @@
                             <div class="queue-item" data-id="${task.id}">
                                 <div class="queue-item-info">
                                     <div class="queue-item-title">${escapeHtml(task.title)}</div>
-                                    <div class="queue-item-meta">${task.urls.length} видео • Добавлено: ${new Date(task.added_at).toLocaleString()}</div>
-                                    <div class="progress-bar">
+                                    <div class="queue-item-meta">${task.urls.length} видео · ${Math.round(progress)}% · ${escapeHtml(task.message || '')}</div>
+                                    ${task.error ? `<div class="queue-item-error">${escapeHtml(task.error)}</div>` : ''}
+                                    <div class="progress-bar" role="progressbar" aria-label="Прогресс загрузки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(progress)}">
                                         <div class="progress-fill-queue" style="width: ${progress}%;"></div>
                                     </div>
                                 </div>
                                 <div class="queue-item-status ${statusClass}">${statusText}</div>
                                 <div class="queue-item-actions">
-                                    ${task.status === 'waiting' ? `<button onclick="removeQueueTask('${task.id}')" class="remove-btn" title="Удалить">🗑️</button>` : ''}
+                                    ${task.status === 'error' ? `<button onclick="retryQueueTask('${task.id}')" class="retry-btn" title="Повторить">Повторить</button>` : ''}
+                                    ${task.status !== 'downloading' ? `<button onclick="removeQueueTask('${task.id}')" class="remove-btn" title="Удалить">Удалить</button>` : ''}
                                 </div>
                             </div>
                         `;
@@ -1399,6 +1386,17 @@
             pendingUrl = null;
         }
 
+        function retryQueueTask(taskId) {
+            fetch(`/api/queue/retry/${taskId}`, { method: 'POST' })
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                    loadQueue();
+                    showToast('Повторная загрузка запущена');
+                })
+                .catch(err => showErrorToast('Ошибка повтора: ' + err.message, () => retryQueueTask(taskId)));
+        }
+
         function removeQueueTask(taskId) {
             fetch(`/api/queue/remove/${taskId}`, { method: 'DELETE' })
                 .then(() => {
@@ -1410,7 +1408,7 @@
 
         function pauseQueue() {
             fetch('/api/queue/pause', { method: 'POST' })
-                .then(() => showToast('Очередь приостановлена'))
+                .then(() => showToast('Очере��ь приостановлена'))
                 .catch(err => showErrorToast('Ошибка', () => pauseQueue()));
         }
 
@@ -1438,7 +1436,10 @@
         }
         startQueuePolling();
 
-        document.getElementById('urlInput').addEventListener('keypress', e => { if (e.key === 'Enter') startDownload(); });
+        document.getElementById('urlInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.nativeEvent?.isComposing && e.keyCode !== 229) startDownload();
+        });
+        if (window.location.hash === '#queue') filterNav('queue');
         
         updateHiddenChannelsList();
         document.querySelectorAll('.video-card, .short-card').forEach(card => {
