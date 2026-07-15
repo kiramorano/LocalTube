@@ -231,18 +231,6 @@ jobs:
           curl -fL "$FFMPEG_ANDROID_BASE/ffprobe" -o "$LIBS/libffprobe.so"
           chmod +x "$LIBS"/*.so
 
-      - name: Download FFmpeg (Android arm32)
-        run: |
-          LIBS=android/app/src/main/jniLibs/armeabi-v7a
-          mkdir -p "$LIBS"
-          # Статические сборки для armhf (совместимы с Android armeabi-v7a)
-          curl -fL "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-armhf-static.tar.xz" -o ffmpeg-armhf.tar.xz
-          mkdir -p ffmpeg_armhf
-          tar -xJf ffmpeg-armhf.tar.xz -C ffmpeg_armhf --strip-components=1
-          cp ffmpeg_armhf/ffmpeg "$LIBS/libffmpeg.so"
-          cp ffmpeg_armhf/ffprobe "$LIBS/libffprobe.so"
-          chmod +x "$LIBS"/*.so
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.6"
