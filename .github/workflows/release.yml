@@ -257,6 +257,9 @@ jobs:
           cp android/app/build/outputs/apk/tv/release/app-tv-release.apk LocalTube-AndroidTV.apk
           test -s LocalTube-Android.apk
           test -s LocalTube-AndroidTV.apk
+          $ANDROID_HOME/build-tools/35.0.0/aapt dump badging LocalTube-Android.apk | grep -q "launchable-activity"
+          $ANDROID_HOME/build-tools/35.0.0/aapt dump badging LocalTube-AndroidTV.apk | grep -q "android.software.leanback"
+          $ANDROID_HOME/build-tools/35.0.0/aapt dump xmltree LocalTube-AndroidTV.apk AndroidManifest.xml | grep -q "LEANBACK_LAUNCHER"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -368,30 +371,32 @@ jobs:
             release_files/LocalTube-portable.exe
             release_files/LocalTube-Windows7-x64-portable.exe
             release_files/LocalTube-Windows7-x86-portable.exe
-            release_files/LocalTube.apk
+            release_files/LocalTube-Android.apk
+            release_files/LocalTube-AndroidTV.apk
+            release_files/LocalTube-x86_64.AppImage
+            release_files/localtube_amd64.deb
           body: |
             ## LocalTube ${{ github.ref_name }}
 
-            ### Windows (portable)
-            `LocalTube-portable.exe` — один файл для современных Windows,
-            ничего устанавливать не нужно. Открывается в собственном окне.
-            FFmpeg встроен. При первом запуске рядом с exe создаётся папка
-            `LocalTube_Data` со всеми данными (видео, настройки, cookies).
+            ### Windows
+            - `LocalTube-portable.exe` — portable для современных Windows.
+            - `LocalTube-Windows7-x64-portable.exe` — Windows 7 SP1 x64.
+            - `LocalTube-Windows7-x86-portable.exe` — Windows 7 SP1 x86.
 
-            ### Windows 7 SP1 (legacy portable)
-            - `LocalTube-Windows7-x64-portable.exe` — для 64-битной Windows 7.
-            - `LocalTube-Windows7-x86-portable.exe` — для 32-битной Windows 7.
-
-            Требуется Windows 7 SP1 и системные обновления KB2533623/KB3063858.
-            Встроенное окно использует системный MSHTML. Если этот движок не
-            сможет отобразить интерфейс, LocalTube откроется в установленном
-            браузере. Для больших видео рекомендуется x64-сборка.
+            Windows 7-сборки содержат собственный Chromium CEF и не требуют
+            браузера для интерфейса. Рекомендуются обновления KB2533623/KB3063858.
 
             ### Android
-            `LocalTube.apk` — полноценное приложение со встроенным сервером
-            (Python + yt-dlp + FFmpeg внутри). Все функции ПК-версии работают
-            прямо на телефоне, без компьютера. Требуется Android 6.0+
-            (поддерживаются и 64-битные, и 32-битные устройства).
+            - `LocalTube-Android.apk` — телефон/планшет, Android 6.0+.
+            - `LocalTube-AndroidTV.apk` — отдельная версия Android TV с
+              Leanback-ярлыком и управлением с пульта.
+
+            ### Linux x86_64
+            - `LocalTube-x86_64.AppImage` — portable без установки.
+            - `localtube_amd64.deb` — установщик Debian/Ubuntu/Linux Mint.
+
+            Видео и настройки Linux хранятся в `~/.local/share/localtube`.
+            FFmpeg встроен во все варианты.
 
             ### Импорт cookies
             Настройки (шестерёнка) → раздел «Cookies (YouTube)» — можно
