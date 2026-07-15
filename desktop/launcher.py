@@ -212,9 +212,22 @@ def main() -> None:
 
     legacy_mode = os.environ.get("LOCALTUBE_WINDOWS7") == "1" or is_windows_7()
 
-    # На Windows 7 принудительно используем встроенный MSHTML/WinForms:
-    # WebView2 там обычно отсутствует. На новых Windows pywebview сам выбирает
-    # современный движок. При любой ошибке остаётся fallback в браузер.
+    # MSHTML (IE11) не умеет отображать современный интерфейс LocalTube и
+    # показывает пустое окно. Поэтому legacy-сборка надёжно открывает сервер
+    # в установленном браузере, а EXE продолжает держать сервер в фоне.
+    if legacy_mode:
+        opened = webbrowser.open(url, new=1, autoraise=True)
+        if not opened:
+            show_error(
+                "LocalTube запущен, но не удалось открыть браузер.\n\n"
+                "Откройте вручную Chrome или Firefox и перейдите по адресу:\n"
+                + url,
+                data_dir,
+            )
+        server_thread.join()
+        return
+
+    # На современных Windows используем собственное окно WebView2.
     try:
         import webview
         webview.create_window(
@@ -227,10 +240,7 @@ def main() -> None:
             text_select=True,
             zoomable=True,
         )
-        if legacy_mode:
-            webview.start(gui="mshtml")
-        else:
-            webview.start()
+        webview.start()
         # Окно закрыто пользователем — завершаем процесс (сервер в daemon-потоке).
         return
     except Exception as exc:  # noqa: BLE001
@@ -245,7 +255,7 @@ def main() -> None:
             pass
 
     # Фолбэк: обычный браузер, сервер продолжает работать в фоне
-    webbrowser.open(url)
+    webbrowser.open(url, new=1, autoraise=True)
     server_thread.join()
 
 

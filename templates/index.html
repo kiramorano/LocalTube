@@ -184,7 +184,7 @@
         <div class="header-center">
             <div class="search-container">
                 <input type="text" id="urlInput" class="url-input" placeholder="Вставьте ссылку на YouTube...">
-                <button type="button" class="download-btn" onclick="startDownload()" title="Скачать через очередь"><svg viewBox="0 0 24 24"><path d="M17 18v1H6v-1h11zm-.5-6.6-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-4.9z"/></svg></button>
+                <button type="button" class="download-btn" onclick="window.matchMedia('(max-width: 768px)').matches ? directDownload() : startDownload()" title="Скачать с выбором качества"><svg viewBox="0 0 24 24"><path d="M17 18v1H6v-1h11zm-.5-6.6-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-4.9z"/></svg></button>
                 <button type="button" class="download-btn direct-btn" onclick="directDownload()" title="Прямое скачивание (выбор качества)">⚡</button>
             </div>
         </div>
@@ -330,12 +330,14 @@
     </div>
 
     <!-- Модальные окна -->
-    <div id="settingsModal" class="modal-overlay"><div class="modal-content"><h2>Настройки LocalTube</h2><h3>Профиль</h3><div class="setting-group"><label>Отображаемое имя:</label><input type="text" id="prefUsername" placeholder="Например: admin"></div><div class="setting-group"><label>Ссылка на аватарку (URL или Base64):</label><input type="text" id="prefAvatarUrl" placeholder="https://..."></div><h3>Оформление</h3><div class="setting-group"><label>Тема оформления:</label><select id="themeSelect"><option value="dark">Тёмная</option><option value="light">Светлая</option><option value="frutiger-aero">Frutiger Aero</option></select></div><h3>Cookies (YouTube)</h3><div class="setting-group"><div id="cookiesStatus" style="margin-bottom:8px;opacity:0.8;">Проверка...</div><label>Файл cookies.txt (Netscape) или JSON-экспорт:</label><input type="file" id="cookiesFileInput" accept=".txt,.json" style="margin-bottom:8px;"><label>Или вставьте содержимое cookies:</label><textarea id="cookiesTextInput" rows="4" placeholder="# Netscape HTTP Cookie File... или JSON из расширения Cookie-Editor" style="width:100%;resize:vertical;box-sizing:border-box;"></textarea><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"><button class="btn-primary" type="button" onclick="importCookies()">Импортировать cookies</button><button class="btn-secondary" type="button" onclick="deleteCookies()">Удалить cookies</button></div></div><div class="modal-buttons"><button class="btn-secondary" onclick="closeSettings()">Отмена</button><button class="btn-secondary" onclick="downloadAllAvatars()">📸 Скачать все аватарки</button><button class="btn-primary" onclick="saveSettings()">Сохранить</button></div></div></div>
+    <div id="settingsModal" class="modal-overlay"><div class="modal-content"><h2>Настройки LocalTube</h2><h3>Профиль</h3><div class="setting-group"><label>Отображаемое имя:</label><input type="text" id="prefUsername" placeholder="Например: admin"></div><div class="setting-group"><label>Ссылка на аватарку (URL или Base64):</label><input type="text" id="prefAvatarUrl" placeholder="https://..."></div><h3>Оформление</h3><div class="setting-group"><label>Тема оформления:</label><select id="themeSelect"><option value="dark">Тёмная</option><option value="light">Светлая</option><option value="frutiger-aero">Frutiger Aero</option></select></div><h3>Cookies (YouTube)</h3><div class="setting-group"><div id="cookiesStatus" style="margin-bottom:8px;opacity:0.8;">Проверка...</div><label>Файл cookies.txt (Netscape) или JSON-��кспорт:</label><input type="file" id="cookiesFileInput" accept=".txt,.json" style="margin-bottom:8px;"><label>Или вставьте содержимое cookies:</label><textarea id="cookiesTextInput" rows="4" placeholder="# Netscape HTTP Cookie File... или JSON из расширения Cookie-Editor" style="width:100%;resize:vertical;box-sizing:border-box;"></textarea><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"><button class="btn-primary" type="button" onclick="importCookies()">Импортировать cookies</button><button class="btn-secondary" type="button" onclick="deleteCookies()">Удалить cookies</button></div></div><div class="modal-buttons"><button class="btn-secondary" onclick="closeSettings()">Отмена</button><button class="btn-secondary" onclick="downloadAllAvatars()">📸 Скачать все аватарки</button><button class="btn-primary" onclick="saveSettings()">Сохранить</button></div></div></div>
 
-    <div id="qualityModal" class="modal-overlay">
-        <div class="modal-content">
+    <div id="qualityModal" class="modal-overlay quality-modal" role="dialog" aria-modal="true" aria-labelledby="qualityModalTitle">
+        <div class="modal-content quality-sheet">
+            <div class="quality-sheet-handle" aria-hidden="true"></div>
             <h2 id="qualityModalTitle">Выберите качество видео</h2>
-            <div id="formatList" style="max-height:300px;overflow-y:auto;margin:16px 0;"></div>
+            <div id="qualityModalStatus" class="quality-status" aria-live="polite"></div>
+            <div id="formatList" class="quality-format-list"></div>
             <div style="margin: 12px 0;" id="containerFormatDiv">
                 <label style="margin-right: 12px;">Формат контейнера:</label>
                 <select id="containerFormat">
@@ -938,17 +940,26 @@
         }
 
         async function showDirectQualityModal(url) {
+            const modal = document.getElementById('qualityModal');
             const formatListDiv = document.getElementById('formatList');
-            formatListDiv.innerHTML = '<div>Загрузка форматов...</div>';
-            
-            document.getElementById('qualityModalTitle').textContent = '⚡ Выберите качество (прямое скачивание)';
-            document.getElementById('qualityModalActionBtn').textContent = '⚡ Скачать напрямую';
+            const status = document.getElementById('qualityModalStatus');
+            const actionBtn = document.getElementById('qualityModalActionBtn');
+            if (!modal || !formatListDiv || !status || !actionBtn) {
+                showErrorToast('Окно выбора качества недоступно');
+                return;
+            }
+
+            formatListDiv.innerHTML = '<div class="quality-loading">Получаем доступные форматы...</div>';
+            status.textContent = 'Подождите, YouTube может отвечать несколько секунд';
+            actionBtn.disabled = true;
+            document.getElementById('qualityModalTitle').textContent = 'Выберите качество';
+            actionBtn.textContent = 'Скачать выбранное';
             document.getElementById('containerFormatDiv').style.display = 'none';
             document.getElementById('browserCopyDiv').style.display = 'none';
             qualityModalMode = 'direct';
-            
-            document.getElementById('qualityModal').classList.add('active');
-            
+            modal.classList.add('active');
+            document.body.classList.add('modal-open');
+
             try {
                 const res = await fetch('/api/direct_formats', {
                     method: 'POST',
@@ -956,22 +967,28 @@
                     body: JSON.stringify({ url: url })
                 });
                 const data = await res.json();
-                if (data.error || !data.formats) {
-                    formatListDiv.innerHTML = `<div style="color:red;">Ошибка: ${data.error || 'Нет форматов'}</div>`;
-                    return;
-                }
+                if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+                const formats = Array.isArray(data.formats) ? data.formats : [];
                 let html = '';
-                data.formats.forEach((f) => {
-                    let label = f.resolution;
-                    if (f.filesize) label += ` (${(f.filesize / (1024*1024)).toFixed(1)} МБ)`;
-                    if (f.codec) label += ` [${f.codec}]`;
-                    const checked = (f.format_id === null) ? 'checked' : '';
-                    html += `<div class="format-option"><label><input type="radio" name="direct_format" value="${f.format_id === null ? '' : f.format_id}" ${checked}> ${label}</label></div>`;
+                formats.forEach((f, index) => {
+                    const resolution = escapeHtml(f.resolution || 'Авто');
+                    const codec = escapeHtml(f.codec || 'лучший совместимый');
+                    const size = f.filesize ? `${(f.filesize / (1024 * 1024)).toFixed(1)} МБ` : 'размер неизвестен';
+                    const value = f.format_id === null ? '' : escapeHtml(String(f.format_id));
+                    html += `<label class="quality-card"><input type="radio" name="direct_format" value="${value}" ${index === 0 ? 'checked' : ''}><span class="quality-card-copy"><strong>${resolution}</strong><small>${codec} · ${size}</small></span><span class="quality-check" aria-hidden="true"></span></label>`;
                 });
+                if (!html) {
+                    html = '<label class="quality-card"><input type="radio" name="direct_format" value="" checked><span class="quality-card-copy"><strong>Авто</strong><small>Лучшее совместимое качество MP4</small></span><span class="quality-check" aria-hidden="true"></span></label>';
+                    status.textContent = 'Точный список недоступен — будет выбран лучший совместимый MP4';
+                } else {
+                    status.textContent = `Найдено вариантов: ${formats.length}`;
+                }
                 formatListDiv.innerHTML = html;
+                actionBtn.disabled = false;
             } catch(e) {
-                formatListDiv.innerHTML = '<div style="color:red;">Ошибка загрузки форматов</div>';
-                console.error(e);
+                status.textContent = 'Не удалось получить точный список форматов';
+                formatListDiv.innerHTML = `<div class="quality-error">${escapeHtml(e.message || 'Ошибка загрузки форматов')}</div><label class="quality-card"><input type="radio" name="direct_format" value="" checked><span class="quality-card-copy"><strong>Продолжить автоматически</strong><small>LocalTube выберет лучший совместимый MP4</small></span><span class="quality-check" aria-hidden="true"></span></label>`;
+                actionBtn.disabled = false;
             }
         }
 
@@ -1469,16 +1486,19 @@
             };
         }
 
-        // Закрытие модального окна с восстановлением заголовка
-        const origCloseQualityModal = closeQualityModal;
-        closeQualityModal = function() {
+        // Закрытие модального окна с восстановлением состояния.
+        function closeQualityModal() {
+            const modal = document.getElementById('qualityModal');
+            if (modal) modal.classList.remove('active');
+            document.body.classList.remove('modal-open');
             document.getElementById('qualityModalTitle').textContent = 'Выберите качество видео';
-            document.getElementById('qualityModalActionBtn').textContent = '📥 Скачать';
+            document.getElementById('qualityModalActionBtn').textContent = 'Скачать';
+            document.getElementById('qualityModalActionBtn').disabled = false;
+            document.getElementById('qualityModalStatus').textContent = '';
             document.getElementById('containerFormatDiv').style.display = 'block';
             document.getElementById('browserCopyDiv').style.display = 'block';
             qualityModalMode = 'queue';
-            origCloseQualityModal();
-        };
+        }
         window.closeQualityModal = closeQualityModal;
 
         function executeQualityAction() {

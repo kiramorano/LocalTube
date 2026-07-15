@@ -26,12 +26,16 @@
 
     nav.querySelector('[data-lt-download]').addEventListener('click', () => {
       const input = document.querySelector('#urlInput, input[type="url"]');
-      if (input) {
-        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        input.focus();
-      } else {
+      if (!input) {
         window.location.href = '/';
+        return;
       }
+      if (input.value.trim() && typeof window.directDownload === 'function') {
+        window.directDownload();
+        return;
+      }
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input.focus();
     });
     nav.querySelector('[data-lt-settings]').addEventListener('click', () => {
       if (typeof window.openSettings === 'function') window.openSettings();
