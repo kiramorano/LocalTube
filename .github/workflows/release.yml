@@ -71,6 +71,122 @@ jobs:
           path: dist/LocalTube-portable.exe
 
   # ============================================================
+  # Windows 7 portable EXE (отдельные x64 и x86 legacy-сборки)
+  # ============================================================
+  windows7-exe:
+    name: Windows 7 ${{ matrix.arch }} Portable EXE
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            python_arch: x64
+            ffmpeg_arch: win64
+            pe_machine: "0x8664"
+          - arch: x86
+            python_arch: x86
+            ffmpeg_arch: win32
+            pe_machine: "0x014c"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.8"
+          architecture: ${{ matrix.python_arch }}
+
+      - name: Install pinned Windows 7 dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade "pip<25"
+          pip install -r desktop/requirements-windows7.txt
+          python -c "import struct; print('Python bits:', struct.calcsize('P') * 8)"
+
+      - name: Download FFmpeg (${{ matrix.ffmpeg_arch }})
+        shell: pwsh
+        run: |
+          $url = "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-${{ matrix.ffmpeg_arch }}-gpl.zip"
+          Invoke-WebRequest -Uri $url -OutFile ffmpeg-legacy.zip
+          Expand-Archive ffmpeg-legacy.zip -DestinationPath ffmpeg_legacy
+          New-Item -ItemType Directory -Force -Path build_win7/bin | Out-Null
+          $ffmpeg = Get-ChildItem ffmpeg_legacy -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          $ffprobe = Get-ChildItem ffmpeg_legacy -Recurse -Filter ffprobe.exe | Select-Object -First 1
+          if (-not $ffmpeg -or -not $ffprobe) { throw "FFmpeg archive is incomplete" }
+          Copy-Item $ffmpeg.FullName build_win7/bin/ffmpeg.exe
+          Copy-Item $ffprobe.FullName build_win7/bin/ffprobe.exe
+
+      - name: Verify FFmpeg architecture
+        shell: pwsh
+        run: |
+          @'
+          import struct
+          from pathlib import Path
+          expected = int("${{ matrix.pe_machine }}", 16)
+          for name in ("ffmpeg.exe", "ffprobe.exe"):
+              path = Path("build_win7/bin") / name
+              with path.open("rb") as f:
+                  if f.read(2) != b"MZ": raise SystemExit(f"{name}: not a PE file")
+                  f.seek(0x3C); pe_offset = struct.unpack("<I", f.read(4))[0]
+                  f.seek(pe_offset + 4); machine = struct.unpack("<H", f.read(2))[0]
+              if machine != expected:
+                  raise SystemExit(f"{name}: machine {machine:#06x}, expected {expected:#06x}")
+              print(f"{name}: PE machine {machine:#06x}")
+          '@ | python -
+
+      - name: Stage LocalTube sources
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build_win7/localtube_src | Out-Null
+          Copy-Item *.py build_win7/localtube_src/
+          Copy-Item -Recurse templates build_win7/localtube_src/templates
+          Copy-Item -Recurse static build_win7/localtube_src/static
+          if (Test-Path config.json) { Copy-Item config.json build_win7/localtube_src/ }
+          if (Test-Path cookies.txt) { Copy-Item cookies.txt build_win7/localtube_src/ }
+
+      - name: Build Windows 7 portable EXE
+        shell: pwsh
+        env:
+          LOCALTUBE_WINDOWS7: "1"
+        run: |
+          pyinstaller --onefile --clean --noconsole --name LocalTube-Windows7-${{ matrix.arch }}-portable `
+            --add-data "build_win7/localtube_src;localtube_src" `
+            --add-data "build_win7/bin;bin" `
+            --collect-all yt_dlp `
+            --collect-all webview `
+            --collect-all clr_loader `
+            --collect-all pythonnet `
+            desktop/launcher.py
+
+      - name: Smoke-test packaged server
+        shell: pwsh
+        run: |
+          $env:LOCALTUBE_HEADLESS = "1"
+          $env:LOCALTUBE_WINDOWS7 = "1"
+          $exe = "dist/LocalTube-Windows7-${{ matrix.arch }}-portable.exe"
+          $process = Start-Process -FilePath $exe -PassThru
+          try {
+            $healthy = $false
+            for ($i = 0; $i -lt 90; $i++) {
+              Start-Sleep -Seconds 1
+              try {
+                $health = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/health" -TimeoutSec 2
+                if ($health.status -in @("ok", "degraded")) { $healthy = $true; break }
+              } catch {}
+              if ($process.HasExited) { break }
+            }
+            if (-not $healthy) { throw "Packaged LocalTube server failed its health check" }
+          } finally {
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LocalTube-Windows7-${{ matrix.arch }}-portable-exe
+          path: dist/LocalTube-Windows7-${{ matrix.arch }}-portable.exe
+
+  # ============================================================
   # Android APK (Chaquopy: встроенный Python-сервер + ffmpeg arm64)
   # ============================================================
   android-apk:
@@ -144,7 +260,7 @@ jobs:
   release:
     name: Publish GitHub Release
     if: github.ref_type == 'tag'
-    needs: [windows-exe, android-apk]
+    needs: [windows-exe, windows7-exe, android-apk]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -158,15 +274,26 @@ jobs:
           name: LocalTube ${{ github.ref_name }}
           files: |
             release_files/LocalTube-portable.exe
+            release_files/LocalTube-Windows7-x64-portable.exe
+            release_files/LocalTube-Windows7-x86-portable.exe
             release_files/LocalTube.apk
           body: |
             ## LocalTube ${{ github.ref_name }}
 
             ### Windows (portable)
-            `LocalTube-portable.exe` — один файл, ничего устанавливать не нужно.
-            Открывается в собственном окне приложения (не в браузере).
+            `LocalTube-portable.exe` — один файл для современных Windows,
+            ничего устанавливать не нужно. Открывается в собственном окне.
             FFmpeg встроен. При первом запуске рядом с exe создаётся папка
             `LocalTube_Data` со всеми данными (видео, настройки, cookies).
+
+            ### Windows 7 SP1 (legacy portable)
+            - `LocalTube-Windows7-x64-portable.exe` — для 64-битной Windows 7.
+            - `LocalTube-Windows7-x86-portable.exe` — для 32-битной Windows 7.
+
+            Требуется Windows 7 SP1 и системные обновления KB2533623/KB3063858.
+            Встроенное окно использует системный MSHTML. Если этот движок не
+            сможет отобразить интерфейс, LocalTube откроется в установленном
+            браузере. Для больших видео рекомендуется x64-сборка.
 
             ### Android
             `LocalTube.apk` — полноценное приложение со встроенным сервером

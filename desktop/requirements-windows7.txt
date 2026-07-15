@@ -1,0 +1,12 @@
+# Last Python 3.8-compatible dependency set for Windows 7 legacy builds.
+# Keep exact pins: newer releases may require Python 3.9+ or Windows 10+.
+PyInstaller==5.13.2
+Flask==3.0.3
+Werkzeug==3.0.6
+Jinja2==3.1.4
+requests==2.32.3
+Pillow==10.4.0
+yt-dlp==2024.12.6
+pywebview==4.4.1
+pythonnet==3.0.3
+clr-loader==0.2.6

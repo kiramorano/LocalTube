@@ -105,13 +105,15 @@ def prepare_data_dir(bundle: str, data_dir: str) -> None:
         if os.path.exists(src) and not os.path.exists(dst):
             shutil.copy2(src, dst)
 
-    # 4. ffmpeg/ffprobe — кладём в bin рядом с данными
+    # 4. ffmpeg/ffprobe — всегда обновляем. Это важно, если пользователь
+    # запускает x64 и x86 legacy-сборки из одной папки: старый бинарник
+    # другой архитектуры не должен остаться в LocalTube_Data/bin.
     bin_dir = os.path.join(data_dir, "bin")
     os.makedirs(bin_dir, exist_ok=True)
     for item in BIN_ITEMS:
         src = os.path.join(bundle, "bin", item)
         dst = os.path.join(bin_dir, item)
-        if os.path.exists(src) and not os.path.exists(dst):
+        if os.path.exists(src):
             shutil.copy2(src, dst)
 
 
@@ -136,6 +138,32 @@ def run_server(data_dir: str) -> None:
         _signal.signal = lambda *a, **k: None
     app_path = os.path.join(data_dir, "app.py")
     runpy.run_path(app_path, run_name="__main__")
+
+
+def is_windows_7() -> bool:
+    """Возвращает True для Windows 7/Server 2008 R2 (NT 6.1)."""
+    if not sys.platform.startswith("win"):
+        return False
+    version = sys.getwindowsversion()
+    return version.major == 6 and version.minor == 1
+
+
+def show_error(message: str, data_dir: str = "") -> None:
+    """Показывает ошибку даже в --noconsole сборке и сохраняет журнал."""
+    if data_dir:
+        try:
+            with open(os.path.join(data_dir, "launcher.log"), "a", encoding="utf-8") as log:
+                log.write(time.strftime("%Y-%m-%d %H:%M:%S ") + message + "\n")
+        except OSError:
+            pass
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, message, "LocalTube", 0x10)
+            return
+        except Exception:
+            pass
+    print(message)
 
 
 def main() -> None:
@@ -168,11 +196,25 @@ def main() -> None:
     server_thread.start()
 
     if not wait_for_server(url):
-        print("[LAUNCHER] Сервер не поднялся за отведённое время")
+        show_error(
+            "LocalTube не смог запустить локальный сервер.\n\n"
+            "Проверьте launcher.log в папке LocalTube_Data и убедитесь, "
+            "что порт 8000 не занят.",
+            data_dir,
+        )
         sys.exit(1)
 
-    # Пробуем открыть собственное окно приложения (pywebview / WebView2).
-    # Если недоступно (нет WebView2 Runtime и т.п.) — откроем обычный браузер.
+    # CI smoke-test: сервер запускается без окна, чтобы workflow мог проверить
+    # /api/health и корректность упакованных зависимостей.
+    if os.environ.get("LOCALTUBE_HEADLESS") == "1":
+        server_thread.join()
+        return
+
+    legacy_mode = os.environ.get("LOCALTUBE_WINDOWS7") == "1" or is_windows_7()
+
+    # На Windows 7 принудительно используем встроенный MSHTML/WinForms:
+    # WebView2 там обычно отсутствует. На новых Windows pywebview сам выбирает
+    # современный движок. При любой ошибке остаётся fallback в браузер.
     try:
         import webview
         webview.create_window(
@@ -185,11 +227,22 @@ def main() -> None:
             text_select=True,
             zoomable=True,
         )
-        webview.start()
+        if legacy_mode:
+            webview.start(gui="mshtml")
+        else:
+            webview.start()
         # Окно закрыто пользователем — завершаем процесс (сервер в daemon-потоке).
         return
     except Exception as exc:  # noqa: BLE001
-        print(f"[LAUNCHER] Окно приложения недоступно ({exc}), открываю браузер...")
+        message = (
+            "Встроенное окно LocalTube недоступно: {}. "
+            "Интерфейс будет открыт в системном браузере."
+        ).format(exc)
+        try:
+            with open(os.path.join(data_dir, "launcher.log"), "a", encoding="utf-8") as log:
+                log.write(time.strftime("%Y-%m-%d %H:%M:%S ") + message + "\n")
+        except OSError:
+            pass
 
     # Фолбэк: обычный браузер, сервер продолжает работать в фоне
     webbrowser.open(url)
