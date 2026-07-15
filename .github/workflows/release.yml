@@ -149,7 +149,7 @@ jobs:
         env:
           LOCALTUBE_WINDOWS7: "1"
         run: |
-          pyinstaller --onefile --clean --noconsole --name LocalTube-Windows7-${{ matrix.arch }}-portable `
+          python -m PyInstaller --onefile --clean --noconsole --name LocalTube-Windows7-${{ matrix.arch }}-portable `
             --add-data "build_win7/localtube_src;localtube_src" `
             --add-data "build_win7/bin;bin" `
             --collect-all yt_dlp `
