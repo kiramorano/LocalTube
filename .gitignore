@@ -84,3 +84,4 @@ queue.json
 *.aab
 *.keystore
 *.jks
+.dyad/
