@@ -66,7 +66,7 @@ Description: Local video server" > localtube_amd64/DEBIAN/control
             LocalTube-x86_64.AppImage
             localtube_amd64.deb
 
-  create-release:
+  upload-release:
     needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
@@ -74,12 +74,28 @@ Description: Local video server" > localtube_amd64/DEBIAN/control
       - uses: actions/checkout@v4
       - name: Download all artifacts
         uses: actions/download-artifact@v3
-      - name: Create Release
+      - name: Create source archive
+        run: |
+          tar -czf LocalTube-source.tar.gz *.py requirements.txt templates/ static/ .github/
+          ls -lh LocalTube-source.tar.gz
+      - name: Upload to Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
             windows-builds/*.exe
             linux-builds/*.AppImage
             linux-builds/*.deb
+            LocalTube-source.tar.gz
+          body: |
+            ## LocalTube v1.0.0 - Все платформы
+            
+            ### Исправления
+            - Backend: requirements.txt, валидация yt-dlp, проверка синтаксиса
+            - Frontend: адаптивный UI для мобильных, боковое меню, формы, доступность
+            
+            ### Загрузки
+            - **Windows**: LocalTube-portable.exe (все версии)
+            - **Linux**: AppImage (portable) + deb пакет
+            - **Source**: полный исходный код
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
