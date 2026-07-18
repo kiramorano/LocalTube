@@ -32,6 +32,9 @@ def test_video(url):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
+        if not info or not info.get('id'):
+            print(f"❌ {url} - yt-dlp не вернул информацию о видео")
+            return False
         print(f"✅ {url} - успешно")
         return True
     except Exception as e:

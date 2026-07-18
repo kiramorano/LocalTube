@@ -166,6 +166,60 @@
         .status-completed { color: #4caf50; }
         .status-error { color: #ff4d4d; }
         .status-paused { color: #888; }
+
+        /* Responsive and accessibility fixes */
+        .header-left, .header-right { flex: 0 0 auto; width: auto; }
+        .header-center { flex: 1 1 480px; min-width: 0; margin: 0 24px; }
+        .search-container, .video-info, .queue-item-info { min-width: 0; }
+        .menu-icon { flex-shrink: 0; }
+        .sidebar-overlay { position: fixed; inset: var(--yt-header-height) 0 0; z-index: 89; background: rgba(0,0,0,.65); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+        .video-grid.list-view .video-card { display: flex; gap: 16px; }
+        .video-grid.list-view .video-thumb { width: min(360px, 40%); flex-shrink: 0; }
+        .video-card:focus-within .card-actions, .short-card:focus-within .card-actions { opacity: 1; }
+        button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .menu-icon:focus-visible { outline: 2px solid #3ea6ff; outline-offset: 2px; }
+
+        @media (hover: none), (pointer: coarse) {
+            .card-actions { opacity: 1; }
+            .action-btn { width: 36px; height: 36px; }
+        }
+        @media (max-width: 900px) {
+            :root { --video-card-min-width: 260px; }
+            header { height: auto; min-height: var(--yt-header-height); flex-wrap: wrap; gap: 10px; padding-block: 8px; }
+            .header-center { order: 3; flex-basis: 100%; margin: 0; }
+            .app-layout { margin-top: 114px; height: calc(100vh - 114px); }
+            .sidebar { top: 114px; height: calc(100vh - 114px); transform: translateX(-100%); z-index: 91; box-shadow: 8px 0 24px rgba(0,0,0,.35); }
+            main, .app-layout.sidebar-closed main { margin-left: 0; }
+            .app-layout:not(.sidebar-closed) .sidebar { transform: translateX(0); }
+            .app-layout:not(.sidebar-closed) .sidebar-overlay { opacity: 1; pointer-events: auto; inset-block-start: 114px; }
+            #progressBox { top: 114px; }
+        }
+        @media (max-width: 600px) {
+            header { padding-inline: 12px; }
+            .logo { font-size: 18px; }
+            .header-right { gap: 8px; }
+            .user-profile-btn { padding-inline: 6px; }
+            .url-input { min-width: 0; font-size: 14px; padding-inline: 12px; }
+            .download-btn { padding-inline: 12px; }
+            .download-btn.direct-btn { padding-inline: 12px; }
+            main { padding: 16px 12px 32px; }
+            .toolbar { gap: 8px; margin-bottom: 18px; }
+            .toolbar input, .toolbar select, .toolbar button { flex: 1 1 140px; min-width: 0; }
+            .video-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+            .video-grid.list-view .video-card { display: block; }
+            .video-grid.list-view .video-thumb { width: 100%; }
+            .video-details { padding: 10px 4px; }
+            .short-card { width: 160px; }
+            .shorts-shelf-container, .my-videos-section { margin-block: 28px; }
+            .queue-item { align-items: stretch; }
+            .queue-item-info, .queue-item-progress, .queue-item-status { width: 100%; min-width: 0; text-align: left; }
+            .modal-overlay { align-items: flex-end; padding: 0; }
+            .modal-content { width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; border-radius: 16px 16px 0 0; padding: 20px 16px; }
+            .modal-buttons > * { flex: 1 1 120px; }
+            #toast-container { inset-inline: 12px; bottom: 12px; }
+            .toast { width: 100%; }
+            #miniplayer-container { max-width: none; }
+        }
     </style>
     <link id="theme-style" rel="stylesheet" href="">
 </head>
@@ -193,6 +247,7 @@
     </header>
 
     <div class="app-layout" id="appLayout">
+        <button class="sidebar-overlay" id="sidebarOverlay" type="button" aria-label="Закрыть меню"></button>
         <aside class="sidebar">
             <div style="flex:1;">
                 <div class="sidebar-item active" data-nav="all" onclick="filterNav('all')"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"/></svg><span>Главная</span></div>
@@ -682,9 +737,28 @@
         }
         applyProfileUI();
 
-        document.getElementById('sidebarToggle').addEventListener('click', () => {
-            document.getElementById('appLayout').classList.toggle('sidebar-closed');
+        const appLayout = document.getElementById('appLayout');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        if (window.matchMedia('(max-width: 900px)').matches) appLayout.classList.add('sidebar-closed');
+        sidebarToggle.setAttribute('role', 'button');
+        sidebarToggle.setAttribute('tabindex', '0');
+        sidebarToggle.setAttribute('aria-label', 'Открыть меню');
+        function toggleSidebar() {
+            appLayout.classList.toggle('sidebar-closed');
+            sidebarToggle.setAttribute('aria-expanded', String(!appLayout.classList.contains('sidebar-closed')));
+        }
+        sidebarToggle.addEventListener('click', toggleSidebar);
+        sidebarToggle.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                toggleSidebar();
+            }
         });
+        sidebarOverlay.addEventListener('click', () => appLayout.classList.add('sidebar-closed'));
+        document.querySelectorAll('.sidebar-item').forEach((item) => item.addEventListener('click', () => {
+            if (window.matchMedia('(max-width: 900px)').matches) appLayout.classList.add('sidebar-closed');
+        }));
 
         function saveHiddenChannels() {
             localStorage.setItem('lt_hidden_channels', JSON.stringify(hiddenChannels));
