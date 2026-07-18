@@ -164,6 +164,38 @@
         .toast { background: var(--yt-button-hover); color: var(--yt-spec-text-primary); padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid var(--yt-spec-border); animation: slideIn 0.3s ease forwards; transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         .download-file-btn { display: inline-block; margin-top: 12px; margin-bottom: 12px; padding: 8px 16px; background: #3ea6ff; color: #000; border-radius: 20px; text-decoration: none; font-weight: 500; transition: background 0.3s ease; }
+        .description-box, .related-info, .channel-details { min-width: 0; overflow-wrap: anywhere; }
+        button:focus-visible, a:focus-visible, input:focus-visible, .menu-icon:focus-visible { outline: 2px solid #3ea6ff; outline-offset: 2px; }
+        @media (max-width: 700px) {
+            header { padding-inline: 12px; }
+            .logo { font-size: 18px; }
+            .user-profile-btn { padding-inline: 6px; }
+            .page-content { padding-top: calc(var(--yt-header-height) + 12px); }
+            .watch-layout { padding-inline: 0; gap: 20px; }
+            .content-wrapper, .secondary-column { padding-inline: 12px; }
+            .primary-column > .yt-player-container { border-radius: 0; margin-bottom: 16px; }
+            h1 { font-size: 18px; line-height: 24px; }
+            .meta-row { align-items: flex-start; }
+            .channel-info { width: 100%; }
+            .edit-buttons { width: 100%; margin-left: 0; overflow-x: auto; padding-bottom: 4px; }
+            .edit-buttons .edit-btn, .hide-channel-btn { flex: 0 0 auto; min-height: 36px; }
+            .related-thumb { width: 40%; height: auto; aspect-ratio: 16 / 9; }
+            .related-card { min-width: 0; }
+            .player-controls { padding-inline: 6px; }
+            .controls-left, .controls-right { gap: 0; min-width: 0; }
+            .control-btn { width: 38px; height: 34px; }
+            .time-display { margin-left: 2px; font-size: 12px; white-space: nowrap; }
+            .volume-slider { display: none; }
+            .controls-right .control-btn:nth-child(1), .controls-right .control-btn:nth-child(2) { display: none; }
+            #toast-container { inset-inline: 12px; bottom: 12px; }
+            .toast { width: 100%; }
+            .page-content.theater-mode-active .yt-player-container { height: auto; aspect-ratio: 16 / 9; }
+            .page-content.theater-mode-active .content-wrapper, .page-content.theater-mode-active .secondary-column { padding-inline: 12px; }
+        }
+        @media (max-width: 380px) {
+            .time-display { max-width: 86px; overflow: hidden; text-overflow: ellipsis; }
+            .related-title { -webkit-line-clamp: 2; }
+        }
     </style>
     <link id="theme-style" rel="stylesheet" href="">
 </head>

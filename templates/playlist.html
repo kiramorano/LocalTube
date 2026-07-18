@@ -2,6 +2,7 @@
 <html lang="ru" data-theme="dark">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ playlist.title }} - LocalTube</title>
     <link id="theme-style" rel="stylesheet" href="">
     <style>
@@ -26,9 +27,24 @@
         .video-details { flex: 1; }
         .video-title { font-weight: 500; margin-bottom: 4px; }
         .video-meta { font-size: 14px; color: var(--yt-spec-text-secondary); transition: color 0.5s ease; }
+        .playlist-info, .video-details { min-width: 0; }
+        .playlist-info h1, .video-title { overflow-wrap: anywhere; }
+        .video-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        button:focus-visible, a:focus-visible { outline: 2px solid #3ea6ff; outline-offset: 2px; }
         @media (max-width: 600px) {
-            .playlist-thumb { width: 120px; height: 120px; }
-            .video-thumb { width: 120px; height: 68px; }
+            .container { padding: 24px 12px 32px; }
+            .playlist-header { align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+            .playlist-thumb { width: 96px; height: 96px; flex: 0 0 auto; }
+            .playlist-info { flex: 1; }
+            .playlist-info h1 { font-size: 22px; line-height: 1.25; }
+            .playlist-meta { margin-bottom: 8px; }
+            .video-item { padding: 8px 0; min-width: 0; }
+            .video-thumb { width: 40%; max-width: 140px; height: auto; aspect-ratio: 16 / 9; }
+            .video-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        }
+        @media (max-width: 380px) {
+            .playlist-header { display: grid; grid-template-columns: 80px minmax(0, 1fr); }
+            .playlist-thumb { width: 80px; height: 80px; }
         }
     </style>
 </head>
@@ -54,7 +70,7 @@
             <a href="{{ url_for('watch', vid_id=v.id) }}" class="video-item">
                 <div class="video-thumb">
                     {% if v.thumb %}
-                        <img src="{{ url_for('media', filename=v.author ~ '/' ~ v.thumb) }}" loading="lazy">
+                        <img src="{{ url_for('media', filename=v.author ~ '/' ~ v.thumb) }}" alt="Превью: {{ v.title }}" loading="lazy">
                     {% else %}
                         <div style="background:#272727; width:100%; height:100%; display:flex; align-items:center; justify-content:center;">Нет</div>
                     {% endif %}
