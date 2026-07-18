@@ -1,0 +1,85 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller flask yt-dlp requests pillow
+      - name: Build Windows portable
+        run: |
+          pyinstaller --onefile --windowed --icon=icon.ico --add-data "templates:templates" --add-data "static:static" app.py -o dist -n LocalTube-portable
+          ren dist\LocalTube-portable.exe LocalTube-portable.exe
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-builds
+          path: dist/*.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 python3-pip
+          python -m pip install --upgrade pip
+          pip install pyinstaller flask yt-dlp requests pillow
+      - name: Build AppImage
+        run: |
+          pyinstaller --onefile --add-data "templates:templates" --add-data "static:static" app.py -o dist -n LocalTube-x86_64
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          ./appimagetool-x86_64.AppImage dist/LocalTube-x86_64 LocalTube-x86_64.AppImage || echo "AppImage build skipped"
+      - name: Build DEB
+        run: |
+          mkdir -p localtube_amd64/usr/local/bin
+          cp dist/LocalTube-x86_64 localtube_amd64/usr/local/bin/localtube
+          mkdir -p localtube_amd64/DEBIAN
+          echo "Package: localtube
+Version: 1.0.0
+Architecture: amd64
+Maintainer: LocalTube
+Description: Local video server" > localtube_amd64/DEBIAN/control
+          dpkg-deb --build localtube_amd64 localtube_amd64.deb
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-builds
+          path: |
+            LocalTube-x86_64.AppImage
+            localtube_amd64.deb
+
+  create-release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            windows-builds/*.exe
+            linux-builds/*.AppImage
+            linux-builds/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
