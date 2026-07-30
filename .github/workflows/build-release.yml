@@ -20,7 +20,7 @@ jobs:
           pip install pyinstaller flask yt-dlp requests pillow
       - name: Build Windows portable
         run: |
-          pyinstaller --onefile --windowed --add-data "templates:templates" --add-data "static:static" app.py -o dist -n LocalTube-portable
+          pyinstaller --onefile --windowed --add-data "templates;templates" --add-data "static;static" app.py --distpath dist -n LocalTube-portable
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -42,7 +42,7 @@ jobs:
           pip install pyinstaller flask yt-dlp requests pillow
       - name: Build AppImage
         run: |
-          pyinstaller --onefile --add-data "templates:templates" --add-data "static:static" app.py -o dist -n LocalTube-x86_64
+          pyinstaller --onefile --add-data "templates:templates" --add-data "static:static" app.py --distpath dist -n LocalTube-x86_64
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
           ./appimagetool-x86_64.AppImage dist/LocalTube-x86_64 LocalTube-x86_64.AppImage || echo "AppImage build skipped"
