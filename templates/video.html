@@ -24,35 +24,11 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', Arial, sans-serif; }
         body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; transition: background-color 0.5s ease, color 0.5s ease; position: relative; }
-        #bg-layer-1, #bg-layer-2 {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-size: cover;
-            background-position: center center;
-            background-repeat: no-repeat;
-            transition: opacity 1.5s ease-in-out;
-            pointer-events: none;
-            z-index: -3;
-        }
+        #bg-layer-1, #bg-layer-2 { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center center; background-repeat: no-repeat; transition: opacity 1.5s ease-in-out; pointer-events: none; z-index: -3; }
         #bg-layer-2 { z-index: -2; }
-        body::after {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            background: rgba(0, 0, 0, 0.05);
-            pointer-events: none;
-            transition: background 1s ease;
-        }
-        [data-theme="frutiger-aero"] body::after {
-            background: rgba(0, 0, 0, 0.1);
-        }
+        body::after { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: rgba(0,0,0,0.05); pointer-events: none; transition: background 1s ease; }
+        [data-theme="frutiger-aero"] body::after { background: rgba(0,0,0,0.1); }
+        
         header { position: fixed; top: 0; left: 0; right: 0; height: var(--yt-header-height); background-color: var(--yt-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 300; border-bottom: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; }
         .header-left { display: flex; align-items: center; gap: 16px; }
         .menu-icon { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); cursor: pointer; transition: fill 0.3s ease; }
@@ -101,9 +77,10 @@
         .progress-container:hover .progress-scrubber { opacity: 1; }
         .controls-row { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; }
         .controls-left, .controls-right { display: flex; align-items: center; gap: 8px; }
-        .control-btn { background: none; border: none; cursor: pointer; width: 46px; height: 36px; display: flex; justify-content: center; align-items: center; opacity: 0.9; transition: opacity 0.2s; color: white; }
+        .control-btn { background: none; border: none; cursor: pointer; width: 46px; height: 36px; display: flex; justify-content: center; align-items: center; opacity: 0.9; transition: opacity 0.2s, fill 0.2s; color: white; }
         .control-btn:hover { opacity: 1; }
-        .control-btn svg { width: 24px; height: 24px; fill: #fff; }
+        .control-btn svg { width: 24px; height: 24px; fill: #fff; transition: fill 0.2s; }
+        .control-btn.active svg { fill: #3ea6ff; }
         .volume-container { display: flex; align-items: center; }
         .volume-slider { width: 0; overflow: hidden; transition: width 0.2s; height: 100%; display: flex; align-items: center; }
         .volume-container:hover .volume-slider { width: 60px; }
@@ -115,6 +92,12 @@
         .seek-left { left: 10%; } .seek-right { right: 10%; }
         .seek-animation.active { opacity: 1; }
         .seek-animation svg { width: 24px; height: 24px; fill: #fff; margin-bottom: 4px; }
+
+        .player-settings-menu { position: absolute; bottom: 50px; right: 12px; background: rgba(28, 28, 28, 0.9); backdrop-filter: blur(8px); border-radius: 12px; color: white; width: 250px; z-index: 100; display: none; flex-direction: column; padding: 8px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .settings-menu-header { padding: 8px 16px; font-weight: 500; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 8px; cursor: pointer; }
+        .settings-menu-item { padding: 10px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 14px; position: relative; }
+        .settings-menu-item:hover { background: rgba(255,255,255,0.1); }
+        .settings-menu-item.active::before { content: '✓'; position: absolute; left: 8px; color: #3ea6ff; }
 
         h1 { font-size: 20px; font-weight: 700; line-height: 28px; margin-bottom: 12px; word-break: break-word; transition: color 0.5s ease; }
         .meta-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
@@ -135,6 +118,7 @@
         .hide-channel-btn svg { width: 18px; height: 18px; fill: currentColor; transition: fill 0.3s ease; }
 
         .description-box { background-color: var(--yt-button-bg); border-radius: 12px; padding: 12px; font-size: 14px; line-height: 20px; color: var(--yt-spec-text-primary); white-space: pre-wrap; margin-bottom: 16px; transition: background-color 0.5s ease, color 0.5s ease; }
+        
         .subtitles-section { background-color: var(--yt-button-bg); border-radius: 12px; padding: 12px; margin-bottom: 20px; transition: background-color 0.5s ease; }
         .subtitles-section h3 { margin-bottom: 12px; font-size: 16px; transition: color 0.5s ease; }
         .subtitle-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
@@ -164,8 +148,12 @@
         .toast { background: var(--yt-button-hover); color: var(--yt-spec-text-primary); padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid var(--yt-spec-border); animation: slideIn 0.3s ease forwards; transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         .download-file-btn { display: inline-block; margin-top: 12px; margin-bottom: 12px; padding: 8px 16px; background: #3ea6ff; color: #000; border-radius: 20px; text-decoration: none; font-weight: 500; transition: background 0.3s ease; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-content { background: var(--yt-modal-bg); width: 90%; max-width: 550px; border-radius: 12px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; max-height: 90vh; overflow-y: auto; }
+        .modal-content h2 { margin-bottom: 20px; font-size: 22px; transition: color 0.5s ease; }
     </style>
-    <link id="theme-style" rel="stylesheet" href="">
 </head>
 <body>
     <!-- Фоновые слои -->
@@ -184,6 +172,9 @@
             <g id="icon-rewind-left"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"></path></g>
             <g id="icon-rewind-right"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"></path></g>
             <g id="icon-pip"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zm-10-7h8v6h-8z"></path></g>
+            <g id="icon-repeat"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"></path></g>
+            <g id="icon-cast"><path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11zm20-7H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></g>
+            <g id="icon-settings"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></g>
         </defs>
     </svg>
 
@@ -226,7 +217,8 @@
             {% for s in shorts_feed %}
             <div class="short-item">
                 <div class="short-video-wrapper">
-                    <video class="short-video" src="{{ url_for('media', filename=s.url) }}" loop playsinline></video>
+                    <!-- Добавлено muted, чтобы браузер разрешил автоплей -->
+                    <video class="short-video" src="{{ url_for('media', filename=s.url) }}" loop playsinline muted></video>
                     <div class="short-overlay">
                         <div class="short-title">{{ s.title }}</div>
                         <div class="short-author">{{ s.author }} • {{ s.size_mb }} МБ</div>
@@ -235,7 +227,7 @@
                         <button class="short-btn short-speed-btn">1x</button>
                         <div class="short-vol-wrapper">
                             <div class="short-vol-slider-container"><input type="range" class="short-vol-slider" min="0" max="1" step="0.05" value="0.5"></div>
-                            <button class="short-btn short-mute-btn"><svg viewBox="0 0 24 24"><use href="#icon-vol-high"></use></svg></button>
+                            <button class="short-btn short-mute-btn"><svg viewBox="0 0 24 24"><use href="#icon-vol-muted"></use></svg></button>
                         </div>
                     </div>
                 </div>
@@ -243,25 +235,32 @@
             {% endfor %}
             <script>
                 (function() {
-                    const shortVideos = document.querySelectorAll('.short-video');
                     const shortSpeeds = [0.5, 1, 1.5, 2];
-                    let globalShortVol = 0.5, globalShortMute = false;
+                    let globalShortVol = 0.5, globalShortMute = true;
+                    
                     const observer = new IntersectionObserver((entries) => {
                         entries.forEach(entry => {
                             if(entry.isIntersecting) entry.target.play().catch(e=>{});
                             else { entry.target.pause(); entry.target.currentTime = 0; }
                         });
                     }, { threshold: 0.6 });
+                    
                     document.querySelectorAll('.short-item').forEach(item => {
                         const video = item.querySelector('.short-video');
                         const speedBtn = item.querySelector('.short-speed-btn');
                         const muteBtn = item.querySelector('.short-mute-btn');
                         const volSliderContainer = item.querySelector('.short-vol-slider-container');
                         const volSlider = item.querySelector('.short-vol-slider');
+                        
                         observer.observe(video);
-                        video.volume = globalShortVol; video.muted = globalShortMute;
+                        video.volume = globalShortVol; 
+                        video.muted = globalShortMute;
                         volSlider.value = globalShortVol;
-                        video.addEventListener('click', () => video.paused ? video.play() : video.pause());
+                        
+                        video.addEventListener('click', () => {
+                            if(video.paused) video.play(); else video.pause();
+                        });
+                        
                         let currentSpeedIdx = 1;
                         speedBtn.addEventListener('click', (e) => {
                             e.stopPropagation();
@@ -269,13 +268,22 @@
                             video.playbackRate = shortSpeeds[currentSpeedIdx];
                             speedBtn.textContent = shortSpeeds[currentSpeedIdx] + 'x';
                         });
+                        
                         function getVolIcon(vol, muted) { return (muted || vol === 0) ? '<use href="#icon-vol-muted"></use>' : '<use href="#icon-vol-high"></use>'; }
+                        
                         muteBtn.addEventListener('click', (e) => {
                             e.stopPropagation();
                             document.querySelectorAll('.short-vol-slider-container.active').forEach(c => { if (c !== volSliderContainer) c.classList.remove('active'); });
                             volSliderContainer.classList.toggle('active');
+                            if (globalShortMute) {
+                                globalShortMute = false;
+                                document.querySelectorAll('.short-video').forEach(v => v.muted = false);
+                                document.querySelectorAll('.short-mute-btn svg').forEach(svg => svg.innerHTML = getVolIcon(globalShortVol, false));
+                            }
                         });
+                        
                         volSliderContainer.addEventListener('click', (e) => e.stopPropagation());
+                        
                         volSlider.addEventListener('input', (e) => {
                             e.stopPropagation();
                             const val = parseFloat(e.target.value);
@@ -287,6 +295,7 @@
                             document.querySelectorAll('.short-mute-btn svg').forEach(svg => svg.innerHTML = getVolIcon(val, globalShortMute));
                         });
                     });
+                    
                     document.addEventListener('click', (e) => {
                         if (!e.target.closest('.short-vol-wrapper')) {
                             document.querySelectorAll('.short-vol-slider-container').forEach(c => c.classList.remove('active'));
@@ -300,6 +309,17 @@
                 {% if video_url %}
                 <div class="yt-player-container" id="playerContainer">
                     <video id="videoElement" autoplay src="{{ video_url }}" type="{{ mime_type }}"></video>
+                    
+                    <!-- Меню настроек качества (Шакализатор) -->
+                    <div id="playerSettingsMenu" class="player-settings-menu">
+                        <div class="settings-menu-header" onclick="document.getElementById('playerSettingsMenu').style.display='none'">⚙️ Настройки</div>
+                        <div class="settings-menu-item" id="menuQualityBtn">Качество <span id="currentQualityLabel" style="color:#aaa;">Оригинал</span></div>
+                    </div>
+                    <div id="playerQualityMenu" class="player-settings-menu" style="display:none;">
+                        <div class="settings-menu-header" id="backToSettingsBtn">← Назад к настройкам</div>
+                        <div id="qualityOptionsList"></div>
+                    </div>
+
                     <div class="seek-animation seek-left" id="seekLeftAnim"><svg viewBox="0 0 24 24"><use href="#icon-rewind-left"></use></svg><span>-10 сек</span></div>
                     <div class="seek-animation seek-right" id="seekRightAnim"><svg viewBox="0 0 24 24"><use href="#icon-rewind-right"></use></svg><span>+10 сек</span></div>
                     <div class="player-gradient"></div>
@@ -312,8 +332,12 @@
                                 <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
                             </div>
                             <div class="controls-right">
-                                <button class="control-btn" id="speedBtn" style="font-size: 14px; font-weight: bold; width: auto; padding: 0 8px;">1x</button>
+                                <button class="control-btn" id="castBtn" title="Трансляция на ТВ (Cast/AirPlay)"><svg viewBox="0 0 24 24"><use href="#icon-cast"></use></svg></button>
+                                <button class="control-btn" id="repeatBtn" title="Автоповтор (R)"><svg viewBox="0 0 24 24"><use href="#icon-repeat"></use></svg></button>
+                                <button class="control-btn" id="audioTracksBtn" title="Аудиодорожки"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M12 3v9.28c-.47-.46-1.12-.74-1.84-.74-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V7h4V3h-5z"/></svg></button>
                                 <button class="control-btn" id="subtitlesBtn" title="Субтитры"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6v-2zm4 0h8v2h-8v-2zm0 4h6v2h-6v-2z"/></svg></button>
+                                <button class="control-btn" id="settingsBtn" title="Настройки (Качество/Шакализатор)"><svg viewBox="0 0 24 24"><use href="#icon-settings"></use></svg></button>
+                                <button class="control-btn" id="speedBtn" style="font-size: 14px; font-weight: bold; width: auto; padding: 0 8px;">1x</button>
                                 <button class="control-btn" id="pipBtn"><svg viewBox="0 0 24 24"><use href="#icon-pip"></use></svg></button>
                                 <button class="control-btn" id="theaterBtn"><svg viewBox="0 0 24 24"><use href="#icon-theater"></use></svg></button>
                                 <button class="control-btn" id="fullscreenBtn"><svg viewBox="0 0 24 24" id="fullscreenIconSvg"><use href="#icon-fullscreen"></use></svg></button>
@@ -322,9 +346,21 @@
                     </div>
                 </div>
                 <a href="{{ video_url }}" download class="download-file-btn">📥 Скачать видео (исходный файл)</a>
+                
+                <!-- Модальное окно выбора аудиодорожек -->
+                <div id="audioTracksModal" class="modal-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:1000;display:none;align-items:center;justify-content:center;flex-direction:column;">
+                    <div class="modal-content" style="background:var(--yt-modal-bg);width:90%;max-width:500px;border-radius:12px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,0.5);border:1px solid var(--yt-spec-border);">
+                        <h2 style="margin-bottom:20px;font-size:22px;">🔊 Информация об аудиодорожках</h2>
+                        <div id="audioTracksInfo" style="margin:16px 0;max-height:300px;overflow-y:auto;"></div>
+                        <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:24px;">
+                            <button onclick="document.getElementById('audioTracksModal').style.display='none'" style="background:var(--yt-button-bg);border:none;border-radius:20px;padding:8px 16px;color:var(--yt-spec-text-primary);cursor:pointer;font-weight:500;">Закрыть</button>
+                        </div>
+                    </div>
+                </div>
                 {% else %}
                 <div style="height: 50vh; display:flex; align-items:center; justify-content:center; color:#aaa; margin-bottom: 24px;">Видеофайл не найден</div>
                 {% endif %}
+                
                 <div class="content-wrapper">
                     <h1>{{ meta.get('title', folder) }}</h1>
                     <div class="meta-row">
@@ -354,382 +390,188 @@
                 <div class="related-tabs"><button class="related-tab active" onclick="filterRelated('all')">Все видео</button><button class="related-tab" onclick="filterRelated('author')">От автора</button></div>
                 <div class="related-list" id="relatedList">
                     {% for rv in recommended_videos %}
-                    <a href="{{ url_for('watch', vid_id=rv.id) }}" class="related-card" data-author="{{ rv.author }}">
+                    <a href="{{ url_for('watch', vid_id=rv.id) }}" class="related-card" data-author="{{ rv.author|replace('"', '\\"')|replace('\'', '\\\'') }}">
                         <div class="related-thumb">{% if rv.thumb %}<img src="{{ url_for('media', filename=rv.author ~ '/' ~ rv.folder ~ '/' ~ rv.thumb) }}" loading="lazy">{% else %}<div style="background:#272727; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">Нет</div>{% endif %}</div>
-                        <div class="related-info"><div class="related-title">{{ rv.title }}</div><div class="related-author">{{ rv.author }}</div></div>
+                        <div class="related-info">
+                            <div class="related-title">{{ rv.title }}</div>
+                            <div class="related-author">{{ rv.author }}</div>
+                        </div>
                     </a>
                     {% endfor %}
                 </div>
             </div>
         </div>
-        <script>
-            function filterRelated(type) {
-                const tabs = document.querySelectorAll('.related-tab');
-                tabs.forEach(btn => btn.classList.remove('active'));
-                event.target.classList.add('active');
-                const currentAuthor = "{{ meta.get('uploader', author) }}";
-                const cards = document.querySelectorAll('.related-card');
-                const hiddenChannels = getHiddenChannels();
-                cards.forEach(card => {
-                    const cardAuthor = card.getAttribute('data-author');
-                    if (type === 'all') card.style.display = hiddenChannels.includes(cardAuthor) ? 'none' : 'flex';
-                    else if (type === 'author') card.style.display = (cardAuthor === currentAuthor && !hiddenChannels.includes(cardAuthor)) ? 'flex' : 'none';
-                });
-            }
-        </script>
         {% endif %}
     </div>
 
+    <!-- Модальное окно -->
     <div id="toast-container"></div>
+    <div class="modal-overlay" id="loadingModal"><div class="modal-content"><h2 style="text-align:center;">⏳ Обработка...</h2><p style="text-align:center; color:var(--yt-spec-text-secondary);">Пожалуйста, подождите.</p></div></div>
 
     <script>
-        // ========== ТЕМЫ И КРОССФЕЙД ==========
-        let activeBgLayer = 2;
-        let bgTimer = null;
-
-        function setBackgroundImage(url) {
-            const layer1 = document.getElementById('bg-layer-1');
-            const layer2 = document.getElementById('bg-layer-2');
-            let targetLayer, otherLayer;
-            if (activeBgLayer === 2) {
-                targetLayer = layer1;
-                otherLayer = layer2;
-            } else {
-                targetLayer = layer2;
-                otherLayer = layer1;
-            }
-            targetLayer.style.backgroundImage = `url('${url}')`;
-            targetLayer.style.opacity = 0;
-            requestAnimationFrame(() => {
-                targetLayer.style.opacity = 1;
-                otherLayer.style.opacity = 0;
-            });
-            setTimeout(() => {
-                activeBgLayer = (activeBgLayer === 2) ? 1 : 2;
-                otherLayer.style.backgroundImage = 'none';
-            }, 1600);
-        }
-
-        async function loadThemeBackground(theme) {
-            const layer1 = document.getElementById('bg-layer-1');
-            const layer2 = document.getElementById('bg-layer-2');
-            if (theme !== 'frutiger-aero') {
-                layer1.style.backgroundImage = 'none';
-                layer2.style.backgroundImage = 'none';
-                layer1.style.opacity = 0;
-                layer2.style.opacity = 0;
-                if (bgTimer) clearInterval(bgTimer);
-                bgTimer = null;
-                return;
-            }
-
-            try {
-                const response = await fetch(`/api/theme-backgrounds/${theme}`);
-                const images = await response.json();
-                if (images.length === 0) {
-                    layer1.style.backgroundImage = 'none';
-                    layer2.style.backgroundImage = 'none';
-                    layer1.style.opacity = 0;
-                    layer2.style.opacity = 0;
-                    return;
-                }
-                const randomIndex = Math.floor(Math.random() * images.length);
-                const imageName = images[randomIndex];
-                const screenW = window.innerWidth;
-                const screenH = window.innerHeight;
-                const imageUrl = `/static/images/themes/${theme}/${imageName}?w=${screenW}&h=${screenH}`;
-                setBackgroundImage(imageUrl);
-
-                if (bgTimer) clearInterval(bgTimer);
-                bgTimer = setInterval(async () => {
-                    const resp = await fetch(`/api/theme-backgrounds/${theme}`);
-                    const newImages = await resp.json();
-                    if (newImages.length === 0) return;
-                    const idx = Math.floor(Math.random() * newImages.length);
-                    const newName = newImages[idx];
-                    const newW = window.innerWidth;
-                    const newH = window.innerHeight;
-                    const newUrl = `/static/images/themes/${theme}/${newName}?w=${newW}&h=${newH}`;
-                    setBackgroundImage(newUrl);
-                }, 30000);
-
-            } catch (e) {
-                console.error('Ошибка загрузки фона:', e);
-                layer1.style.backgroundImage = 'none';
-                layer2.style.backgroundImage = 'none';
-                layer1.style.opacity = 0;
-                layer2.style.opacity = 0;
-            }
-        }
-
         function loadTheme(theme) {
-            const link = document.getElementById('theme-style');
-            if (!theme || theme === 'dark' || theme === 'light') {
-                link.href = '';
-                document.documentElement.setAttribute('data-theme', theme || 'dark');
-                if (bgTimer) clearInterval(bgTimer);
-                bgTimer = null;
-                document.getElementById('bg-layer-1').style.backgroundImage = 'none';
-                document.getElementById('bg-layer-2').style.backgroundImage = 'none';
-                document.getElementById('bg-layer-1').style.opacity = 0;
-                document.getElementById('bg-layer-2').style.opacity = 0;
-            } else {
-                link.href = '/static/css/themes/' + theme + '.css';
-                document.documentElement.setAttribute('data-theme', theme);
-                loadThemeBackground(theme);
-            }
-            localStorage.setItem('lt_theme', theme || 'dark');
+            document.documentElement.setAttribute('data-theme', theme || 'dark');
         }
+        loadTheme(localStorage.getItem('lt_theme') || 'dark');
 
-        // Инициализация темы
-        const savedTheme = localStorage.getItem('lt_theme') || 'dark';
-        loadTheme(savedTheme);
-
-        // ========== ПРОФИЛЬ ==========
-        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"username":"Гость", "avatar":""}');
-        document.getElementById('headerUsername').innerText = userSettings.username || 'Гость';
-        const avatarBox = document.getElementById('headerAvatar');
-        if(userSettings.avatar) avatarBox.innerHTML = `<img src="${userSettings.avatar}" alt="Аватар">`;
-        else avatarBox.innerHTML = (userSettings.username || 'Г').charAt(0).toUpperCase();
-
-        // ========== САЙДБАР ==========
-        const sidebarToggle = document.getElementById('sidebarToggle');
-        const sidebarDrawer = document.getElementById('sidebarDrawer');
-        const sidebarOverlay = document.getElementById('sidebarOverlay');
-        function toggleSidebar() { sidebarDrawer.classList.toggle('active'); sidebarOverlay.classList.toggle('active'); }
-        sidebarToggle.addEventListener('click', toggleSidebar);
-        sidebarOverlay.addEventListener('click', toggleSidebar);
-
-        // ========== СКРЫТЫЕ КАНАЛЫ ==========
-        function getHiddenChannels() { return JSON.parse(localStorage.getItem('lt_hidden_channels') || '[]'); }
-        function saveHiddenChannels(channels) { localStorage.setItem('lt_hidden_channels', JSON.stringify(channels)); }
-        function isChannelHidden(channelName) { return getHiddenChannels().includes(channelName); }
-        function toggleHideChannel(channelName) {
-            let hidden = getHiddenChannels();
-            if (hidden.includes(channelName)) { hidden = hidden.filter(c => c !== channelName); showToast(`Канал "${channelName}" больше не скрыт`); }
-            else { hidden.push(channelName); showToast(`Канал "${channelName}" скрыт`); }
-            saveHiddenChannels(hidden);
-            updateHideChannelButton(channelName);
-            filterRelated(document.querySelector('.related-tab.active')?.innerText === 'Все видео' ? 'all' : 'author');
-        }
-        function updateHideChannelButton(channelName) {
-            const btn = document.getElementById('hideChannelBtn');
-            const textSpan = document.getElementById('hideChannelText');
-            if (!btn || !textSpan) return;
-            if (isChannelHidden(channelName)) { textSpan.innerText = 'Показать канал'; btn.title = 'Показать канал'; }
-            else { textSpan.innerText = 'Скрыть канал'; btn.title = 'Скрыть канал'; }
-        }
-        {% if not is_short %}
-        const currentChannelName = "{{ meta.get('uploader', author) }}";
-        updateHideChannelButton(currentChannelName);
-        document.getElementById('hideChannelBtn')?.addEventListener('click', () => toggleHideChannel(currentChannelName));
-        {% endif %}
-
-        function showToast(msg) {
+        function showToast(msg, type = 'info') {
             const container = document.getElementById('toast-container');
-            if (!container) return;
-            const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            if(type==='error'){toast.style.background='#ff4d4d'; toast.style.color='white';}
+            if(type==='success'){toast.style.background='#4caf50'; toast.style.color='white';}
+            toast.innerText = msg;
             container.appendChild(toast);
             setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
         }
 
-        {% if not is_short %}
-        // ========== ПЛЕЕР ==========
+        {% if video_url and not is_short %}
+        // ================= PLAYER LOGIC =================
         const video = document.getElementById('videoElement');
-        if (video) {
-            const playerContainer = document.getElementById('playerContainer');
-            const playPauseBtn = document.getElementById('playPauseBtn');
-            const playIconSvg = document.getElementById('playIconSvg');
-            const volumeRange = document.getElementById('volumeRange');
-            const muteBtn = document.getElementById('muteBtn');
-            const volumeIconSvg = document.getElementById('volumeIconSvg');
-            const timeDisplay = document.getElementById('timeDisplay');
-            const progressContainer = document.getElementById('progressContainer');
-            const progressFill = document.getElementById('progressFill');
-            const progressLoaded = document.getElementById('progressLoaded');
-            const progressScrubber = document.getElementById('progressScrubber');
-            const fullscreenBtn = document.getElementById('fullscreenBtn');
-            const fullscreenIconSvg = document.getElementById('fullscreenIconSvg');
-            const theaterBtn = document.getElementById('theaterBtn');
-            const pipBtn = document.getElementById('pipBtn');
-            const speedBtn = document.getElementById('speedBtn');
-            const pageContent = document.getElementById('pageContent');
-            const seekLeftAnim = document.getElementById('seekLeftAnim');
-            const seekRightAnim = document.getElementById('seekRightAnim');
-            let isDragging = false, hideControlsTimeout;
-            video.volume = 0.05;
-            if (speedBtn) {
-                const speeds = [0.5, 1, 1.5, 2];
-                let speedIndex = 1;
-                speedBtn.addEventListener('click', () => { speedIndex = (speedIndex + 1) % speeds.length; video.playbackRate = speeds[speedIndex]; speedBtn.textContent = speeds[speedIndex] + 'x'; });
-            }
-            const videoKey = 'lt_time_' + encodeURIComponent('{{ video_url }}');
-            video.addEventListener('loadedmetadata', () => { timeDisplay.textContent = `0:00 / ${formatTime(video.duration)}`; const savedTime = localStorage.getItem(videoKey); if (savedTime && parseFloat(savedTime) > 0) video.currentTime = parseFloat(savedTime); });
-            setInterval(() => { if (!video.paused) localStorage.setItem(videoKey, video.currentTime); }, 3000);
-            video.addEventListener('pause', () => localStorage.setItem(videoKey, video.currentTime));
-            function showControls() { playerContainer.classList.remove('idle'); clearTimeout(hideControlsTimeout); if (!video.paused) hideControlsTimeout = setTimeout(() => playerContainer.classList.add('idle'), 2500); }
-            playerContainer.addEventListener('mousemove', showControls);
-            playerContainer.addEventListener('mouseleave', () => { if (!video.paused) playerContainer.classList.add('idle'); });
-            function togglePlay() { if (video.paused) video.play(); else video.pause(); }
-            playPauseBtn.addEventListener('click', togglePlay);
-            video.addEventListener('play', () => { playIconSvg.innerHTML = '<use href="#icon-pause"></use>'; showControls(); });
-            video.addEventListener('pause', () => { playIconSvg.innerHTML = '<use href="#icon-play"></use>'; playerContainer.classList.remove('idle'); clearTimeout(hideControlsTimeout); });
-            let clickTimeout;
-            video.addEventListener('click', (e) => {
-                const rect = video.getBoundingClientRect();
-                const clickX = e.clientX - rect.left;
-                if (clickTimeout) { clearTimeout(clickTimeout); clickTimeout = null; if (clickX < rect.width / 3) seek(-10, seekLeftAnim); else if (clickX > (rect.width / 3) * 2) seek(10, seekRightAnim); else togglePlay(); }
-                else { clickTimeout = setTimeout(() => { togglePlay(); clickTimeout = null; }, 250); }
-            });
-            function seek(seconds, animElement) { video.currentTime += seconds; animElement.classList.add('active'); setTimeout(() => animElement.classList.remove('active'), 400); }
-            function formatTime(sec) { if (isNaN(sec)) return "0:00"; let m = Math.floor(sec / 60), s = Math.floor(sec % 60); return `${m}:${s < 10 ? '0' : ''}${s}`; }
-            video.addEventListener('timeupdate', () => {
-                timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
-                if (!isDragging) { let percent = (video.currentTime / video.duration) * 100; progressFill.style.width = `${percent}%`; progressScrubber.style.left = `${percent}%`; }
-            });
-            video.addEventListener('progress', () => { if (video.buffered.length > 0) { let loaded = (video.buffered.end(video.buffered.length - 1) / video.duration) * 100; progressLoaded.style.width = `${loaded}%`; } });
-            function updateProgress(e) {
-                const rect = progressContainer.getBoundingClientRect();
-                let pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                progressFill.style.width = `${pos * 100}%`; progressScrubber.style.left = `${pos * 100}%`; video.currentTime = pos * video.duration;
-            }
-            progressContainer.addEventListener('mousedown', (e) => { isDragging = true; updateProgress(e); });
-            document.addEventListener('mousemove', (e) => { if (isDragging) updateProgress(e); });
-            document.addEventListener('mouseup', () => { isDragging = false; });
-            volumeRange.addEventListener('input', (e) => { video.volume = e.target.value; video.muted = video.volume === 0; updateVolumeUI(); });
-            muteBtn.addEventListener('click', () => { video.muted = !video.muted; if (!video.muted && video.volume === 0) video.volume = 0.5; updateVolumeUI(); });
-            function updateVolumeUI() { volumeRange.value = video.muted ? 0 : video.volume; volumeRange.style.setProperty('--vol', `${volumeRange.value * 100}%`); if (video.muted || video.volume === 0) volumeIconSvg.innerHTML = '<use href="#icon-vol-muted"></use>'; else volumeIconSvg.innerHTML = '<use href="#icon-vol-high"></use>'; }
-            fullscreenBtn.addEventListener('click', () => { if (!document.fullscreenElement) playerContainer.requestFullscreen().catch(err => console.log(err)); else document.exitFullscreen(); });
-            document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) fullscreenIconSvg.innerHTML = '<use href="#icon-exit-fullscreen"></use>'; else fullscreenIconSvg.innerHTML = '<use href="#icon-fullscreen"></use>'; });
-            if(theaterBtn) theaterBtn.addEventListener('click', () => { pageContent.classList.toggle('theater-mode-active'); window.dispatchEvent(new Event('resize')); });
-            if (pipBtn) {
-                pipBtn.addEventListener('click', () => {
-                    const vidId = window.location.pathname.split('/').pop();
-                    const mpData = { url: '{{ video_url }}', title: `{{ meta.get('title', folder) | replace("'", "\\'") | replace('"', '\\"') }}`, author: `{{ meta.get('uploader', author) | replace("'", "\\'") | replace('"', '\\"') }}`, time: video.currentTime };
-                    localStorage.setItem('lt_miniplayer', JSON.stringify(mpData));
-                    window.location.href = '/';
-                });
-            }
-            document.addEventListener('keydown', (e) => {
-                if (document.activeElement.tagName === 'INPUT') return;
-                switch(e.key.toLowerCase()) {
-                    case ' ': case 'k': e.preventDefault(); togglePlay(); break;
-                    case 'f': e.preventDefault(); fullscreenBtn.click(); break;
-                    case 'm': e.preventDefault(); muteBtn.click(); break;
-                    case 'i': case 'p': e.preventDefault(); if(pipBtn) pipBtn.click(); break;
-                    case 't': if(theaterBtn) theaterBtn.click(); break;
-                    case 'arrowleft': e.preventDefault(); seek(-5, seekLeftAnim); break;
-                    case 'arrowright': e.preventDefault(); seek(5, seekRightAnim); break;
-                    case 'arrowup': e.preventDefault(); video.volume = Math.min(1, video.volume + 0.05); updateVolumeUI(); break;
-                    case 'arrowdown': e.preventDefault(); video.volume = Math.max(0, video.volume - 0.05); updateVolumeUI(); break;
-                }
-                showControls();
-            });
-            updateVolumeUI();
+        const playerContainer = document.getElementById('playerContainer');
+        const playBtn = document.getElementById('playPauseBtn');
+        const playIcon = document.getElementById('playIconSvg');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressLoaded = document.getElementById('progressLoaded');
+        const volumeRange = document.getElementById('volumeRange');
+        const muteBtn = document.getElementById('muteBtn');
+        const volumeIcon = document.getElementById('volumeIconSvg');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const theaterBtn = document.getElementById('theaterBtn');
+        const pipBtn = document.getElementById('pipBtn');
+        const speedBtn = document.getElementById('speedBtn');
+        
+        // Hide controls on idle
+        let idleTimeout;
+        function resetIdleTimer() {
+            playerContainer.classList.remove('idle');
+            clearTimeout(idleTimeout);
+            idleTimeout = setTimeout(() => {
+                if (!video.paused) playerContainer.classList.add('idle');
+            }, 3000);
+        }
+        playerContainer.addEventListener('mousemove', resetIdleTimer);
+        playerContainer.addEventListener('mouseleave', () => { if(!video.paused) playerContainer.classList.add('idle'); });
+
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return "0:00";
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return m + ":" + (s < 10 ? "0" : "") + s;
         }
 
-        async function deleteUserVideo(videoId, authorName) {
-            if (!confirm('Вы уверены, что хотите безвозвратно удалить это видео?')) return;
-            const username = userSettings.username || 'Гость';
-            if (authorName !== username) { showToast('Вы не можете удалить чужое видео'); return; }
-            try {
-                const response = await fetch(`/api/user_video/delete/${videoId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: username }) });
-                const data = await response.json();
-                if (response.ok) { showToast('Видео удалено'); setTimeout(() => window.location.href = '/', 1500); }
-                else showToast('Ошибка: ' + (data.error || 'Не удалось удалить'));
-            } catch(err) { showToast('Ошибка соединения'); }
+        video.addEventListener('loadedmetadata', () => {
+            timeDisplay.textContent = `0:00 / ${formatTime(video.duration)}`;
+        });
+
+        video.addEventListener('timeupdate', () => {
+            const percent = (video.currentTime / video.duration) * 100;
+            progressFill.style.width = `${percent}%`;
+            timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+        });
+
+        video.addEventListener('progress', () => {
+            if (video.buffered.length > 0) {
+                const loaded = (video.buffered.end(video.buffered.length - 1) / video.duration) * 100;
+                if(progressLoaded) progressLoaded.style.width = `${loaded}%`;
+            }
+        });
+
+        playBtn.addEventListener('click', togglePlay);
+        video.addEventListener('click', togglePlay);
+
+        function togglePlay() {
+            if (video.paused) { video.play(); playIcon.innerHTML = '<use href="#icon-pause"></use>'; } 
+            else { video.pause(); playIcon.innerHTML = '<use href="#icon-play"></use>'; }
+        }
+        
+        video.addEventListener('play', () => { playIcon.innerHTML = '<use href="#icon-pause"></use>'; resetIdleTimer(); });
+        video.addEventListener('pause', () => { playIcon.innerHTML = '<use href="#icon-play"></use>'; playerContainer.classList.remove('idle'); });
+
+        volumeRange.addEventListener('input', (e) => {
+            video.volume = e.target.value;
+            video.muted = video.volume == 0;
+            updateVolumeIcon();
+        });
+
+        muteBtn.addEventListener('click', () => {
+            video.muted = !video.muted;
+            if (!video.muted && video.volume == 0) {
+                video.volume = 0.5; volumeRange.value = 0.5;
+            }
+            updateVolumeIcon();
+        });
+
+        function updateVolumeIcon() {
+            if (video.muted || video.volume == 0) volumeIcon.innerHTML = '<use href="#icon-vol-muted"></use>';
+            else volumeIcon.innerHTML = '<use href="#icon-vol-high"></use>';
         }
 
-        const videoId = "{{ video_id }}";
-        const videoSource = "{{ video_source }}";
-        async function loadSubtitles() {
-            try {
-                const res = await fetch(`/api/subtitles/${videoId}?source=${videoSource}`);
-                const data = await res.json();
-                const container = document.getElementById('subtitleList');
-                if (!container) return;
-                if (data.subtitles && data.subtitles.length > 0) {
-                    let html = '';
-                    for (let s of data.subtitles) html += `<div class="subtitle-item"><span>${s.label} (${s.lang})</span><button onclick="deleteSubtitle('${s.lang}')" title="Удалить">🗑️</button></div>`;
-                    container.innerHTML = html;
-                } else container.innerHTML = '<div style="color: #aaa;">Нет субтитров</div>';
-            } catch(e) { console.error(e); }
-        }
-        async function deleteSubtitle(lang) {
-            if (!confirm(`Удалить субтитры (${lang})?`)) return;
-            try {
-                const res = await fetch(`/api/subtitles/${videoId}/${lang}?source=${videoSource}`, { method: 'DELETE' });
-                const data = await res.json();
-                if (res.ok) { showToast('Субтитры удалены'); await loadSubtitles(); if (typeof updateSubtitlesTrack === 'function') await updateSubtitlesTrack(); }
-                else showToast('Ошибка: ' + data.error);
-            } catch(e) { showToast('Ошибка соединения'); }
-        }
-        async function uploadSubtitle(file, lang) {
-            const formData = new FormData(); formData.append('source', videoSource); formData.append('lang', lang); formData.append('file', file);
-            try {
-                const res = await fetch(`/api/subtitles/upload/${videoId}`, { method: 'POST', body: formData });
-                const data = await res.json();
-                if (res.ok) { showToast('Субтитры загружены'); await loadSubtitles(); if (typeof updateSubtitlesTrack === 'function') await updateSubtitlesTrack(); }
-                else showToast('Ошибка: ' + data.error);
-            } catch(e) { showToast('Ошибка соединения'); }
-        }
-        async function downloadSubtitle(lang) {
-            try {
-                const res = await fetch(`/api/subtitles/download/${videoId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: videoSource, lang: lang }) });
-                const data = await res.json();
-                if (res.ok) { showToast('Субтитры скачаны'); await loadSubtitles(); if (typeof updateSubtitlesTrack === 'function') await updateSubtitlesTrack(); }
-                else showToast('Ошибка: ' + data.error);
-            } catch(e) { showToast('Ошибка соединения'); }
-        }
-        document.getElementById('uploadSubtitleBtn')?.addEventListener('click', () => {
-            const lang = document.getElementById('subtitleLang').value.trim();
-            if (!lang) { showToast('Введите код языка'); return; }
-            const fileInput = document.getElementById('subtitleFile');
-            fileInput.onchange = (e) => { if (e.target.files.length) uploadSubtitle(e.target.files[0], lang); fileInput.value = ''; };
-            fileInput.click();
+        progressContainer.addEventListener('click', (e) => {
+            const rect = progressContainer.getBoundingClientRect();
+            const pos = (e.clientX - rect.left) / rect.width;
+            video.currentTime = pos * video.duration;
         });
-        document.getElementById('downloadSubtitleBtn')?.addEventListener('click', () => {
-            const lang = document.getElementById('subtitleLang').value.trim();
-            if (!lang) { showToast('Введите код языка'); return; }
-            downloadSubtitle(lang);
+
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) playerContainer.requestFullscreen().catch(err => {});
+            else document.exitFullscreen();
         });
-        document.getElementById('downloadAudioBtn')?.addEventListener('click', () => { window.location.href = `/api/audio/download/${videoId}?source=${videoSource}`; });
-        async function updateSubtitlesTrack() {
-            const videoEl = document.getElementById('videoElement');
-            if (!videoEl) return;
-            const oldTracks = videoEl.querySelectorAll('track');
-            oldTracks.forEach(track => track.remove());
-            try {
-                const res = await fetch(`/api/subtitles/${videoId}?source=${videoSource}`);
-                const data = await res.json();
-                if (!data.subtitles || data.subtitles.length === 0) return;
-                for (let sub of data.subtitles) {
-                    const ext = sub.file.split('.').pop();
-                    const track = document.createElement('track');
-                    track.kind = 'subtitles'; track.label = sub.label; track.srclang = sub.lang;
-                    track.src = `/subtitles/${videoId}/${sub.lang}.${ext}?source=${videoSource}`;
-                    track.default = (sub.lang === 'ru');
-                    videoEl.appendChild(track);
-                }
-                videoEl.textTracks;
-            } catch(e) { console.error('Ошибка загрузки треков субтитров', e); }
+
+        theaterBtn.addEventListener('click', () => document.getElementById('pageContent').classList.toggle('theater-mode-active'));
+
+        pipBtn.addEventListener('click', () => {
+            if (document.pictureInPictureElement) document.exitPictureInPicture();
+            else if (document.pictureInPictureEnabled) video.requestPictureInPicture();
+        });
+
+        const speeds = [0.5, 1, 1.25, 1.5, 2];
+        let speedIdx = 1;
+        speedBtn.addEventListener('click', () => {
+            speedIdx = (speedIdx + 1) % speeds.length;
+            video.playbackRate = speeds[speedIdx];
+            speedBtn.textContent = speeds[speedIdx] + 'x';
+        });
+
+        // Hotkeys
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            switch(e.code) {
+                case 'Space': case 'KeyK': e.preventDefault(); togglePlay(); break;
+                case 'KeyF': e.preventDefault(); fullscreenBtn.click(); break;
+                case 'KeyT': e.preventDefault(); theaterBtn.click(); break;
+                case 'KeyM': e.preventDefault(); muteBtn.click(); break;
+                case 'ArrowRight': case 'KeyL': e.preventDefault(); video.currentTime += 5; showSeekAnim('right'); break;
+                case 'ArrowLeft': case 'KeyJ': e.preventDefault(); video.currentTime -= 5; showSeekAnim('left'); break;
+            }
+        });
+
+        function showSeekAnim(side) {
+            const anim = document.getElementById(side === 'left' ? 'seekLeftAnim' : 'seekRightAnim');
+            anim.classList.remove('active');
+            void anim.offsetWidth;
+            anim.classList.add('active');
+            setTimeout(() => anim.classList.remove('active'), 500);
         }
-        const subtitlesBtn = document.getElementById('subtitlesBtn');
-        if (subtitlesBtn && document.getElementById('videoElement')) {
-            const videoEl = document.getElementById('videoElement');
-            subtitlesBtn.addEventListener('click', () => {
-                const tracks = videoEl.textTracks;
-                if (tracks.length === 0) { showToast('Нет доступных субтитров'); return; }
-                let anyShowing = false;
-                for (let i = 0; i < tracks.length; i++) {
-                    if (tracks[i].mode === 'showing') { tracks[i].mode = 'disabled'; anyShowing = true; showToast('Субтитры выключены'); break; }
-                }
-                if (!anyShowing && tracks.length > 0) { tracks[0].mode = 'showing'; showToast(`Субтитры: ${tracks[0].label}`); }
-            });
-        }
-        updateSubtitlesTrack();
-        loadSubtitles();
+
         {% endif %}
+
+        // ================= FILTER RELATED =================
+        function filterRelated(filter) {
+            document.querySelectorAll('.related-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            const author = "{{ meta.get('uploader', author)|replace('\"', '\\\"')|replace('\'', '\\\'') }}";
+            
+            document.querySelectorAll('.related-card').forEach(card => {
+                if (filter === 'all' || card.getAttribute('data-author') === author) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
     </script>
 </body>
 </html>

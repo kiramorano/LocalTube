@@ -2,15 +2,28 @@
 <html lang="ru" data-theme="dark">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Редактировать видео</title>
     <link id="theme-style" rel="stylesheet" href="">
     <style>
-        body { background: var(--yt-bg, #0f0f0f); color: var(--yt-spec-text-primary, #f1f1f1); font-family: sans-serif; padding: 80px 20px; transition: background 0.5s ease, color 0.5s ease; }
-        .container { max-width: 600px; margin: 0 auto; background: var(--yt-card-bg, #1a1a1a); padding: 20px; border-radius: 12px; border: 1px solid var(--yt-spec-border, #3f3f3f); transition: background 0.5s ease, border 0.5s ease; }
-        input, textarea, button { width: 100%; margin-bottom: 15px; padding: 10px; border-radius: 8px; border: none; }
-        input, textarea { background: var(--yt-search-bg, #333); color: var(--yt-spec-text-primary, #fff); border: 1px solid var(--yt-spec-border, #3f3f3f); transition: background 0.5s ease, color 0.5s ease, border 0.5s ease; }
-        button { background: #3ea6ff; color: #000; font-weight: bold; cursor: pointer; transition: background 0.3s ease; }
-        .back-link { display: inline-block; margin-bottom: 20px; color: var(--yt-spec-text-primary, #fff); background: var(--yt-button-hover, #333); padding: 8px 16px; border-radius: 20px; text-decoration: none; transition: background 0.5s ease, color 0.5s ease; }
+        :root[data-theme="dark"] { --yt-bg:#0f0f0f; --yt-card-bg:#1a1a1a; --yt-search-bg:#272727; --yt-spec-text-primary:#f1f1f1; --yt-spec-text-secondary:#aaaaaa; --yt-spec-border:#3f3f3f; --yt-button-hover:#333333; }
+        :root[data-theme="light"] { --yt-bg:#ffffff; --yt-card-bg:#f7f7f7; --yt-search-bg:#ffffff; --yt-spec-text-primary:#0f0f0f; --yt-spec-text-secondary:#606060; --yt-spec-border:#d8d8d8; --yt-button-hover:#eeeeee; }
+        * { box-sizing:border-box; }
+        body { margin:0; min-height:100vh; background:var(--yt-bg); color:var(--yt-spec-text-primary); font-family:Arial,sans-serif; padding:64px 20px; transition:background .3s ease,color .3s ease; }
+        .container { max-width:600px; margin:0 auto; background:var(--yt-card-bg); padding:24px; border-radius:16px; border:1px solid var(--yt-spec-border); }
+        h2 { margin:0 0 24px; }
+        form { display:flex; flex-direction:column; gap:16px; }
+        label { display:flex; flex-direction:column; gap:8px; font-size:14px; font-weight:600; }
+        input, textarea, button { width:100%; padding:12px; border-radius:8px; font:inherit; }
+        input, textarea { background:var(--yt-search-bg); color:var(--yt-spec-text-primary); border:1px solid var(--yt-spec-border); }
+        input[readonly] { opacity:.72; cursor:not-allowed; }
+        textarea { min-height:140px; resize:vertical; }
+        input[type="file"] { min-height:48px; color:var(--yt-spec-text-secondary); }
+        button { border:0; background:#3ea6ff; color:#000; font-weight:bold; cursor:pointer; min-height:44px; }
+        input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline:2px solid #3ea6ff; outline-offset:2px; }
+        .back-link { display:inline-block; margin-bottom:20px; color:var(--yt-spec-text-primary); background:var(--yt-button-hover); padding:8px 16px; border-radius:20px; text-decoration:none; }
+        #message { margin-top:16px; color:var(--yt-spec-text-secondary); overflow-wrap:anywhere; }
+        @media (max-width:600px) { body { padding:24px 12px; } .container { padding:20px 16px; } }
     </style>
 </head>
 <body>
@@ -18,10 +31,10 @@
         <a href="/" class="back-link">← На главную</a>
         <h2>Редактировать видео</h2>
         <form id="editForm" enctype="multipart/form-data">
-            <input type="text" id="username" readonly>
-            <input type="text" id="title" placeholder="Название">
-            <textarea id="description" placeholder="Описание"></textarea>
-            <input type="file" id="thumbFile" accept="image/jpeg,image/png,image/webp">
+            <label for="username">Автор<input type="text" id="username" readonly></label>
+            <label for="title">Название<input type="text" id="title" placeholder="Название"></label>
+            <label for="description">Описание<textarea id="description" placeholder="Описание"></textarea></label>
+            <label for="thumbFile">Новое превью<input type="file" id="thumbFile" accept="image/jpeg,image/png,image/webp"></label>
             <button type="submit">Сохранить</button>
         </form>
         <div id="message"></div>

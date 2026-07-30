@@ -93,6 +93,8 @@ def download_media(url, format_id=None, is_playlist=False, callback_file=None):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             # Получаем информацию
             info = ydl.extract_info(url, download=False)
+            if not info:
+                raise RuntimeError("yt-dlp не вернул информацию по указанной ссылке")
             if is_playlist and 'entries' in info:
                 # Скачиваем весь плейлист
                 ydl.download([url])
