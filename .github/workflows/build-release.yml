@@ -20,8 +20,7 @@ jobs:
           pip install pyinstaller flask yt-dlp requests pillow
       - name: Build Windows portable
         run: |
-          pyinstaller --onefile --windowed --icon=icon.ico --add-data "templates:templates" --add-data "static:static" app.py -o dist -n LocalTube-portable
-          ren dist\LocalTube-portable.exe LocalTube-portable.exe
+          pyinstaller --onefile --windowed --add-data "templates:templates" --add-data "static:static" app.py -o dist -n LocalTube-portable
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
@@ -52,11 +51,7 @@ jobs:
           mkdir -p localtube_amd64/usr/local/bin
           cp dist/LocalTube-x86_64 localtube_amd64/usr/local/bin/localtube
           mkdir -p localtube_amd64/DEBIAN
-          echo "Package: localtube
-Version: 1.0.0
-Architecture: amd64
-Maintainer: LocalTube
-Description: Local video server" > localtube_amd64/DEBIAN/control
+          printf "Package: localtube\nVersion: 1.0.0\nArchitecture: amd64\nMaintainer: LocalTube\nDescription: Local video server\n" > localtube_amd64/DEBIAN/control
           dpkg-deb --build localtube_amd64 localtube_amd64.deb
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
