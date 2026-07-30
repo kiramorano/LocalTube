@@ -1,0 +1,46 @@
+/* LocalTube 1.6 mobile layout */
+html { -webkit-text-size-adjust: 100%; }
+button, input, select, textarea { font: inherit; }
+@media (max-width: 600px) {
+  header { padding: 0 10px; }
+  .header-left { gap: 8px; min-width: 0; }
+  .logo { font-size: 17px; white-space: nowrap; }
+  .logo svg { width: 26px; }
+  .page-content { padding-top: calc(var(--yt-header-height) + 12px); padding-bottom: 24px; }
+  .watch-layout { padding: 0; gap: 12px; }
+  .primary-column, .content-wrapper { width: 100%; }
+  .yt-player-container { margin-bottom: 12px; aspect-ratio: 16 / 9; }
+  .player-controls { padding: 0 6px; }
+  .controls-row { padding-bottom: 4px; }
+  .controls-left, .controls-right { gap: 0; }
+  .control-btn { width: 38px; height: 34px; }
+  .control-btn svg { width: 21px; height: 21px; }
+  .controls-right .control-btn:nth-child(1), .controls-right .control-btn:nth-child(2), .controls-right .control-btn:nth-child(3) { display: none; }
+  .time-display { font-size: 11px; margin-left: 2px; }
+  .volume-container:hover .volume-slider { width: 42px; }
+  .content-wrapper { padding: 0 12px; }
+  h1 { font-size: 18px; line-height: 24px; margin-bottom: 8px; }
+  .meta-row { align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+  .channel-info { gap: 8px; }
+  .channel-avatar { width: 34px; height: 34px; font-size: 15px; }
+  .channel-name { font-size: 14px; }
+  .hide-channel-btn { padding: 5px 8px; font-size: 12px; }
+  .hide-channel-btn span { display: none; }
+  .edit-buttons { width: 100%; margin-left: 42px; }
+  .edit-btn { flex: 1; }
+  .description-box, .subtitles-section { border-radius: 8px; padding: 10px; font-size: 13px; }
+  .subtitle-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .subtitle-actions input, .subtitle-actions button { width: 100%; min-height: 40px; }
+  .download-file-btn { width: 100%; text-align: center; margin: 4px 0 12px; }
+  .secondary-column { padding: 0 12px; }
+  .related-thumb { width: 132px; height: 74px; }
+  .related-title { font-size: 13px; }
+  #toast-container { left: 12px; right: 12px; bottom: 12px; }
+  .toast { font-size: 13px; }
+  .modal-content { width: calc(100% - 24px); padding: 16px; }
+}
+@media (max-width: 380px) {
+  .related-thumb { width: 112px; height: 63px; }
+  .controls-right .control-btn:nth-last-child(2) { display: none; }
+  .subtitle-actions { grid-template-columns: 1fr; }
+}
