@@ -22,7 +22,7 @@ jobs:
         run: |
           pyinstaller --onefile --windowed --add-data "templates:templates" --add-data "static:static" app.py -o dist -n LocalTube-portable
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: windows-builds
           path: dist/*.exe
@@ -54,7 +54,7 @@ jobs:
           printf "Package: localtube\nVersion: 1.0.0\nArchitecture: amd64\nMaintainer: LocalTube\nDescription: Local video server\n" > localtube_amd64/DEBIAN/control
           dpkg-deb --build localtube_amd64 localtube_amd64.deb
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: linux-builds
           path: |
@@ -68,13 +68,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
       - name: Create source archive
         run: |
           tar -czf LocalTube-source.tar.gz *.py requirements.txt templates/ static/ .github/
           ls -lh LocalTube-source.tar.gz
       - name: Upload to Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             windows-builds/*.exe
