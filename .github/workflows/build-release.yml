@@ -1,375 +1,53 @@
-name: Build Releases (EXE + APK)
+name: LocalTube release
 
 on:
   push:
-    branches:
-      - "apk-and-exe-releases"
-    tags:
-      - "v*"
+    branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
   contents: write
 
-env:
-  FFMPEG_ANDROID_BASE: https://raw.githubusercontent.com/hzw1199/Android-FFmpeg-Prebuilt/main/ffmpeg-8.1.1/bin
-
 jobs:
-  # ============================================================
-  # Windows portable EXE (PyInstaller onefile + встроенный ffmpeg)
-  # ============================================================
-  windows-exe:
-    name: Windows Portable EXE
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller flask yt-dlp requests pillow pywebview
-      - name: Download FFmpeg (win64)
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile ffmpeg.zip
-          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_tmp
-          New-Item -ItemType Directory -Force -Path build_exe/bin | Out-Null
-          $bin = Get-ChildItem -Path ffmpeg_tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1
-          Copy-Item $bin.FullName build_exe/bin/ffmpeg.exe
-          $probe = Get-ChildItem -Path ffmpeg_tmp -Recurse -Filter ffprobe.exe | Select-Object -First 1
-          Copy-Item $probe.FullName build_exe/bin/ffprobe.exe
-      - name: Stage LocalTube sources
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path build_exe/localtube_src | Out-Null
-          Copy-Item *.py build_exe/localtube_src/
-          Copy-Item -Recurse templates build_exe/localtube_src/templates
-          Copy-Item -Recurse static build_exe/localtube_src/static
-          if (Test-Path config.json) { Copy-Item config.json build_exe/localtube_src/ }
-          if (Test-Path cookies.txt) { Copy-Item cookies.txt build_exe/localtube_src/ }
-      - name: Build portable EXE
-        shell: pwsh
-        run: |
-          pyinstaller --onefile --clean --noconsole --name LocalTube-portable `
-            --add-data "build_exe/localtube_src;localtube_src" `
-            --add-data "build_exe/bin;bin" `
-            --collect-all yt_dlp `
-            --collect-all webview `
-            --collect-all clr_loader `
-            --collect-all pythonnet `
-            desktop/launcher.py
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: LocalTube-portable-exe
-          path: dist/LocalTube-portable.exe
-
-  # ============================================================
-  # Windows 7 portable EXE (отдельные x64 и x86 legacy-сборки)
-  # ============================================================
-  windows7-exe:
-    name: Windows 7 ${{ matrix.arch }} Portable EXE
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x64
-            python_arch: x64
-            ffmpeg_arch: win64
-            pe_machine: "0x8664"
-          - arch: x86
-            python_arch: x86
-            ffmpeg_arch: win32
-            pe_machine: "0x014c"
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.8"
-          architecture: ${{ matrix.python_arch }}
-
-      - name: Install pinned Windows 7 dependencies
-        shell: pwsh
-        run: |
-          python -m pip install --upgrade "pip<25"
-          python -m pip install -r desktop/requirements-windows7.txt
-          if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed" }
-          python -c "import PyInstaller, struct; print('PyInstaller:', PyInstaller.__version__); print('Python bits:', struct.calcsize('P') * 8)"
-      - name: Download FFmpeg (${{ matrix.ffmpeg_arch }})
-        shell: pwsh
-        run: |
-          $url = "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-${{ matrix.ffmpeg_arch }}-gpl.zip"
-          Invoke-WebRequest -Uri $url -OutFile ffmpeg-legacy.zip
-          Expand-Archive ffmpeg-legacy.zip -DestinationPath ffmpeg_legacy
-          New-Item -ItemType Directory -Force -Path build_win7/bin | Out-Null
-          $ffmpeg = Get-ChildItem ffmpeg_legacy -Recurse -Filter ffmpeg.exe | Select-Object -First 1
-          $ffprobe = Get-ChildItem ffmpeg_legacy -Recurse -Filter ffprobe.exe | Select-Object -First 1
-          if (-not $ffmpeg -or -not $ffprobe) { throw "FFmpeg archive is incomplete" }
-          Copy-Item $ffmpeg.FullName build_win7/bin/ffmpeg.exe
-          Copy-Item $ffprobe.FullName build_win7/bin/ffprobe.exe
-      - name: Verify FFmpeg architecture
-        shell: pwsh
-        run: |
-          @'
-          import struct
-          from pathlib import Path
-          expected = int("${{ matrix.pe_machine }}", 16)
-          for name in ("ffmpeg.exe", "ffprobe.exe"):
-              path = Path("build_win7/bin") / name
-              with path.open("rb") as f:
-                  if f.read(2) != b"MZ": raise SystemExit(f"{name}: not a PE file")
-                  f.seek(0x3C); pe_offset = struct.unpack("<I", f.read(4))[0]
-                  f.seek(pe_offset + 4); machine = struct.unpack("<H", f.read(2))[0]
-              if machine != expected:
-                  raise SystemExit(f"{name}: machine {machine:#06x}, expected {expected:#06x}")
-              print(f"{name}: PE machine {machine:#06x}")
-          '@ | python -
-      - name: Stage LocalTube sources
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path build_win7/localtube_src | Out-Null
-          Copy-Item *.py build_win7/localtube_src/
-          Copy-Item -Recurse templates build_win7/localtube_src/templates
-          Copy-Item -Recurse static build_win7/localtube_src/static
-          if (Test-Path config.json) { Copy-Item config.json build_win7/localtube_src/ }
-          if (Test-Path cookies.txt) { Copy-Item cookies.txt build_win7/localtube_src/ }
-      - name: Build Windows 7 portable EXE
-        shell: pwsh
-        env:
-          LOCALTUBE_WINDOWS7: "1"
-        run: |
-          python -m PyInstaller --onefile --clean --noconsole --name LocalTube-Windows7-${{ matrix.arch }}-portable `
-            --add-data "build_win7/localtube_src;localtube_src" `
-            --add-data "build_win7/bin;bin" `
-            --collect-all yt_dlp `
-            --collect-all cefpython3 `
-            --hidden-import cefpython3.cefpython `
-            desktop/launcher.py
-      - name: Verify bundled Chromium
-        shell: pwsh
-        run: |
-          python -c "from cefpython3 import cefpython as cef; print('CEF', cef.GetVersion())"
-          if (-not (Test-Path "dist/LocalTube-Windows7-${{ matrix.arch }}-portable.exe")) { throw "Missing legacy executable" }
-      - name: Smoke-test packaged server
-        shell: pwsh
-        run: |
-          $env:LOCALTUBE_HEADLESS = "1"
-          $env:LOCALTUBE_WINDOWS7 = "1"
-          $exe = "dist/LocalTube-Windows7-${{ matrix.arch }}-portable.exe"
-          $process = Start-Process -FilePath $exe -PassThru
-          try {
-            $healthy = $false
-            for ($i = 0; $i -lt 90; $i++) {
-              Start-Sleep -Seconds 1
-              try {
-                $health = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/health" -TimeoutSec 2
-                if ($health.status -in @("ok", "degraded")) { $healthy = $true; break }
-              } catch {}
-              if ($process.HasExited) { break }
-            }
-            if (-not $healthy) { throw "Packaged LocalTube server failed its health check" }
-          } finally {
-            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
-          }
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: LocalTube-Windows7-${{ matrix.arch }}-portable-exe
-          path: dist/LocalTube-Windows7-${{ matrix.arch }}-portable.exe
-
-  # ============================================================
-  # Android APK (Chaquopy: встроенный Python-сервер + ffmpeg arm64)
-  # ============================================================
-  android-apk:
-    name: Android APK
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      # Chaquopy требует buildPython той же версии, что и целевой Python
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
-      - name: Stage LocalTube sources into assets
+          python-version: '3.11'
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Validate Python sources
+        run: python -m compileall -q .
+      - name: Run tests
+        run: python -m unittest discover -p 'test*.py' -v
+      - name: Build source package
         run: |
-          ASSETS=android/app/src/main/assets/localtube
-          mkdir -p "$ASSETS"
-          cp *.py "$ASSETS/"
-          cp -r templates "$ASSETS/templates"
-          cp -r static "$ASSETS/static"
-          [ -f config.json ] && cp config.json "$ASSETS/" || true
-          [ -f cookies.txt ] && cp cookies.txt "$ASSETS/" || true
-      - name: Download FFmpeg (Android arm64)
-        run: |
-          LIBS=android/app/src/main/jniLibs/arm64-v8a
-          mkdir -p "$LIBS"
-          curl -fL "$FFMPEG_ANDROID_BASE/ffmpeg" -o "$LIBS/libffmpeg.so"
-          curl -fL "$FFMPEG_ANDROID_BASE/ffprobe" -o "$LIBS/libffprobe.so"
-          chmod +x "$LIBS"/*.so
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.6"
-
-      - name: Build and lint phone + TV APKs
-        env:
-          ANDROID_VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || format('0.0.0-dev.{0}', github.run_number) }}
-          ANDROID_VERSION_CODE: ${{ github.run_number }}
-        run: gradle -p android assemblePhoneRelease assembleTvRelease lintPhoneRelease lintTvRelease --no-daemon
-
-      - name: Rename APKs
-        run: |
-          cp android/app/build/outputs/apk/phone/release/app-phone-release.apk LocalTube-Android.apk
-          cp android/app/build/outputs/apk/tv/release/app-tv-release.apk LocalTube-AndroidTV.apk
-          test -s LocalTube-Android.apk
-          test -s LocalTube-AndroidTV.apk
-          $ANDROID_HOME/build-tools/35.0.0/aapt dump badging LocalTube-Android.apk | grep -q "launchable-activity"
-          $ANDROID_HOME/build-tools/35.0.0/aapt dump badging LocalTube-AndroidTV.apk | grep -q "android.software.leanback"
-          $ANDROID_HOME/build-tools/35.0.0/aapt dump xmltree LocalTube-AndroidTV.apk AndroidManifest.xml | grep -q "LEANBACK_LAUNCHER"
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: LocalTube-android-apks
-          path: |
-            LocalTube-Android.apk
-            LocalTube-AndroidTV.apk
-  # ============================================================
-  # Linux x86_64: portable AppImage + Debian installer
-  # ============================================================
-  linux-packages:
-    name: Linux x86_64 AppImage + DEB
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.0-37 file
-          python -m pip install -r desktop/requirements-linux.txt
-      - name: Stage sources and FFmpeg
-        run: |
-          mkdir -p build_linux/localtube_src build_linux/bin
-          cp *.py build_linux/localtube_src/
-          cp -r templates static build_linux/localtube_src/
-          [ -f config.json ] && cp config.json build_linux/localtube_src/ || true
-          curl -fL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg-linux.tar.xz
-          mkdir ffmpeg-linux
-          tar -xJf ffmpeg-linux.tar.xz -C ffmpeg-linux --strip-components=1
-          cp ffmpeg-linux/ffmpeg ffmpeg-linux/ffprobe build_linux/bin/
-          chmod +x build_linux/bin/*
-      - name: Build Linux executable
-        run: |
-          pyinstaller --onefile --clean --name localtube \
-            --add-data "build_linux/localtube_src:localtube_src" \
-            --add-data "build_linux/bin:bin" \
-            --collect-all yt_dlp \
-            --collect-all webview \
-            --collect-all backports \
-            --hidden-import backports.tarfile \
-            desktop/launcher.py
-          file dist/localtube | grep -q 'x86-64'
-      - name: Smoke-test packaged server
-        run: |
-          export LOCALTUBE_HEADLESS=1 LOCALTUBE_DATA_DIR="$RUNNER_TEMP/localtube-smoke"
-          dist/localtube > "$RUNNER_TEMP/localtube.log" 2>&1 & PID=$!
-          trap 'kill $PID 2>/dev/null || true' EXIT
-          for i in $(seq 1 90); do
-            curl -fsS http://127.0.0.1:8000/api/health >/dev/null && break
-            kill -0 $PID || { cat "$RUNNER_TEMP/localtube.log"; exit 1; }
-            sleep 1
-          done
-          curl -fsS http://127.0.0.1:8000/api/queue/list | python -m json.tool
-      - name: Build AppImage
-        run: |
-          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/512x512/apps
-          cp dist/localtube AppDir/usr/bin/localtube
-          cp desktop/localtube.desktop AppDir/localtube.desktop
-          cp desktop/localtube.desktop AppDir/usr/share/applications/localtube.desktop
-          cp desktop/localtube.png AppDir/localtube.png
-          cp desktop/localtube.png AppDir/usr/share/icons/hicolor/512x512/apps/localtube.png
-          printf '#!/bin/sh\nexec "$APPDIR/usr/bin/localtube" "$@"\n' > AppDir/AppRun
-          chmod +x AppDir/AppRun AppDir/usr/bin/localtube
-          curl -fL https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
-          chmod +x appimagetool
-          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 ./appimagetool AppDir LocalTube-x86_64.AppImage
-          APPIMAGE_EXTRACT_AND_RUN=1 ./LocalTube-x86_64.AppImage --appimage-extract >/dev/null
-      - name: Build DEB
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"; [ "$GITHUB_REF_TYPE" = tag ] || VERSION="0.0.${GITHUB_RUN_NUMBER}"
-          ROOT=debroot
-          mkdir -p "$ROOT/DEBIAN" "$ROOT/usr/bin" "$ROOT/usr/share/applications" "$ROOT/usr/share/icons/hicolor/512x512/apps"
-          cp dist/localtube "$ROOT/usr/bin/localtube"
-          cp desktop/localtube.desktop "$ROOT/usr/share/applications/localtube.desktop"
-          cp desktop/localtube.png "$ROOT/usr/share/icons/hicolor/512x512/apps/localtube.png"
-          printf 'Package: localtube\nVersion: %s\nSection: video\nPriority: optional\nArchitecture: amd64\nMaintainer: LocalTube\nDepends: libgtk-3-0, libwebkit2gtk-4.0-37\nDescription: Local video library and downloader\n' "$VERSION" > "$ROOT/DEBIAN/control"
-          dpkg-deb --build --root-owner-group "$ROOT" "localtube_${VERSION}_amd64.deb"
-          dpkg-deb --info "localtube_${VERSION}_amd64.deb"
-          cp "localtube_${VERSION}_amd64.deb" localtube_amd64.deb
+          mkdir -p package/LocalTube
+          cp -r --exclude='.git' --exclude='package' . package/LocalTube/
+          tar -czf LocalTube-${GITHUB_REF_NAME#v}.tar.gz -C package LocalTube
+          sha256sum LocalTube-${GITHUB_REF_NAME#v}.tar.gz > LocalTube-${GITHUB_REF_NAME#v}.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: LocalTube-linux-x86_64
+          name: LocalTube-source
           path: |
-            LocalTube-x86_64.AppImage
-            localtube_amd64.deb
-  # ============================================================
-  # Публикация GitHub Release (только для тегов v*)
-  # ============================================================
+            LocalTube-*.tar.gz
+            LocalTube-*.sha256
+
   release:
-    name: Publish GitHub Release
-    if: github.ref_type == 'tag'
-    needs: [windows-exe, windows7-exe, android-apk, linux-packages]
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          merge-multiple: true
-          path: release_files
-
-      - name: Create Release
+          name: LocalTube-source
+          path: release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           name: LocalTube ${{ github.ref_name }}
-          files: |
-            release_files/LocalTube-portable.exe
-            release_files/LocalTube-Windows7-x64-portable.exe
-            release_files/LocalTube-Windows7-x86-portable.exe
-            release_files/LocalTube-Android.apk
-            release_files/LocalTube-AndroidTV.apk
-            release_files/LocalTube-x86_64.AppImage
-            release_files/localtube_amd64.deb
-          body: |
-            ## LocalTube ${{ github.ref_name }}
-            ### Windows
-            - `LocalTube-portable.exe` — portable для современных Windows.
-            - `LocalTube-Windows7-x64-portable.exe` — Windows 7 SP1 x64.
-            - `LocalTube-Windows7-x86-portable.exe` — Windows 7 SP1 x86.
-            Windows 7-сборки содержат собственный Chromium CEF и не требуют
-            браузера для интерфейса. Рекомендуются обновления KB2533623/KB3063858.
-            ### Android
-            - `LocalTube-Android.apk` — телефон/планшет, Android 6.0+.
-            - `LocalTube-AndroidTV.apk` — отдельная версия Android TV с
-              Leanback-ярлыком и управлением с пульта.
-            ### Linux x86_64
-            - `LocalTube-x86_64.AppImage` — portable без установки.
-            - `localtube_amd64.deb` — установщик Debian/Ubuntu/Linux Mint.
-            Видео и настройки Linux хранятся в `~/.local/share/localtube`.
-            FFmpeg встроен во все варианты.
-            ### Импорт cookies
-            Настройки (шестерёнка) → раздел «Cookies (YouTube)» — можно
-            загрузить файл cookies.txt или вставить содержимое (поддерживается
-            и JSON-экспорт из расширений вроде Cookie-Editor). Работает и на
-            ПК, и на Android.
+          generate_release_notes: true
+          files: release/*
