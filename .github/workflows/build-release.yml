@@ -6,6 +6,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# 👇 ДОБАВЛЯЕМ РАЗРЕШЕНИЯ
+permissions:
+  contents: write   # нужно для создания релизов
+
 jobs:
   build-windows:
     runs-on: windows-latest
