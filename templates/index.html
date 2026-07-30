@@ -337,17 +337,6 @@
             <div class="quality-sheet-handle" aria-hidden="true"></div>
             <h2 id="qualityModalTitle">Выберите качество видео</h2>
             <div id="qualityModalStatus" class="quality-status" aria-live="polite"></div>
-            <div class="audio-download-options">
-                <label for="mediaModeSelect">Что скачать</label>
-                <select id="mediaModeSelect" onchange="updateMediaMode()">
-                    <option value="video">Видео с выбранной озвучкой</option>
-                    <option value="m4a">Только аудио M4A</option>
-                    <option value="mp3">Только аудио MP3</option>
-                </select>
-                <label for="audioTrackSelect">Язык / аудиодорожка</label>
-                <select id="audioTrackSelect"><option value="">Авто / оригинал</option></select>
-                <div id="audioTrackDetails" class="audio-track-details">Будет выбрана оригинальная или лучшая дорожка.</div>
-            </div>
             <div id="formatList" class="quality-format-list"></div>
             <div style="margin: 12px 0;" id="containerFormatDiv">
                 <label style="margin-right: 12px;">Формат контейнера:</label>
@@ -963,10 +952,7 @@
             formatListDiv.innerHTML = '<div class="quality-loading">Получаем доступные форматы...</div>';
             status.textContent = 'Подождите, YouTube может отвечать несколько секунд';
             actionBtn.disabled = true;
-            document.getElementById('mediaModeSelect').value = 'video';
-            populateAudioTracks([]);
-            document.getElementById('formatList').style.display = '';
-            document.getElementById('qualityModalTitle').textContent = 'Выберите качество и озвучку';
+            document.getElementById('qualityModalTitle').textContent = 'Выберите качество';
             actionBtn.textContent = 'Скачать выбранное';
             document.getElementById('containerFormatDiv').style.display = 'none';
             document.getElementById('browserCopyDiv').style.display = 'none';
@@ -983,7 +969,6 @@
                 const data = await res.json();
                 if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
                 const formats = Array.isArray(data.formats) ? data.formats : [];
-                populateAudioTracks(data.audio_tracks || []);
                 let html = '';
                 formats.forEach((f, index) => {
                     const resolution = escapeHtml(f.resolution || 'Авто');
@@ -1007,40 +992,6 @@
             }
         }
 
-        function populateAudioTracks(tracks) {
-            const select = document.getElementById('audioTrackSelect');
-            select.innerHTML = '<option value="">Авто / оригинал</option>';
-            tracks.forEach(track => {
-                const option = document.createElement('option');
-                option.value = track.format_id;
-                option.dataset.language = track.language || '';
-                option.dataset.details = [track.codec, track.bitrate ? `${track.bitrate} кбит/с` : '', track.channels ? `${track.channels} каналов` : '', track.note].filter(Boolean).join(' · ');
-                option.textContent = `${track.name}${track.is_dubbed ? ' — дубляж' : ''}${track.is_original ? ' — оригинал' : ''}`;
-                select.appendChild(option);
-            });
-            select.onchange = () => {
-                const selected = select.selectedOptions[0];
-                document.getElementById('audioTrackDetails').textContent = selected?.dataset.details || 'Будет выбрана оригинальная или лучшая дорожка.';
-            };
-        }
-
-        function updateMediaMode() {
-            const audioOnly = document.getElementById('mediaModeSelect').value !== 'video';
-            document.getElementById('formatList').style.display = audioOnly ? 'none' : '';
-            document.getElementById('containerFormatDiv').style.display = audioOnly ? 'none' : '';
-            document.getElementById('browserCopyDiv').style.display = 'none';
-            document.getElementById('qualityModalTitle').textContent = audioOnly ? 'Выберите аудиодорожку' : 'Выберите качество и озвучку';
-        }
-
-        function getAudioSelection() {
-            const track = document.getElementById('audioTrackSelect').selectedOptions[0];
-            return {
-                mediaMode: document.getElementById('mediaModeSelect').value,
-                audioFormatId: track?.value || null,
-                audioLanguage: track?.dataset.language || null,
-            };
-        }
-
         function directDownloadWithFormat() {
             const selectedRadio = document.querySelector('input[name="direct_format"]:checked');
             let formatId = selectedRadio ? (selectedRadio.value === '' ? null : selectedRadio.value) : null;
@@ -1050,10 +1001,8 @@
             }
             
             const queuedUrl = directPendingUrl;
-            const audio = getAudioSelection();
-            const title = audio.mediaMode === 'video' ? 'Видео' : `Аудио ${audio.mediaMode.toUpperCase()}`;
-            addToQueue([queuedUrl], formatId, title, 'mp4', audio);
-            showToast('Добавлено в очередь');
+            addToQueue([queuedUrl], formatId, 'Видео', 'mp4');
+            showToast('Видео добавлено в очередь');
             closeQualityModal();
             directPendingUrl = null;
             filterNav('queue');
@@ -1086,7 +1035,6 @@
             })
             .then(res => res.json())
             .then(data => {
-                populateAudioTracks(data.audio_tracks || []);
                 if (data.error || !data.formats) {
                     formatListDiv.innerHTML = `<div style="color:red;">Ошибка: ${data.error || 'Нет форматов'}</div>`;
                     return;
@@ -1267,7 +1215,7 @@
                             <div class="queue-item" data-id="${task.id}">
                                 <div class="queue-item-info">
                                     <div class="queue-item-title">${escapeHtml(task.title)}</div>
-                                    <div class="queue-item-meta">${task.urls.length} источник · ${escapeHtml((task.media_mode || 'video').toUpperCase())}${task.audio_language ? ` · ${escapeHtml(task.audio_language.toUpperCase())}` : ''} · ${Math.round(progress)}% · ${escapeHtml(task.message || '')}</div>
+                                    <div class="queue-item-meta">${task.urls.length} видео · ${Math.round(progress)}% · ${escapeHtml(task.message || '')}</div>
                                     ${task.error ? `<div class="queue-item-error">${escapeHtml(task.error)}</div>` : ''}
                                     <div class="progress-bar" role="progressbar" aria-label="Прогресс загрузки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(progress)}">
                                         <div class="progress-fill-queue" style="width: ${progress}%;"></div>
@@ -1367,16 +1315,11 @@
             }
         }
 
-        function addToQueue(urls, formatId, title, mergeFormat = 'mp4', audio = {}) {
+        function addToQueue(urls, formatId, title, mergeFormat = 'mp4') {
             fetch('/api/queue/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    urls: urls, format_id: formatId, title: title, merge_format: mergeFormat,
-                    audio_format_id: audio.audioFormatId || null,
-                    audio_language: audio.audioLanguage || null,
-                    media_mode: audio.mediaMode || 'video'
-                })
+                body: JSON.stringify({ urls: urls, format_id: formatId, title: title, merge_format: mergeFormat })
             })
             .then(res => res.json())
             .then(data => {
@@ -1388,7 +1331,7 @@
                 }
             })
             .catch(err => {
-                showErrorToast('Ошибка добавления в очередь: ' + err.message, () => addToQueue(urls, formatId, title, mergeFormat, audio));
+                showErrorToast('Ошибка добавления в очередь: ' + err.message, () => addToQueue(urls, formatId, title, mergeFormat));
             });
         }
 
@@ -1409,8 +1352,7 @@
             }
             const title = urls.length === 1 ? 'Видео' : 'Плейлист';
 
-            const audio = getAudioSelection();
-            addToQueue(urls, formatId, audio.mediaMode === 'video' ? title : `${title} — ${audio.mediaMode.toUpperCase()}`, containerFormat, audio);
+            addToQueue(urls, formatId, title, containerFormat);
 
             if (containerFormat === 'avi' && browserCopy) {
                 let bestMP4 = null;

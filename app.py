@@ -480,39 +480,6 @@ def api_video_download():
 
 # ================== ПРЯМОЕ СКАЧИВАНИЕ С ВЫБОРОМ КАЧЕСТВА ==================
 
-def normalize_audio_tracks(info):
-    """Return real, selectable audio streams exposed by yt-dlp."""
-    tracks = []
-    seen = set()
-    for fmt in info.get('formats', []):
-        if not fmt.get('url') or fmt.get('acodec', 'none') == 'none':
-            continue
-        format_id = str(fmt.get('format_id') or '').strip()
-        if not format_id or format_id in seen:
-            continue
-        seen.add(format_id)
-        language = (fmt.get('language') or 'und').strip().lower()
-        note = (fmt.get('format_note') or '').strip()
-        name = (fmt.get('language_name') or '').strip()
-        if not name:
-            name = 'Оригинал / язык не указан' if language == 'und' else language.upper()
-        detail = note.lower()
-        tracks.append({
-            'format_id': format_id,
-            'language': language,
-            'name': name,
-            'note': note,
-            'codec': str(fmt.get('acodec') or '').split('.')[0],
-            'bitrate': round(float(fmt.get('abr') or fmt.get('tbr') or 0)),
-            'channels': fmt.get('audio_channels'),
-            'is_original': language == 'und' or 'original' in detail,
-            'is_dubbed': any(word in detail for word in ('dub', 'dubbed', 'translated')),
-            'preference': fmt.get('language_preference') or 0,
-        })
-    tracks.sort(key=lambda item: (not item['is_original'], -item['preference'], item['name'].casefold(), -item['bitrate']))
-    return tracks
-
-
 @app.route('/api/direct_formats', methods=['POST'])
 def direct_formats():
     data = request.get_json()
@@ -587,9 +554,8 @@ def direct_formats():
             'height': 0,
         })
 
-        audio_tracks = normalize_audio_tracks(info)
-        logger.info(f"Найдено форматов: {len(formats)}, аудиодорожек: {len(audio_tracks)}")
-        return jsonify({"formats": formats, "audio_tracks": audio_tracks})
+        logger.info(f"Найдено доступных форматов: {len(formats)}")
+        return jsonify({"formats": formats})
     except Exception as e:
         logger.error(f"Ошибка в direct_formats: {e}\n{traceback.format_exc()}")
         return jsonify({"error": str(e)}), 500
@@ -808,7 +774,7 @@ def api_formats_redirect():
                 'note': f.get('ext'),
             })
         old_formats.insert(0, {'type': 'auto', 'format_id': None, 'resolution': 'Авто (рекомендуемое)', 'codec': 'best', 'size_mb': None})
-        return jsonify({"formats": old_formats, "audio_tracks": normalize_audio_tracks(info)})
+        return jsonify({"formats": old_formats})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1653,16 +1619,12 @@ queue_processing = False
 queue_processor_thread = None
 
 class QueueTask:
-    def __init__(self, task_id, urls, format_id, title, merge_format='mp4',
-                 audio_format_id=None, audio_language=None, media_mode='video'):
+    def __init__(self, task_id, urls, format_id, title, merge_format='mp4'):
         self.id = task_id
         self.urls = urls if isinstance(urls, list) else [urls]
         self.format_id = format_id
         self.title = title
         self.merge_format = merge_format
-        self.audio_format_id = audio_format_id
-        self.audio_language = audio_language
-        self.media_mode = media_mode
         self.status = "waiting"
         self.progress = 0
         self.message = "Ожидание загрузки"
@@ -1679,9 +1641,6 @@ def save_queue():
                 "format_id": t.format_id,
                 "title": t.title,
                 "merge_format": t.merge_format,
-                "audio_format_id": t.audio_format_id,
-                "audio_language": t.audio_language,
-                "media_mode": t.media_mode,
                 "status": t.status,
                 "progress": t.progress,
                 "message": t.message,
@@ -1704,11 +1663,7 @@ def load_queue():
         with queue_lock:
             queue_tasks = []
             for td in tasks_data:
-                task = QueueTask(
-                    td["id"], td["urls"], td.get("format_id"), td["title"],
-                    td.get("merge_format", "mp4"), td.get("audio_format_id"),
-                    td.get("audio_language"), td.get("media_mode", "video"),
-                )
+                task = QueueTask(td["id"], td["urls"], td["format_id"], td["title"], td.get("merge_format", "mp4"))
                 if td["status"] in ("downloading", "paused"):
                     task.status = "waiting"
                 else:
@@ -1754,13 +1709,7 @@ def _process_queue():
             save_queue()
 
         try:
-            success = download_single_sync(
-                current_task.urls, current_task.format_id, progress_callback,
-                merge_format=current_task.merge_format,
-                audio_format_id=current_task.audio_format_id,
-                audio_language=current_task.audio_language,
-                media_mode=current_task.media_mode,
-            )
+            success = download_single_sync(current_task.urls, current_task.format_id, progress_callback, merge_format=current_task.merge_format)
             if success:
                 current_task.status = "completed"
                 current_task.progress = 100
@@ -1796,10 +1745,7 @@ def api_queue_list():
                 "message": t.message,
                 "error": t.error,
                 "added_at": t.added_at,
-                "urls": t.urls,
-                "audio_format_id": t.audio_format_id,
-                "audio_language": t.audio_language,
-                "media_mode": t.media_mode
+                "urls": t.urls
             })
     return jsonify({"tasks": tasks})
 
@@ -1812,9 +1758,6 @@ def api_queue_add():
         format_id = None
     title = data.get('title', '')
     merge_format = data.get('merge_format', 'mp4')
-    audio_format_id = str(data.get('audio_format_id') or '').strip() or None
-    audio_language = str(data.get('audio_language') or '').strip().lower() or None
-    media_mode = str(data.get('media_mode') or 'video').strip().lower()
     if not urls:
         return jsonify({"error": "No URLs"}), 400
     if isinstance(urls, str):
@@ -1826,18 +1769,8 @@ def api_queue_add():
         return jsonify({"error": "Разрешены только HTTP/HTTPS ссылки"}), 400
     if merge_format not in ('mp4', 'mkv', 'webm', 'avi'):
         return jsonify({"error": "Неподдерживаемый формат контейнера"}), 400
-    if media_mode not in ('video', 'm4a', 'mp3'):
-        return jsonify({"error": "Неподдерживаемый режим медиа"}), 400
-    if audio_format_id and not re.fullmatch(r'[A-Za-z0-9_.:-]{1,120}', audio_format_id):
-        return jsonify({"error": "Некорректная аудиодорожка"}), 400
-    if audio_language and not re.fullmatch(r'[A-Za-z0-9_-]{1,35}', audio_language):
-        return jsonify({"error": "Некорректный язык"}), 400
     task_id = hashlib.md5(f"{time.time()}_{random.randint(0,100000)}".encode()).hexdigest()[:8]
-    task = QueueTask(
-        task_id, urls, format_id,
-        title or (urls[0] if len(urls) == 1 else f"Плейлист ({len(urls)} видео)"),
-        merge_format, audio_format_id, audio_language, media_mode,
-    )
+    task = QueueTask(task_id, urls, format_id, title or (urls[0] if len(urls) == 1 else f"Плейлист ({len(urls)} видео)"), merge_format)
     with queue_lock:
         queue_tasks.append(task)
     save_queue()

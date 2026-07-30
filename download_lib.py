@@ -48,16 +48,10 @@ def get_output_path(base_dir, author, video_id, title):
 
 COOKIES_PATH = os.path.join(os.path.dirname(__file__), "cookies.txt")
 
-def get_ydl_opts(format_id, merge_format, progress_hook, temp_dir,
-                 audio_format_id=None, media_mode='video'):
+def get_ydl_opts(format_id, merge_format, progress_hook, temp_dir):
     os.makedirs(temp_dir, exist_ok=True)
-
-    if media_mode in ('m4a', 'mp3'):
-        actual_format = audio_format_id or 'bestaudio[ext=m4a]/bestaudio'
-    elif audio_format_id:
-        video_selector = format_id or 'bestvideo[ext=mp4][vcodec^=avc1]/bestvideo'
-        actual_format = f"{video_selector}+{audio_format_id}/{video_selector}+bestaudio/best"
-    elif format_id and '+' not in format_id and format_id.isdigit():
+    
+    if format_id and '+' not in format_id and format_id.isdigit():
         actual_format = f"{format_id}+bestaudio[ext=m4a]/{format_id}+bestaudio/{format_id}"
     else:
         actual_format = format_id or (
@@ -86,16 +80,6 @@ def get_ydl_opts(format_id, merge_format, progress_hook, temp_dir,
         **({'ffmpeg_location': os.path.dirname(ffmpeg_path)} if ffmpeg_path else {}),
     }
 
-    if media_mode in ('m4a', 'mp3'):
-        codec = 'm4a' if media_mode == 'm4a' else 'mp3'
-        opts['outtmpl'] = os.path.join(temp_dir, 'audio.%(ext)s')
-        opts.pop('merge_output_format', None)
-        opts['postprocessors'] = [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': codec,
-            'preferredquality': '192' if codec == 'mp3' else '0',
-        }]
-
     if po_args:
         if 'extractor_args' not in opts:
             opts['extractor_args'] = {}
@@ -103,9 +87,7 @@ def get_ydl_opts(format_id, merge_format, progress_hook, temp_dir,
 
     return opts
 
-def download_single_video_impl(url, format_id, output_dir, progress_dict, progress_callback,
-                               merge_format, audio_format_id=None, audio_language=None,
-                               media_mode='video'):
+def download_single_video_impl(url, format_id, output_dir, progress_dict, progress_callback, merge_format):
     with locks_mutex:
         if download_locks.get(url):
             logger.info(f"Видео {url} уже скачивается.")
@@ -138,10 +120,7 @@ def download_single_video_impl(url, format_id, output_dir, progress_dict, progre
                 if progress_callback:
                     progress_callback(100, "Склеивание и обработка...")
 
-        opts = get_ydl_opts(
-            format_id, merge_format, internal_hook, temp_dir,
-            audio_format_id=audio_format_id, media_mode=media_mode,
-        )
+        opts = get_ydl_opts(format_id, merge_format, internal_hook, temp_dir)
         
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -151,22 +130,15 @@ def download_single_video_impl(url, format_id, output_dir, progress_dict, progre
                 shutil.rmtree(temp_dir, ignore_errors=True)
                 return False
 
-        final_media = None
-        language_suffix = safe_name(audio_language or 'original')[:35] or 'original'
+        final_video = None
         for f in os.listdir(temp_dir):
             src = os.path.join(temp_dir, f)
-            if media_mode in ('m4a', 'mp3') and f.endswith(('.m4a', '.mp3', '.aac', '.opus', '.webm')):
-                ext = os.path.splitext(f)[1]
-                dst = os.path.join(output_dir, f"audio-{language_suffix}{ext}")
-                if os.path.exists(dst): os.remove(dst)
-                shutil.move(src, dst)
-                final_media = dst
-            elif media_mode == 'video' and f.endswith(('.mp4', '.mkv', '.webm', '.avi')):
+            if f.endswith(('.mp4', '.mkv', '.webm', '.avi')):
                 ext = os.path.splitext(f)[1]
                 dst = os.path.join(output_dir, f"video{ext}")
                 if os.path.exists(dst): os.remove(dst)
                 shutil.move(src, dst)
-                final_media = dst
+                final_video = dst
             elif f.endswith('.json'):
                 dst = os.path.join(output_dir, "info.json")
                 # БАГФИКС: shutil.move падал, если info.json уже существовал (повторная загрузка)
@@ -177,7 +149,7 @@ def download_single_video_impl(url, format_id, output_dir, progress_dict, progre
                 if os.path.exists(dst): os.remove(dst)
                 shutil.move(src, dst)
 
-        return True if final_media else False
+        return True if final_video else False
 
     except Exception as e:
         logger.error(f"Ошибка download_lib: {e}")
@@ -209,8 +181,7 @@ def download_media(urls, format_id, is_playlist, progress_data):
         progress_data['status'] = 'error'
     return success
 
-def download_single_sync(urls, format_id, progress_callback, merge_format='mp4',
-                         audio_format_id=None, audio_language=None, media_mode='video'):
+def download_single_sync(urls, format_id, progress_callback, merge_format='mp4'):
     if isinstance(urls, str): urls = [urls]
     
     config = load_config()
@@ -253,23 +224,7 @@ def download_single_sync(urls, format_id, progress_callback, merge_format='mp4',
                 overall = ((idx - 1) * 100 + p) / total
                 progress_callback(overall, f"[{idx}/{total}] {msg}")
 
-            selected_audio_id = audio_format_id
-            if audio_language:
-                matching = [f for f in info.get('formats', []) if (
-                    f.get('acodec', 'none') != 'none'
-                    and str(f.get('language') or '').lower() == audio_language.lower()
-                )]
-                if matching:
-                    matching.sort(key=lambda f: (f.get('language_preference') or 0, f.get('abr') or f.get('tbr') or 0), reverse=True)
-                    selected_audio_id = str(matching[0].get('format_id'))
-                elif total > 1:
-                    selected_audio_id = None
-
-            res = download_single_video_impl(
-                url, format_id, output_dir, None, sub_cb, merge_format,
-                audio_format_id=selected_audio_id, audio_language=audio_language,
-                media_mode=media_mode,
-            )
+            res = download_single_video_impl(url, format_id, output_dir, None, sub_cb, merge_format)
             if res: success_count += 1
 
         except Exception as e:

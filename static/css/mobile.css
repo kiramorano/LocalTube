@@ -105,29 +105,6 @@ button, input, select, textarea { font: inherit; }
   .video-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
 
-.audio-download-options {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 12px 0;
-  padding: 12px;
-  border: 1px solid var(--yt-spec-border, #303030);
-  border-radius: 12px;
-  background: var(--yt-spec-raised-background, #212121);
-  color: var(--yt-spec-text-primary, #f1f1f1);
-}
-.audio-download-options label { font-weight: 600; }
-.audio-download-options select {
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 10px;
-  border: 1px solid var(--yt-spec-border, #303030);
-  border-radius: 8px;
-  background: var(--yt-spec-base-background, #0f0f0f);
-  color: var(--yt-spec-text-primary, #f1f1f1);
-}
-.audio-track-details { color: var(--yt-spec-text-secondary, #aaa); font-size: 14px; line-height: 1.5; }
-
 /* Remote-first layout used by the separate Android TV flavor. */
 .lt-tv body { font-size: 18px; }
 .lt-tv .lt-mobile-nav { display: none !important; }
