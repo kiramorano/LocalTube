@@ -1,45 +1,26 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 from PyInstaller.utils.hooks import collect_all
 
-block_cipher = None
+ROOT = os.path.abspath(os.path.join(SPECPATH, '..'))
 
-ytdlp_datas, ytdlp_binaries, ytdlp_hiddenimports = collect_all("yt_dlp")
+ytldlp_data, ytldlp_binaries, ytldlp_hiddenimports = collect_all('yt_dlp')
 
-analysis = Analysis(
-    ["app.py"],
-    pathex=[],
-    binaries=ytdlp_binaries,
+a = Analysis(
+    [os.path.join(ROOT, 'app.py')],
+    pathex=[ROOT],
+    binaries=ytldlp_binaries,
     datas=[
-        ("templates", "templates"),
-        ("static", "static"),
-        ("config.json", "."),
-    ] + ytdlp_datas,
-    hiddenimports=ytdlp_hiddenimports,
+        (os.path.join(ROOT, 'templates'), 'templates'),
+        (os.path.join(ROOT, 'static'), 'static'),
+        (os.path.join(ROOT, 'config.json'), '.'),
+    ] + ytldlp_data,
+    hiddenimports=ytldlp_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
 )
-pyz = PYZ(analysis.pure, analysis.zipped_data, cipher=block_cipher)
-exe = EXE(
-    pyz,
-    analysis.scripts,
-    [],
-    exclude_binaries=True,
-    name="LocalTube",
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    console=True,
-)
-coll = COLLECT(
-    exe,
-    analysis.binaries,
-    analysis.zipfiles,
-    analysis.datas,
-    strip=False,
-    upx=True,
-    name="LocalTube",
-)
+pyz = PYZ(a.pure)
+exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name='LocalTube', debug=False, bootloader_ignore_signals=False, strip=False, upx=False, console=True)
