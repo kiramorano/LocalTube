@@ -1,53 +1,26 @@
 name: LocalTube release
-
 on:
   push:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install runtime dependencies
-        run: python -m pip install -r requirements.txt
-      - name: Validate Python sources
-        run: python -m compileall -q .
-      - name: Run tests
-        run: python -m unittest discover -p 'test*.py' -v
-      - name: Build source package
-        run: |
-          mkdir -p package/LocalTube
-          cp -r --exclude='.git' --exclude='package' . package/LocalTube/
-          tar -czf LocalTube-${GITHUB_REF_NAME#v}.tar.gz -C package LocalTube
-          sha256sum LocalTube-${GITHUB_REF_NAME#v}.tar.gz > LocalTube-${GITHUB_REF_NAME#v}.sha256
-      - uses: actions/upload-artifact@v4
-        with:
-          name: LocalTube-source
-          path: |
-            LocalTube-*.tar.gz
-            LocalTube-*.sha256
-
+        with: {python-version: '3.11'}
+      - run: python -m pip install -r requirements.txt
+      - run: python -m compileall -q .
+      - run: python -m unittest discover -p 'test*.py' -v
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: softprops/action-gh-release@v2
         with:
-          name: LocalTube-source
-          path: release
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: LocalTube ${{ github.ref_name }}
           generate_release_notes: true
-          files: release/*
