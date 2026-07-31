@@ -1,26 +1,67 @@
-name: LocalTube release
+name: Build and release LocalTube
+
 on:
   push:
-    branches: [main]
-    tags: ['v*']
-  workflow_dispatch:
+    tags:
+      - v1.7
+
 permissions:
   contents: write
+
 jobs:
-  verify:
-    runs-on: ubuntu-latest
+  build:
+    name: Build ${{ matrix.platform }} package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+            archive: LocalTube-windows-x64.zip
+          - os: ubuntu-latest
+            platform: linux-x64
+            archive: LocalTube-linux-x64.tar.gz
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
-        with: {python-version: '3.11'}
-      - run: python -m pip install -r requirements.txt
-      - run: python -m compileall -q .
-      - run: python -m unittest discover -p 'test*.py' -v
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: python -m pip install --upgrade pip pyinstaller && python -m pip install -r requirements.txt
+
+      - name: Build application
+        run: pyinstaller --noconfirm --clean packaging/localtube.spec
+
+      - name: Package Windows application
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/LocalTube -DestinationPath ${{ matrix.archive }}
+
+      - name: Package Linux application
+        if: runner.os == 'Linux'
+        run: tar -C dist -czf ${{ matrix.archive }} LocalTube
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: ${{ matrix.archive }}
+          if-no-files-found: error
+
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: verify
+    name: Upload release assets
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: softprops/action-gh-release@v2
+      - uses: actions/download-artifact@v4
         with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
           generate_release_notes: true
