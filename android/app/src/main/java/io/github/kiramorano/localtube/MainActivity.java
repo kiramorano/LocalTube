@@ -29,7 +29,7 @@ public class MainActivity extends AppCompatActivity {
     prefs=getSharedPreferences("localtube", MODE_PRIVATE); web=findViewById(R.id.webview);
     web.getSettings().setJavaScriptEnabled(true); web.getSettings().setDomStorageEnabled(true); web.getSettings().setAllowFileAccess(false);
     web.setWebViewClient(new WebViewClient(){ @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r){ Uri u=r.getUrl(); if ("http".equals(u.getScheme())||"https".equals(u.getScheme())) return false; try { startActivity(new Intent(Intent.ACTION_VIEW,u)); } catch(Exception ignored){} return true; }});
-    web.setWebChromeClient(new WebChromeClient(){ @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p){ picker=cb; try { chooseFile.launch(p.createIntent()); return true; } catch(Exception e){ picker.onReceiveValue(null); picker=null; return false; } }});
+    web.setWebChromeClient(new WebChromeClient(){ @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, WebChromeClient.FileChooserParams p){ picker=cb; try { chooseFile.launch(p.createIntent()); return true; } catch(Exception e){ picker.onReceiveValue(null); picker=null; return false; } }});
     if (!prefs.contains("server")) showServerDialog(true); else load();
   }
   private String server(){ return prefs.getString("server", "http://localhost:5000"); }
