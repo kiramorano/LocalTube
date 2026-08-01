@@ -554,6 +554,149 @@ def api_theme_backgrounds(theme):
     return jsonify(images)
 
 
+# ================= API: КАТАЛОГ (JSON) =================
+def _user_media_url(path):
+    try:
+        rel = os.path.relpath(path, start=os.path.join(SCRIPT_DIR, USER_VIDEOS_ROOT)).replace('\\', '/')
+        return f"/usermedia/{rel}"
+    except Exception:
+        return None
+
+def _video_item(vid, v):
+    thumb = find_file(os.path.join(BASE_VIDEO_DIR, v["author"], v["folder"]), ['.jpg', '.png', '.webp'])
+    return {
+        "id": vid, "author": v["author"], "title": v["title"],
+        "is_short": v["is_short"], "size_mb": v["size_mb"], "source": "youtube",
+        "video_url": f"/media/{quote(v['author'])}/{quote(v['folder'])}/{quote(v['filename'])}",
+        "thumb": f"/media/{quote(v['author'])}/{quote(v['folder'])}/{quote(thumb)}" if thumb else None,
+        "author_avatar": get_avatar_url(v["author"]),
+    }
+
+@app.route('/api/catalog')
+def api_catalog():
+    build_video_map()
+    build_user_video_map()
+    build_playlist_map()
+
+    videos, shorts = [], []
+    for vid, v in VIDEO_MAP.items():
+        item = _video_item(vid, v)
+        if v["is_short"]: shorts.append(item)
+        else: videos.append(item)
+
+    authors = [{"name": a, "avatar": get_avatar_url(a)} for a in sorted({v["author"] for v in VIDEO_MAP.values()})]
+
+    user_videos = [{
+        "id": uv["id"], "title": uv["title"], "author": uv["author"],
+        "size_mb": uv["size_mb"], "source": "user", "author_avatar": get_avatar_url(uv["author"]),
+        "thumb": _user_media_url(uv["thumb"]) if uv.get("thumb") else None,
+        "video_url": _user_media_url(uv["video_path"]),
+    } for uv in USER_VIDEO_MAP.values()]
+
+    playlists = [{
+        "id": p["id"], "title": p["title"], "uploader": p["uploader"],
+        "thumbnail": p["thumbnail"], "video_count": p["video_count"],
+    } for p in PLAYLIST_MAP.values()]
+
+    random.shuffle(videos)
+    return jsonify({
+        "videos": videos, "shorts": shorts,
+        "authors": authors, "playlists": playlists, "user_videos": user_videos,
+    })
+
+@app.route('/api/video/<vid_id>')
+def api_video(vid_id):
+    build_video_map()
+    build_user_video_map()
+
+    meta = {}
+    video_url = None
+    author_avatar = None
+    is_short = False
+    source = "youtube"
+    thumb = None
+
+    if vid_id in USER_VIDEO_MAP:
+        uv = USER_VIDEO_MAP[vid_id]
+        meta = {"title": uv["title"], "author": uv["author"], "description": uv.get("description", ""), "id": uv["id"], "source": "user"}
+        video_url = _user_media_url(uv["video_path"])
+        author_avatar = get_avatar_url(uv["author"])
+        thumb = _user_media_url(uv["thumb"]) if uv.get("thumb") else None
+        source = "user"
+    elif vid_id in VIDEO_MAP:
+        v = VIDEO_MAP[vid_id]
+        folder_path = os.path.join(BASE_VIDEO_DIR, v["author"], v["folder"])
+        video_url = f"/media/{quote(v['author'])}/{quote(v['folder'])}/{quote(v['filename'])}"
+        author_avatar = get_avatar_url(v["author"])
+        is_short = v["is_short"]
+        thumb_file = find_file(folder_path, ['.jpg', '.png', '.webp'])
+        if thumb_file:
+            thumb = f"/media/{quote(v['author'])}/{quote(v['folder'])}/{quote(thumb_file)}"
+        info_file = find_file(folder_path, ['info.json', '.info.json'])
+        if info_file:
+            try:
+                with open(os.path.join(folder_path, info_file), 'r', encoding='utf-8') as f:
+                    meta = json.load(f)
+            except: pass
+        if not meta:
+            meta = {"title": v["title"], "uploader": v["author"], "id": vid_id}
+
+    if not video_url:
+        return jsonify({"error": "Not found"}), 404
+
+    mime_type = "video/mp4"
+    if video_url.endswith('.webm'): mime_type = "video/webm"
+    elif video_url.endswith('.mkv'): mime_type = "video/x-matroska"
+
+    full_path = os.path.join(SCRIPT_DIR, video_url.lstrip('/'))
+    file_size_mb = round(os.path.getsize(full_path) / (1024 * 1024), 1) if os.path.exists(full_path) else 0
+
+    recommended = []
+    all_combined = list(VIDEO_MAP.values())
+    random.shuffle(all_combined)
+    for rv in all_combined[:15]:
+        if rv.get("youtube_id", rv["folder"]) != vid_id:
+            recommended.append(_video_item(rv.get("youtube_id", rv["folder"]), rv))
+
+    return jsonify({
+        "id": vid_id,
+        "title": meta.get("title", "Без названия"),
+        "author": meta.get("uploader", meta.get("author", "Unknown")),
+        "description": meta.get("description", ""),
+        "video_url": video_url,
+        "mime_type": mime_type,
+        "is_short": is_short,
+        "thumb": thumb,
+        "author_avatar": author_avatar,
+        "file_size_mb": file_size_mb,
+        "source": source,
+        "recommended": recommended,
+    })
+
+@app.route('/api/search')
+def api_search():
+    q = request.args.get('q', '').lower().strip()
+    if not q:
+        return jsonify({"results": []})
+    build_video_map()
+    build_user_video_map()
+
+    results = []
+    for vid, v in VIDEO_MAP.items():
+        if q in v["title"].lower() or q in v["author"].lower():
+            results.append(_video_item(vid, v))
+    for uv in USER_VIDEO_MAP.values():
+        if q in uv["title"].lower() or q in uv["author"].lower():
+            results.append({
+                "id": uv["id"], "author": uv["author"], "title": uv["title"],
+                "is_short": False, "size_mb": uv["size_mb"], "source": "user",
+                "video_url": _user_media_url(uv["video_path"]),
+                "thumb": _user_media_url(uv["thumb"]) if uv.get("thumb") else None,
+                "author_avatar": get_avatar_url(uv["author"]),
+            })
+    return jsonify({"results": results})
+
+
 # ================= ЗАПУСК СЕРВЕРА =================
 if __name__ == '__main__':
     # Запускаем фоновый поток для очереди
