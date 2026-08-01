@@ -1,7 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <application android:allowBackup="true" android:label="LocalTube" android:theme="@style/Theme.LocalTube" android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml/network_security_config">
-        <activity android:name=".MainActivity" android:screenOrientation="unspecified" android:exported="true">
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+
+    <application
+        android:name=".LocalTubeApp"
+        android:allowBackup="true"
+        android:label="LocalTube"
+        android:theme="@style/Theme.LocalTube"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

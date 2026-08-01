@@ -1,4 +1,0 @@
-<menu xmlns:android="http://schemas.android.com/apk/res/android">
- <item android:id="@+id/action_server" android:title="Server address" android:showAsAction="never"/>
- <item android:id="@+id/action_reload" android:title="Reload" android:showAsAction="never"/>
-</menu>
