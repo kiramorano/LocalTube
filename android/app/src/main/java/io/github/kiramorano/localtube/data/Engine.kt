@@ -1,72 +1,159 @@
 package io.github.kiramorano.localtube.data
 
+import android.content.Context
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
-import com.yausername.youtubedl_android.mapper.VideoInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 
 object Engine {
 
-    suspend fun fetchFormats(url: String): List<FormatOption> = withContext(Dispatchers.IO) {
-        val info = YoutubeDL.getInstance().getInfo(url)
-        infoToFormats(info)
+    private const val UPDATED_PREF = "ytdlp_updated_v"
+    private const val FETCH_TIMEOUT_MS = 120_000L
+    private const val UPDATE_TIMEOUT_MS = 300_000L
+    private val updateMutex = Mutex()
+
+    fun appVersion(app: Context): String = try {
+        app.packageManager.getPackageInfo(app.packageName, 0).versionName ?: "1"
+    } catch (_: Exception) {
+        "1"
     }
 
-    suspend fun fetchInfo(url: String): VideoInfo = withContext(Dispatchers.IO) {
-        YoutubeDL.getInstance().getInfo(url)
+    /**
+     * Обновляет встроенный yt-dlp до последней стабильной версии, но не чаще одного раза за версию приложения.
+     * Возвращает true, если yt-dlp актуален (или только что обновлён).
+     */
+    suspend fun ensureYtDlpFresh(app: Context, appVersion: String): Boolean {
+        val sp = app.getSharedPreferences("localtube", Context.MODE_PRIVATE)
+        if (sp.getString(UPDATED_PREF, "") == appVersion) return true
+        return withContext(Dispatchers.IO) {
+            updateMutex.withLock {
+                if (sp.getString(UPDATED_PREF, "") == appVersion) {
+                    true
+                } else {
+                    val ok = try {
+                        withTimeout(UPDATE_TIMEOUT_MS) {
+                            YoutubeDL.getInstance().updateYoutubeDL(app, YoutubeDL.UpdateChannel.STABLE)
+                        }
+                        true
+                    } catch (_: Exception) {
+                        false
+                    }
+                    if (ok) sp.edit().putString(UPDATED_PREF, appVersion).apply()
+                    ok
+                }
+            }
+        }
     }
 
-    fun infoToFormats(info: VideoInfo): List<FormatOption> {
+    /**
+     * Получает название видео и список форматов. Использует `-J`, чтобы иметь возможность прервать
+     * зависший процесс по таймауту.
+     */
+    suspend fun fetchInfo(url: String, processId: String): Pair<String, List<FormatOption>> {
+        val req = YoutubeDLRequest(url).apply {
+            addOption("-J")
+            addOption("--no-playlist")
+            addOption("--no-warnings")
+            addOption("--no-call-home")
+            addOption("--socket-timeout", 20)
+        }
+        return withContext(Dispatchers.IO) {
+            val out = try {
+                withTimeout(FETCH_TIMEOUT_MS) {
+                    withContext(Dispatchers.IO) {
+                        YoutubeDL.getInstance().execute(req, processId).out
+                    }
+                }
+            } catch (e: TimeoutCancellationException) {
+                YoutubeDL.getInstance().destroyProcessById(processId)
+                throw RuntimeException("Превышено время ожидания. Проверьте интернет или обновите yt-dlp в настройках.")
+            } catch (e: Exception) {
+                YoutubeDL.getInstance().destroyProcessById(processId)
+                throw RuntimeException("yt-dlp: ${(e.message ?: "ошибка").take(500)}")
+            }
+            val start = out.indexOf('{')
+            if (start < 0) {
+                throw RuntimeException("yt-dlp не вернул данные. Попробуйте обновить yt-dlp в настройках.")
+            }
+            val j = try {
+                JSONObject(out.substring(start))
+            } catch (e: Exception) {
+                throw RuntimeException("Не удалось разобрать ответ yt-dlp.")
+            }
+            val title = j.optString("title", "Видео")
+            title to (listOf(bestOption()) + parseFormatsJson(j.optJSONArray("formats")))
+        }
+    }
+
+    private fun bestOption() = FormatOption(
+        formatId = "best",
+        label = "Лучшее качество (mp4)",
+        isVideo = true,
+        resolution = "auto",
+        ext = "mp4",
+        sizeMb = 0.0,
+        fps = 0,
+        codec = ""
+    )
+
+    private fun parseFormatsJson(arr: JSONArray?): List<FormatOption> {
         val out = mutableListOf<FormatOption>()
-        out += FormatOption(
-            formatId = "best",
-            label = "Лучшее качество (mp4)",
-            isVideo = true,
-            resolution = "auto",
-            ext = "mp4",
-            sizeMb = 0.0,
-            fps = 0,
-            codec = ""
-        )
+        if (arr == null) return out
         val seen = HashSet<Int>()
-        for (f in info.formats ?: emptyList()) {
-            val h = f.height
-            if (h > 0 && f.acodec != "none" && f.vcodec != "none" && seen.add(h)) {
-                val size = if (f.fileSize > 0) f.fileSize else f.fileSizeApproximate
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val h = o.optInt("height", 0)
+            val vcodec = o.optString("vcodec", "none")
+            val acodec = o.optString("acodec", "none")
+            if (h > 0 && acodec != "none" && vcodec != "none" && seen.add(h)) {
+                val fps = o.optInt("fps", 0)
+                val size = fileSize(o)
                 out += FormatOption(
-                    formatId = f.formatId ?: "",
-                    label = "${h}p${if (f.fps > 30) " ${f.fps}fps" else ""}",
+                    formatId = o.optString("format_id"),
+                    label = "${h}p${if (fps > 30) " $fps fps" else ""}",
                     isVideo = true,
                     resolution = "${h}p",
-                    ext = f.ext ?: "",
+                    ext = o.optString("ext", ""),
                     sizeMb = size / 1024.0 / 1024.0,
-                    fps = f.fps,
-                    codec = (f.vcodec ?: "").substringBefore(".")
+                    fps = fps,
+                    codec = vcodec.substringBefore(".")
                 )
             }
         }
         val seenAudio = HashSet<String>()
-        for (f in info.formats ?: emptyList()) {
-            val isAudio = (f.vcodec == "none" || f.vcodec.isNullOrBlank()) && !f.acodec.isNullOrBlank()
-            if (isAudio) {
-                val key = (f.ext ?: "") + (f.abr ?: 0)
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val vcodec = o.optString("vcodec", "none")
+            val acodec = o.optString("acodec", "")
+            if (vcodec == "none" && acodec.isNotBlank()) {
+                val key = o.optString("ext", "") + o.optLong("abr", 0)
                 if (!seenAudio.add(key)) continue
-                val size = if (f.fileSize > 0) f.fileSize else f.fileSizeApproximate
                 out += FormatOption(
-                    formatId = f.formatId ?: "",
-                    label = "Аудио ${(f.formatNote ?: f.ext ?: "m4a")}",
+                    formatId = o.optString("format_id"),
+                    label = "Аудио ${o.optString("format_note").ifBlank { o.optString("ext", "m4a") }}",
                     isVideo = false,
                     resolution = "audio",
-                    ext = f.ext ?: "m4a",
-                    sizeMb = size / 1024.0 / 1024.0,
+                    ext = o.optString("ext", "m4a"),
+                    sizeMb = fileSize(o) / 1024.0 / 1024.0,
                     fps = 0,
-                    codec = (f.acodec ?: "").substringBefore(".")
+                    codec = acodec.substringBefore(".")
                 )
             }
         }
         return out
+    }
+
+    private fun fileSize(o: JSONObject): Long {
+        val f = o.optLong("filesize", 0)
+        return if (f > 0) f else o.optLong("filesize_approx", 0)
     }
 
     fun buildRequest(
@@ -88,6 +175,8 @@ object Engine {
         req.addOption("--merge-output-format", "mp4")
         req.addOption("--write-info-json")
         req.addOption("--write-thumbnail")
+        req.addOption("--no-warnings")
+        req.addOption("--socket-timeout", 30)
         req.addOption("-c")
         req.addOption("--no-mtime")
         req.addOption("--retries", 10)

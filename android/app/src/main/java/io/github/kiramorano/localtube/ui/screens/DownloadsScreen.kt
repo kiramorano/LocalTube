@@ -65,7 +65,7 @@ fun DownloadsScreen(vm: DownloadsViewModel = viewModel()) {
             if (vm.fetching) {
                 Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.padding(end = 8.dp).size(18.dp), strokeWidth = 2.dp)
-                    Text("Получение информации...")
+                    Text(vm.phase ?: "Ожидание...")
                 }
             }
             vm.fetchError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }

@@ -84,6 +84,8 @@ class DownloadsViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var started by mutableStateOf<String?>(null)
         private set
+    var phase by mutableStateOf<String?>(null)
+        private set
 
     fun fetch(url: String) {
         if (fetching || url.isBlank()) return
@@ -92,12 +94,23 @@ class DownloadsViewModel(app: Application) : AndroidViewModel(app) {
             fetchError = null
             formats = null
             infoTitle = null
+            phase = "Проверка yt-dlp..."
             try {
-                val info = Engine.fetchInfo(url)
-                infoTitle = info.title
-                formats = Engine.infoToFormats(info)
+                val app = getApplication<Application>()
+                if (!Engine.ensureYtDlpFresh(app, Engine.appVersion(app))) {
+                    phase = "yt-dlp не удалось обновить, пробую встроенную версию..."
+                } else {
+                    phase = "Получение информации о видео..."
+                }
+                val (title, fmts) = Engine.fetchInfo(
+                    url, "fetch_${System.currentTimeMillis()}"
+                )
+                infoTitle = title
+                formats = fmts
+                phase = null
             } catch (e: Exception) {
                 fetchError = e.message ?: "Не удалось получить информацию о видео"
+                phase = null
             } finally {
                 fetching = false
             }
