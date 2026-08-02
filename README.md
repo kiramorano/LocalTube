@@ -14,6 +14,10 @@ sudo apt install ffmpeg -y
 
 ## Сборки и платформы
 
-При публикации тега `v1.7` GitHub Actions создаёт настоящие desktop-пакеты для Windows x64 и Linux x64 и прикрепляет их к GitHub Release. Исходный код также доступен в автоматически созданных GitHub source archives. APK/Android TV APK не выпускаются: в репозитории нет Android/TV-проекта и нативного мобильнного рантайма для Python/Flask/FFmpeg.
+При публикации тега `v1.7` GitHub Actions создаёт настоящие desktop-пакеты для Windows x64 и Linux x64 и прикрепляет их к GitHub Release. Исходный код также доступен в автоматически созданных GitHub source archives.
 
-��рлодробности установки и ограничений: [docs/PLATFORMS.md](docs/PLATFORMS.md).
+### Android
+
+Начиная с `v3.0.0` выпускается автономное Android-приложение (APK): оно не требует сервера, встраивает yt-dlp + FFmpeg и скачивает видео прямо на устройство. APK доступны во вкладке Releases: `app-arm64-v8a-release.apk` (для большинства современных телефонов) и `app-universal-release.apk` (универсальный).
+
+��рлодробности установки и ограничений: [docs/PLATFORMS.md](docs/PLATFORMS.md).

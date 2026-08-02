@@ -1,5 +1,6 @@
 package io.github.kiramorano.localtube.ui.screens
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,12 +38,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import io.github.kiramorano.localtube.data.ServerManager
 import io.github.kiramorano.localtube.data.VideoItem
 import io.github.kiramorano.localtube.ui.components.AsyncThumb
-import io.github.kiramorano.localtube.ui.components.ErrorBox
 import io.github.kiramorano.localtube.ui.components.LoadingBox
 import io.github.kiramorano.localtube.vm.PlayerViewModel
+import java.io.File
 
 @Composable
 fun PlayerScreen(
@@ -51,7 +51,7 @@ fun PlayerScreen(
     vm: PlayerViewModel = viewModel()
 ) {
     LaunchedEffect(videoId) { vm.load(videoId) }
-    val detail = vm.detail
+    val video = vm.video
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -68,53 +68,48 @@ fun PlayerScreen(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        when {
-            vm.loading && detail == null -> LoadingBox()
-            vm.error != null && detail == null -> ErrorBox(vm.error!!) { vm.load(videoId) }
-            detail == null -> LoadingBox()
-            else -> {
-                val url = remember(detail.videoUrl) {
-                    detail.videoUrl?.let { ServerManager.api().absolute(it) }
-                }
-                if (url != null) {
-                    VideoPlayer(url)
-                } else {
-                    Text(
-                        "Видео недоступно на сервере",
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-                LazyColumn(Modifier.weight(1f)) {
-                    item {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(detail.title, style = MaterialTheme.typography.titleLarge)
-                            Spacer(Modifier.height(4.dp))
-                            Text(detail.author, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                            if (detail.sizeMb > 0) {
-                                Text(
-                                    "${detail.sizeMb} MB",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            if (detail.description.isNotBlank()) {
-                                Spacer(Modifier.height(8.dp))
-                                Text(detail.description, style = MaterialTheme.typography.bodyMedium)
-                            }
-                        }
-                    }
-                    if (detail.recommended.isNotEmpty()) {
-                        item {
+        if (video == null) {
+            LoadingBox()
+        } else {
+            val path = vm.videoPath
+            if (path == null) {
+                Text(
+                    "Файл не найден",
+                    modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.error
+                )
+            } else {
+                VideoPlayer(path, vm.subtitlePaths)
+            }
+            LazyColumn(Modifier.weight(1f)) {
+                item {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(video.title, style = MaterialTheme.typography.titleLarge)
+                        Spacer(Modifier.height(4.dp))
+                        Text(video.author, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                        if (video.sizeMb > 0) {
                             Text(
-                                "Рекомендации",
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                "%.1f MB".format(video.sizeMb),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        items(detail.recommended, key = { it.id }) { rec ->
-                            RecommendedRow(rec) { vm.load(rec.id) }
+                        if (video.description.isNotBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(video.description, style = MaterialTheme.typography.bodyMedium)
                         }
+                    }
+                }
+                if (vm.recommended.isNotEmpty()) {
+                    item {
+                        Text(
+                            "Рекомендации",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                    items(vm.recommended, key = { it.id }) { rec ->
+                        RecommendedRow(rec) { vm.load(rec.id) }
                     }
                 }
             }
@@ -123,14 +118,23 @@ fun PlayerScreen(
 }
 
 @Composable
-private fun VideoPlayer(url: String) {
+private fun VideoPlayer(path: String, subtitlePaths: List<String>) {
     val context = LocalContext.current
     val player = remember { ExoPlayer.Builder(context).build() }
     DisposableEffect(player) {
         onDispose { player.release() }
     }
-    LaunchedEffect(url) {
-        player.setMediaItem(MediaItem.fromUri(url))
+    LaunchedEffect(path) {
+        val builder = MediaItem.Builder().setUri(Uri.fromFile(File(path)))
+        val subs = subtitlePaths.map { p ->
+            MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(File(p)))
+                .setMimeType("text/vtt")
+                .setLabel("Субтитры")
+                .setSelectionFlags(0)
+                .build()
+        }
+        if (subs.isNotEmpty()) builder.setSubtitleConfigurations(subs)
+        player.setMediaItem(builder.build())
         player.prepare()
         player.playWhenReady = true
     }

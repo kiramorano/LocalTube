@@ -6,6 +6,7 @@
         android:name=".LocalTubeApp"
         android:allowBackup="true"
         android:label="LocalTube"
+        android:extractNativeLibs="true"
         android:theme="@style/Theme.LocalTube"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config">

@@ -40,18 +40,18 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import io.github.kiramorano.localtube.data.Author
 import io.github.kiramorano.localtube.data.Playlist
-import io.github.kiramorano.localtube.data.ServerManager
 import io.github.kiramorano.localtube.data.VideoItem
+import java.io.File
 
 @Composable
 fun AsyncThumb(
-    relUrl: String?,
+    path: String?,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop
 ) {
-    val full = remember(relUrl) { relUrl?.let { ServerManager.api().absolute(it) } }
+    val model = remember(path) { path?.let { File(it) } }
     AsyncImage(
-        model = full,
+        model = model,
         contentDescription = null,
         modifier = modifier,
         contentScale = contentScale,
@@ -139,30 +139,29 @@ fun AuthorsGrid(authors: List<Author>) {
 }
 
 @Composable
-fun PlaylistsList(playlists: List<Playlist>) {
+fun PlaylistsGrid(playlists: List<Playlist>, onOpen: (String) -> Unit) {
     if (playlists.isEmpty()) {
         EmptyBox("Плейлистов пока нет")
         return
     }
-    LazyColumn(
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
         contentPadding = PaddingValues(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(playlists, key = { it.id }) { p ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AsyncThumb(p.thumbnail, Modifier.size(96.dp, 54.dp).clip(RoundedCornerShape(6.dp)))
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(p.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(p.uploader, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("${p.videoCount} видео", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Card(onClick = { onOpen(p.id) }, modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    AsyncThumb(
+                        p.thumbnail,
+                        Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                    )
+                    Column(Modifier.padding(8.dp)) {
+                        Text(p.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(p.uploader, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${p.videoCount} видео", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
         }

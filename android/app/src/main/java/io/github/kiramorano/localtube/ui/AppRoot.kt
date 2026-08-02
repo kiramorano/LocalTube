@@ -14,7 +14,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -22,31 +21,23 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import io.github.kiramorano.localtube.data.ServerManager
 import io.github.kiramorano.localtube.ui.screens.DownloadsScreen
 import io.github.kiramorano.localtube.ui.screens.HomeScreen
+import io.github.kiramorano.localtube.ui.screens.MyVideosScreen
 import io.github.kiramorano.localtube.ui.screens.PlayerScreen
+import io.github.kiramorano.localtube.ui.screens.PlaylistScreen
 import io.github.kiramorano.localtube.ui.screens.SearchScreen
-import io.github.kiramorano.localtube.ui.screens.ServerSetupScreen
 import io.github.kiramorano.localtube.ui.screens.SettingsScreen
-import io.github.kiramorano.localtube.ui.screens.UploadScreen
+import io.github.kiramorano.localtube.ui.screens.ShortsScreen
 
 @Composable
 fun AppRoot() {
-    val server by ServerManager.serverUrl.collectAsState()
-    if (server.isBlank()) {
-        ServerSetupScreen()
-    } else {
-        LocalTubeNav()
-    }
-}
-
-@Composable
-private fun LocalTubeNav() {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
-    val showBar = route != "player/{videoId}"
+    val showBar = route != "player/{videoId}" &&
+        route != "shorts/{videoId}" &&
+        route != "playlist/{playlistId}"
 
     Scaffold(
         bottomBar = {
@@ -76,8 +67,8 @@ private fun LocalTubeNav() {
                         label = { Text("Загрузки") }
                     )
                     NavigationBarItem(
-                        selected = route == "upload",
-                        onClick = { navController.navigate("upload") { popUpTo("home"); launchSingleTop = true } },
+                        selected = route == "myvideos",
+                        onClick = { navController.navigate("myvideos") { popUpTo("home"); launchSingleTop = true } },
                         icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
                         label = { Text("Моё") }
                     )
@@ -97,7 +88,11 @@ private fun LocalTubeNav() {
             modifier = Modifier.padding(padding)
         ) {
             composable("home") {
-                HomeScreen(onOpenVideo = { id -> navController.navigate("player/$id") })
+                HomeScreen(
+                    onOpenVideo = { id -> navController.navigate("player/$id") },
+                    onOpenShorts = { id -> navController.navigate("shorts/$id") },
+                    onOpenPlaylist = { id -> navController.navigate("playlist/$id") }
+                )
             }
             composable("search") {
                 SearchScreen(onOpenVideo = { id -> navController.navigate("player/$id") })
@@ -105,8 +100,8 @@ private fun LocalTubeNav() {
             composable("downloads") {
                 DownloadsScreen()
             }
-            composable("upload") {
-                UploadScreen()
+            composable("myvideos") {
+                MyVideosScreen(onOpenVideo = { id -> navController.navigate("player/$id") })
             }
             composable("settings") {
                 SettingsScreen()
@@ -117,6 +112,20 @@ private fun LocalTubeNav() {
             ) { entry ->
                 val id = entry.arguments?.getString("videoId").orEmpty()
                 PlayerScreen(videoId = id, onBack = { navController.popBackStack() })
+            }
+            composable(
+                "shorts/{videoId}",
+                arguments = listOf(navArgument("videoId") { type = NavType.StringType })
+            ) { entry ->
+                val id = entry.arguments?.getString("videoId").orEmpty()
+                ShortsScreen(startId = id, onBack = { navController.popBackStack() })
+            }
+            composable(
+                "playlist/{playlistId}",
+                arguments = listOf(navArgument("playlistId") { type = NavType.StringType })
+            ) { entry ->
+                val id = entry.arguments?.getString("playlistId").orEmpty()
+                PlaylistScreen(playlistId = id, onBack = { navController.popBackStack() }, onOpenVideo = { vid -> navController.navigate("player/$vid") })
             }
         }
     }

@@ -7,72 +7,44 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.kiramorano.localtube.LocalTubeApp
 import io.github.kiramorano.localtube.data.Catalog
-import io.github.kiramorano.localtube.data.QueueItem
-import io.github.kiramorano.localtube.data.ServerManager
-import io.github.kiramorano.localtube.data.VideoDetail
+import io.github.kiramorano.localtube.data.DownloadTask
+import io.github.kiramorano.localtube.data.Engine
+import io.github.kiramorano.localtube.data.FormatOption
+import io.github.kiramorano.localtube.data.Playlist
 import io.github.kiramorano.localtube.data.VideoItem
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 
-class HomeViewModel : ViewModel() {
+private fun repo(app: Application) = LocalTubeApp.from(app).repository
+
+class HomeViewModel(app: Application) : AndroidViewModel(app) {
     var catalog by mutableStateOf<Catalog?>(null)
         private set
     var loading by mutableStateOf(false)
         private set
-    var error by mutableStateOf<String?>(null)
-        private set
 
     fun load() {
+        if (loading) return
         viewModelScope.launch {
             loading = true
-            error = null
-            try {
-                catalog = ServerManager.api().catalog()
-            } catch (e: Exception) {
-                error = e.message ?: "Ошибка подключения к серверу"
-            } finally {
-                loading = false
-            }
+            catalog = repo(getApplication()).library.scan()
+            loading = false
         }
     }
 }
 
-class PlayerViewModel : ViewModel() {
-    var detail by mutableStateOf<VideoDetail?>(null)
-        private set
-    var loading by mutableStateOf(false)
-        private set
-    var error by mutableStateOf<String?>(null)
-        private set
-
-    fun load(id: String) {
-        viewModelScope.launch {
-            loading = true
-            error = null
-            try {
-                detail = ServerManager.api().video(id)
-            } catch (e: Exception) {
-                error = e.message ?: "Ошибка загрузки видео"
-            } finally {
-                loading = false
-            }
-        }
-    }
-}
-
-class SearchViewModel : ViewModel() {
+class SearchViewModel(app: Application) : AndroidViewModel(app) {
     var query by mutableStateOf("")
         private set
     var results by mutableStateOf<List<VideoItem>?>(null)
         private set
     var loading by mutableStateOf(false)
-        private set
-    var error by mutableStateOf<String?>(null)
         private set
     private var job: Job? = null
 
@@ -81,70 +53,123 @@ class SearchViewModel : ViewModel() {
         job?.cancel()
         if (q.isBlank()) {
             results = null
-            error = null
             return
         }
         job = viewModelScope.launch {
-            delay(400)
+            delay(300)
             loading = true
-            error = null
+            results = repo(getApplication()).library.search(q)
+            loading = false
+        }
+    }
+
+    fun reload() {
+        val q = query
+        if (q.isNotBlank()) {
+            results = repo(getApplication()).library.search(q)
+        }
+    }
+}
+
+class DownloadsViewModel(app: Application) : AndroidViewModel(app) {
+    val tasks: StateFlow<List<DownloadTask>> = repo(app).downloads.tasks
+
+    var formats by mutableStateOf<List<FormatOption>?>(null)
+        private set
+    var infoTitle by mutableStateOf<String?>(null)
+        private set
+    var fetching by mutableStateOf(false)
+        private set
+    var fetchError by mutableStateOf<String?>(null)
+        private set
+    var started by mutableStateOf<String?>(null)
+        private set
+
+    fun fetch(url: String) {
+        if (fetching || url.isBlank()) return
+        viewModelScope.launch {
+            fetching = true
+            fetchError = null
+            formats = null
+            infoTitle = null
             try {
-                results = ServerManager.api().search(q)
+                val info = Engine.fetchInfo(url)
+                infoTitle = info.title
+                formats = Engine.infoToFormats(info)
             } catch (e: Exception) {
-                error = e.message ?: "Ошибка поиска"
+                fetchError = e.message ?: "Не удалось получить информацию о видео"
             } finally {
-                loading = false
+                fetching = false
             }
         }
     }
+
+    fun start(url: String, formatId: String) {
+        val t = infoTitle ?: url
+        repo(getApplication()).downloads.add(url, formatId, t)
+        started = t
+    }
+
+    fun cancel(id: String) = repo(getApplication()).downloads.cancel(id)
+    fun remove(id: String) = repo(getApplication()).downloads.remove(id)
+    fun clearFinished() = repo(getApplication()).downloads.clearFinished()
 }
 
-class QueueViewModel : ViewModel() {
-    var tasks by mutableStateOf<List<QueueItem>>(emptyList())
+class PlayerViewModel(app: Application) : AndroidViewModel(app) {
+    var video by mutableStateOf<VideoItem?>(null)
         private set
-    var paused by mutableStateOf(false)
+    var recommended by mutableStateOf<List<VideoItem>>(emptyList())
+        private set
+    var videoPath by mutableStateOf<String?>(null)
+        private set
+    var subtitlePaths by mutableStateOf<List<String>>(emptyList())
         private set
 
-    suspend fun refresh() {
-        try {
-            val snap = ServerManager.api().queueList()
-            tasks = snap.tasks
-            paused = snap.paused
-        } catch (_: Exception) {
+    fun load(id: String) {
+        val lib = repo(getApplication()).library
+        val v = lib.findVideo(id)
+        video = v
+        if (v != null) {
+            videoPath = lib.videoFile(v)?.absolutePath
+            subtitlePaths = lib.subtitleFiles(v).map { it.absolutePath }
         }
-    }
-
-    fun pause() = viewModelScope.launch {
-        ServerManager.api().queuePause()
-        refresh()
-    }
-
-    fun resume() = viewModelScope.launch {
-        ServerManager.api().queueResume()
-        refresh()
-    }
-
-    fun clear() = viewModelScope.launch {
-        ServerManager.api().queueClear()
-        refresh()
-    }
-
-    fun remove(id: String) = viewModelScope.launch {
-        ServerManager.api().queueRemove(id)
-        refresh()
+        recommended = lib.recommended(id)
     }
 }
 
-class UploadViewModel(app: Application) : AndroidViewModel(app) {
+class PlaylistViewModel(app: Application) : AndroidViewModel(app) {
+    var playlist by mutableStateOf<Playlist?>(null)
+        private set
+
+    fun load(id: String) {
+        playlist = repo(getApplication()).library.scanPlaylists().firstOrNull { it.id == id }
+    }
+}
+
+class ShortsViewModel(app: Application) : AndroidViewModel(app) {
+    var shorts by mutableStateOf<List<VideoItem>>(emptyList())
+        private set
+
+    fun load() {
+        shorts = repo(getApplication()).library.scan().shorts
+    }
+}
+
+class MyVideosViewModel(app: Application) : AndroidViewModel(app) {
+    var videos by mutableStateOf<List<VideoItem>>(emptyList())
+        private set
+
     var title by mutableStateOf("")
-    var username by mutableStateOf("Гость")
+    var author by mutableStateOf("Гость")
     var description by mutableStateOf("")
     var videoUri by mutableStateOf<Uri?>(null)
-    var thumbUri by mutableStateOf<Uri?>(null)
     var videoName by mutableStateOf<String?>(null)
-    var thumbName by mutableStateOf<String?>(null)
     var status by mutableStateOf<String?>(null)
     var uploading by mutableStateOf(false)
+
+    fun load() {
+        videos = repo(getApplication()).library.scan().userVideos
+    }
 
     private fun queryName(uri: Uri): String? {
         return getApplication<Application>().contentResolver.query(uri, null, null, null, null)?.use { c ->
@@ -159,9 +184,10 @@ class UploadViewModel(app: Application) : AndroidViewModel(app) {
         status = null
     }
 
-    fun setThumb(uri: Uri) {
-        thumbUri = uri
-        thumbName = queryName(uri)
+    fun cancelUpload() {
+        videoUri = null
+        videoName = null
+        status = null
     }
 
     private fun copyToCache(uri: Uri, prefix: String): File? {
@@ -183,27 +209,86 @@ class UploadViewModel(app: Application) : AndroidViewModel(app) {
         if (uploading || videoUri == null) return
         viewModelScope.launch {
             uploading = true
-            status = "Загрузка на сервер..."
+            status = "Добавление..."
             try {
-                val vf = copyToCache(videoUri!!, "upload_video")
-                val tf = thumbUri?.let { copyToCache(it, "upload_thumb") }
+                val vf = copyToCache(videoUri!!, "user_video")
                 if (vf == null) {
                     status = "Ошибка чтения файла"
                     return@launch
                 }
-                val res = ServerManager.api().upload(
-                    title.ifBlank { "Без названия" },
-                    description,
-                    username.ifBlank { "Гость" },
-                    vf,
-                    tf
-                )
-                status = if (res == "ok") "Видео загружено!" else "Ошибка загрузки на сервер"
+                repo(getApplication()).library.addUserVideo(vf, title, description, author)
+                status = "Видео добавлено!"
+                videoUri = null
+                videoName = null
+                title = ""
+                description = ""
+                load()
             } catch (e: Exception) {
                 status = "Ошибка: ${e.message}"
             } finally {
                 uploading = false
             }
         }
+    }
+
+    fun delete(id: String) {
+        repo(getApplication()).library.deleteUserVideo(id)
+        load()
+    }
+
+    fun edit(id: String, newTitle: String, newDesc: String) {
+        repo(getApplication()).library.editUserVideo(id, newTitle, newDesc, author)
+        load()
+    }
+}
+
+class SettingsViewModel(app: Application) : AndroidViewModel(app) {
+    val settings = repo(app).settings
+
+    var ytDlpVersion by mutableStateOf<String?>(null)
+        private set
+    var storageMb by mutableStateOf(0.0)
+        private set
+    var updating by mutableStateOf(false)
+        private set
+    var updateStatus by mutableStateOf<String?>(null)
+        private set
+
+    init {
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            ytDlpVersion = try {
+                com.yausername.youtubedl_android.YoutubeDL.getInstance().version(app)
+            } catch (_: Exception) {
+                null
+            }
+            storageMb = folderSize(repo(app).library.root) +
+                folderSize(repo(app).library.userRoot) +
+                folderSize(repo(app).library.playlistsRoot) +
+                folderSize(repo(app).library.avatarsRoot)
+        }
+    }
+
+    fun updateYtDlp() {
+        if (updating) return
+        viewModelScope.launch {
+            updating = true
+            updateStatus = null
+            try {
+                val app = getApplication<Application>()
+                com.yausername.youtubedl_android.YoutubeDL.getInstance()
+                    .updateYoutubeDL(app, com.yausername.youtubedl_android.YoutubeDL.UpdateChannel.STABLE)
+                ytDlpVersion = com.yausername.youtubedl_android.YoutubeDL.getInstance().version(app)
+                updateStatus = "yt-dlp обновлён: $ytDlpVersion"
+            } catch (e: Exception) {
+                updateStatus = "Ошибка обновления: ${e.message}"
+            } finally {
+                updating = false
+            }
+        }
+    }
+
+    private fun folderSize(f: File): Double {
+        return f.walkTopDown().filter { it.isFile }.sumOf { it.length() } / 1024.0 / 1024.0
     }
 }
