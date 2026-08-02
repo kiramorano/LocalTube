@@ -13,6 +13,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
+data class FetchResult(
+    val title: String,
+    val formats: List<FormatOption>,
+    val subLangs: List<String>
+)
+
 object Engine {
 
     private const val UPDATED_PREF = "ytdlp_updated_v"
@@ -54,16 +60,22 @@ object Engine {
     }
 
     /**
-     * Получает название видео и список форматов. Использует `-J`, чтобы иметь возможность прервать
-     * зависший процесс по таймауту.
+     * Получает название, форматы и доступные языки субтитров. Использует `-J`, чтобы иметь возможность
+     * прервать зависший процесс по таймауту.
      */
-    suspend fun fetchInfo(url: String, processId: String): Pair<String, List<FormatOption>> {
+    suspend fun fetchInfo(
+        url: String,
+        processId: String,
+        preferredLangs: List<String>,
+        cookiesPath: String?
+    ): FetchResult {
         val req = YoutubeDLRequest(url).apply {
             addOption("-J")
             addOption("--no-playlist")
             addOption("--no-warnings")
             addOption("--no-call-home")
             addOption("--socket-timeout", 20)
+            cookiesPath?.let { addOption("--cookies", it) }
         }
         return withContext(Dispatchers.IO) {
             val out = try {
@@ -88,9 +100,22 @@ object Engine {
             } catch (e: Exception) {
                 throw RuntimeException("Не удалось разобрать ответ yt-dlp.")
             }
-            val title = j.optString("title", "Видео")
-            title to (listOf(bestOption()) + parseFormatsJson(j.optJSONArray("formats")))
+            FetchResult(
+                title = j.optString("title", "Видео"),
+                formats = listOf(bestOption()) + parseFormatsJson(j.optJSONArray("formats")),
+                subLangs = collectSubLangs(j, preferredLangs)
+            )
         }
+    }
+
+    private fun collectSubLangs(j: JSONObject, preferred: List<String>): List<String> {
+        val avail = LinkedHashSet<String>()
+        j.optJSONObject("subtitles")?.keys()?.forEach { avail.add(it) }
+        j.optJSONObject("automatic_captions")?.keys()?.forEach { avail.add(it) }
+        if (avail.isEmpty()) return emptyList()
+        val pref = preferred.map { it.trim().lowercase() }.filter { it.isNotBlank() }
+        val chosen = pref.filter { it in avail }
+        return if (chosen.isNotEmpty()) chosen else avail.take(2)
     }
 
     private fun bestOption() = FormatOption(
@@ -161,7 +186,8 @@ object Engine {
         formatId: String,
         outDir: File,
         downloadSubs: Boolean,
-        subLangs: String
+        subLangs: String,
+        cookiesPath: String?
     ): YoutubeDLRequest {
         val req = YoutubeDLRequest(url)
         val f = when {
@@ -181,6 +207,8 @@ object Engine {
         req.addOption("--no-mtime")
         req.addOption("--retries", 10)
         req.addOption("--fragment-retries", 10)
+        req.addOption("--retry-sleep", "1,10")
+        cookiesPath?.let { req.addOption("--cookies", it) }
         if (downloadSubs && subLangs.isNotBlank()) {
             req.addOption("--write-subs")
             req.addOption("--write-auto-subs")

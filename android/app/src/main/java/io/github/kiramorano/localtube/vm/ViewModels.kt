@@ -86,6 +86,7 @@ class DownloadsViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var phase by mutableStateOf<String?>(null)
         private set
+    private var lastSubLangs: List<String> = emptyList()
 
     fun fetch(url: String) {
         if (fetching || url.isBlank()) return
@@ -102,11 +103,16 @@ class DownloadsViewModel(app: Application) : AndroidViewModel(app) {
                 } else {
                     phase = "Получение информации о видео..."
                 }
-                val (title, fmts) = Engine.fetchInfo(
-                    url, "fetch_${System.currentTimeMillis()}"
+                val preferred = repo(app).settings.subLangs.split(",").map { it.trim() }
+                val res = Engine.fetchInfo(
+                    url,
+                    "fetch_${System.currentTimeMillis()}",
+                    preferred,
+                    repo(app).library.cookiesPath()
                 )
-                infoTitle = title
-                formats = fmts
+                lastSubLangs = res.subLangs
+                infoTitle = res.title
+                formats = res.formats
                 phase = null
             } catch (e: Exception) {
                 fetchError = e.message ?: "Не удалось получить информацию о видео"
@@ -119,7 +125,7 @@ class DownloadsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun start(url: String, formatId: String) {
         val t = infoTitle ?: url
-        repo(getApplication()).downloads.add(url, formatId, t)
+        repo(getApplication()).downloads.add(url, formatId, t, lastSubLangs.joinToString(","))
         started = t
     }
 
@@ -266,10 +272,13 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var updateStatus by mutableStateOf<String?>(null)
         private set
+    var cookiesActive by mutableStateOf(false)
+        private set
 
     init {
         viewModelScope.launch {
             val app = getApplication<Application>()
+            cookiesActive = repo(app).library.cookiesPath() != null
             ytDlpVersion = try {
                 com.yausername.youtubedl_android.YoutubeDL.getInstance().version(app)
             } catch (_: Exception) {
@@ -280,6 +289,22 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 folderSize(repo(app).library.playlistsRoot) +
                 folderSize(repo(app).library.avatarsRoot)
         }
+    }
+
+    fun importCookies(uri: android.net.Uri) {
+        val lib = repo(getApplication()).library
+        if (lib.saveCookies(uri)) {
+            cookiesActive = true
+            updateStatus = "cookies.txt импортирован"
+        } else {
+            updateStatus = "Не удалось прочитать файл cookies"
+        }
+    }
+
+    fun clearCookies() {
+        repo(getApplication()).library.clearCookies()
+        cookiesActive = false
+        updateStatus = "cookies удалены"
     }
 
     fun updateYtDlp() {

@@ -24,6 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.kiramorano.localtube.vm.SettingsViewModel
 
@@ -32,6 +34,9 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
     val s = vm.settings
     var subLangs by remember { mutableStateOf(s.subLangs) }
     var defaultFormat by remember { mutableStateOf(s.defaultFormat) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { vm.importCookies(it) }
+    }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
@@ -103,6 +108,33 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
             Spacer(Modifier.height(4.dp))
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
         }
+
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(16.dp))
+
+        Text("cookies.txt", style = MaterialTheme.typography.titleMedium)
+        Text(
+            if (vm.cookiesActive) "Импортирован — YouTube перестанет блокировать запросы." else "Не импортирован. Без cookies YouTube может выдавать ошибку 429.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { launcher.launch(arrayOf("text/plain")) }) {
+                Text("Импортировать cookies.txt")
+            }
+            if (vm.cookiesActive) {
+                OutlinedButton(onClick = { vm.clearCookies() }) {
+                    Text("Удалить")
+                }
+            }
+        }
+        Text(
+            "Экспортируйте cookies.txt из расширения браузера (например, Get cookies.txt LOCALLY) и укажите его здесь.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         Spacer(Modifier.height(16.dp))
         Text("Занято на диске: %.1f MB".format(vm.storageMb), style = MaterialTheme.typography.bodySmall)

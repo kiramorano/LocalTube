@@ -49,13 +49,13 @@ class DownloadManager(
         notifications.createNotificationChannel(channel)
     }
 
-    fun add(url: String, formatId: String, title: String): String {
+    fun add(url: String, formatId: String, title: String, subLangs: String? = null): String {
         val id = UUID.randomUUID().toString().substring(0, 8)
         _tasks.update { list ->
             list + DownloadTask(
                 id = id, title = title.ifBlank { "Видео" }, url = url,
                 formatId = formatId, status = TaskStatus.WAITING, progress = 0f,
-                addedAt = System.currentTimeMillis(), error = null
+                addedAt = System.currentTimeMillis(), error = null, subLangs = subLangs
             )
         }
         queue.add(id)
@@ -98,9 +98,11 @@ class DownloadManager(
         update(task, TaskStatus.DOWNLOADING, 0f)
         val outDir = File(library.tmpRoot, task.id).apply { mkdirs() }
         try {
+            val langs = task.subLangs?.takeIf { it.isNotBlank() } ?: settings.subLangs
             val request = Engine.buildRequest(
                 task.url, task.formatId, outDir,
-                settings.downloadSubs, settings.subLangs
+                settings.downloadSubs, langs,
+                library.cookiesPath()
             )
             Engine.download(request, task.id) { p ->
                 if (p.isFinite() && p in 0f..100f) {

@@ -10,17 +10,37 @@ import java.util.Locale
 import java.util.UUID
 
 class Library(context: Context) {
-    val root = File(context.filesDir, "videos")
-    val userRoot = File(context.filesDir, "user_videos")
-    val playlistsRoot = File(context.filesDir, "playlists")
-    val avatarsRoot = File(context.filesDir, "avatars")
-    val tmpRoot = File(context.filesDir, "tmp")
+    private val ctx = context.applicationContext
+    val root = File(ctx.filesDir, "videos")
+    val userRoot = File(ctx.filesDir, "user_videos")
+    val playlistsRoot = File(ctx.filesDir, "playlists")
+    val avatarsRoot = File(ctx.filesDir, "avatars")
+    val tmpRoot = File(ctx.filesDir, "tmp")
+    private val cookiesFile = File(ctx.filesDir, "cookies.txt")
 
     private val videoExts = setOf("mp4", "mkv", "webm", "avi", "mov")
     private val imageExts = setOf("jpg", "jpeg", "png", "webp")
 
     init {
         for (d in listOf(root, userRoot, playlistsRoot, avatarsRoot, tmpRoot)) d.mkdirs()
+    }
+
+    fun cookiesPath(): String? = cookiesFile.takeIf { it.isFile }?.absolutePath
+
+    fun saveCookies(uri: android.net.Uri): Boolean {
+        return try {
+            val ins = ctx.contentResolver.openInputStream(uri) ?: return false
+            ins.use { input ->
+                cookiesFile.outputStream().use { output -> input.copyTo(output) }
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun clearCookies() {
+        cookiesFile.delete()
     }
 
     fun safeName(text: String): String {

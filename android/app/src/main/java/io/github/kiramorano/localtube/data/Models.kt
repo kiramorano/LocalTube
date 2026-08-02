@@ -56,7 +56,8 @@ data class DownloadTask(
     val status: TaskStatus,
     val progress: Float,
     val addedAt: Long,
-    val error: String?
+    val error: String?,
+    val subLangs: String? = null
 ) {
     val statusText: String
         get() = when (status) {
