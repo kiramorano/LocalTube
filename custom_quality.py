@@ -55,11 +55,14 @@ def api_get_qualities(vid_id):
     ext = os.path.splitext(vfile)[1]
     qualities = {
         "original": {"label": "Оригинал", "available": True, "file": vfile},
+        "2160": {"label": "2160p (4K UHD)", "available": False, "file": f"video_2160{ext}"},
+        "1440": {"label": "1440p (2K QHD)", "available": False, "file": f"video_1440{ext}"},
         "1080": {"label": "1080p (FHD)", "available": False, "file": f"video_1080{ext}"},
         "720": {"label": "720p (HD)", "available": False, "file": f"video_720{ext}"},
         "480": {"label": "480p (SD)", "available": False, "file": f"video_480{ext}"},
         "144": {"label": "Шакализатор 🐕 (144p)", "available": False, "file": f"video_144{ext}"},
-        "enhance": {"label": "Улучшайзер 💎 (Четкость+)", "available": False, "file": f"video_enhance{ext}"}
+        "enhance": {"label": "Улучшайзер 💎 (Четкость+)", "available": False, "file": f"video_enhance{ext}"},
+        "enhance_2160": {"label": "Улучшайзер 💎 (4K+Четкость)", "available": False, "file": f"video_enhance_2160{ext}"}
     }
     for q in qualities.keys():
         if q != "original" and os.path.exists(os.path.join(vdir, qualities[q]["file"])): qualities[q]["available"] = True
@@ -124,11 +127,14 @@ def api_convert_video(vid_id):
         audio_144 = ["-c:a", "aac", "-b:a", "32k", "-ac", "1", "-ar", "22050"] if has_audio else []
 
         presets = {
+            "2160": ["-vf", "scale=-2:2160:flags=lanczos,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_opts,
+            "1440": ["-vf", "scale=-2:1440:flags=lanczos,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_opts,
             "1080": ["-vf", "scale=-2:1080:flags=lanczos,format=yuv420p", "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_opts,
             "720": ["-vf", "scale=-2:720:flags=lanczos,format=yuv420p", "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_opts,
             "480": ["-vf", "scale=-2:480:flags=lanczos,format=yuv420p", "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_opts,
             "144": ["-vf", "scale=256:144:flags=neighbor,format=yuv420p", "-c:v", "libx264", "-profile:v", "baseline", "-level", "3.0", "-preset", "ultrafast", "-b:v", "100k", "-maxrate", "150k", "-bufsize", "200k", "-g", "30", "-keyint_min", "30", "-sc_threshold", "0", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_144,
-            "enhance": ["-vf", "unsharp=lx=5:ly=5:la=1.2:cx=5:cy=5:ca=0.8,eq=contrast=1.10:brightness=0.03:saturation=1.08,hqdn3d=luma_spatial=4.0:chroma_spatial=3.0:luma_tmp=6.0:chroma_tmp=4.5,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-tune", "film", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_opts
+            "enhance": ["-vf", "unsharp=lx=5:ly=5:la=1.2:cx=5:cy=5:ca=0.8,eq=contrast=1.10:brightness=0.03:saturation=1.08,hqdn3d=luma_spatial=4.0:chroma_spatial=3.0:luma_tmp=6.0:chroma_tmp=4.5,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-tune", "film", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_opts,
+            "enhance_2160": ["-vf", "scale=-2:2160:flags=lanczos,unsharp=lx=5:ly=5:la=1.2:cx=5:cy=5:ca=0.8,eq=contrast=1.10:brightness=0.03:saturation=1.08,hqdn3d=luma_spatial=4.0:chroma_spatial=3.0:luma_tmp=6.0:chroma_tmp=4.5,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-tune", "film", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_opts
         }
 
         cmd = ['ffmpeg', '-y', '-hide_banner', '-loglevel', 'error', '-i', input_path] + presets.get(quality, presets["720"]) + [tmp_path]
