@@ -70,7 +70,7 @@ def api_get_qualities(vid_id):
     tasks = {}
     with CONVERSION_LOCK:
         for k, v in CONVERSION_TASKS.items():
-            if k.startswith(vid_id + "_"): tasks[k.split("_")[1]] = v
+            if k.startswith(vid_id + "_"): tasks[k.split("_", 1)[1]] = v
     return jsonify({"qualities": qualities, "tasks": tasks})
 
 @bp.route('/api/convert/<vid_id>', methods=['POST'])
