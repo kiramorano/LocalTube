@@ -98,6 +98,8 @@
         .settings-menu-item { padding: 10px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 14px; position: relative; }
         .settings-menu-item:hover { background: rgba(255,255,255,0.1); }
         .settings-menu-item.active::before { content: '✓'; position: absolute; left: 8px; color: #3ea6ff; }
+        .quality-option { padding: 10px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+        .quality-option:hover { background: rgba(255,255,255,0.1); }
 
         h1 { font-size: 20px; font-weight: 700; line-height: 28px; margin-bottom: 12px; word-break: break-word; transition: color 0.5s ease; }
         .meta-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
@@ -443,7 +445,146 @@
         const theaterBtn = document.getElementById('theaterBtn');
         const pipBtn = document.getElementById('pipBtn');
         const speedBtn = document.getElementById('speedBtn');
-        
+
+        // === Шакализатор / Улучшайзер: меню качества ===
+        const settingsBtn = document.getElementById('settingsBtn');
+        const playerSettingsMenu = document.getElementById('playerSettingsMenu');
+        const playerQualityMenu = document.getElementById('playerQualityMenu');
+        const menuQualityBtn = document.getElementById('menuQualityBtn');
+        const backToSettingsBtn = document.getElementById('backToSettingsBtn');
+        const qualityOptionsList = document.getElementById('qualityOptionsList');
+        const currentQualityLabel = document.getElementById('currentQualityLabel');
+        const VIDEO_ID = "{{ folder }}";
+        const VIDEO_BASE_URL = "{{ video_url }}".substring(0, "{{ video_url }}".lastIndexOf('/') + 1);
+
+        function closeQualityMenus() {
+            playerSettingsMenu.style.display = 'none';
+            playerQualityMenu.style.display = 'none';
+        }
+
+        settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            playerQualityMenu.style.display = 'none';
+            playerSettingsMenu.style.display = 'block';
+        });
+
+        menuQualityBtn.addEventListener('click', () => {
+            playerSettingsMenu.style.display = 'none';
+            playerQualityMenu.style.display = 'block';
+            loadQualities();
+        });
+
+        backToSettingsBtn.addEventListener('click', () => {
+            playerQualityMenu.style.display = 'none';
+            playerSettingsMenu.style.display = 'block';
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.player-settings-menu') && !e.target.closest('#settingsBtn')) {
+                closeQualityMenus();
+            }
+        });
+
+        function loadQualities() {
+            qualityOptionsList.innerHTML = '<div style="padding:8px 12px;color:#aaa;font-size:13px;">Загрузка качеств…</div>';
+            fetch(`/api/quality/${VIDEO_ID}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        qualityOptionsList.innerHTML = '<div style="padding:8px 12px;color:#e78">Ошибка загрузки</div>';
+                        return;
+                    }
+                    const qualities = data.qualities || {};
+                    const tasks = data.tasks || {};
+                    let html = '';
+                    for (const [q, info] of Object.entries(qualities)) {
+                        if (q === 'original') continue;
+                        let suffix = '';
+                        const task = tasks[q];
+                        if (task !== undefined) {
+                            if (task === -1) { suffix = ' <span style="color:#e78">✗ Ошибка</span>'; }
+                            else if (task === 100) { suffix = ' <span style="color:#4caf50">✓ Готово</span>'; }
+                            else { suffix = ` <span style="color:#aaa">↻ ${task}%</span>`; }
+                        } else if (info.available) {
+                            suffix = ' <span style="color:#4caf50">✓ Готово</span>';
+                        }
+                        if (info.available) {
+                            html += `<div class="quality-option" data-quality="${q}" style="padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="switchQuality('${q}','${info.file}','${info.label}')"><span>${info.label}</span>${suffix ? '<span style="color:#aaa;font-size:12px;">' + suffix + '</span>' : ''}</div>`;
+                        } else if (task !== undefined && task >= 0 && task < 100) {
+                            html += `<div class="quality-option" data-quality="${q}" style="padding:8px 12px;display:flex;justify-content:space-between;align-items:center;pointer-events:none;"><span>${info.label}</span><span style="color:#aaa;font-size:12px;">↻ ${task}%</span></div>`;
+                        } else {
+                            html += `<div class="quality-option" data-quality="${q}" style="padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="startConversion('${q}','${info.label}')"><span>${info.label}</span><span style="color:#aaa;font-size:12px;">— закодировать</span></div>`;
+                        }
+                    }
+                    qualityOptionsList.innerHTML = html;
+                })
+                .catch(() => {
+                    qualityOptionsList.innerHTML = '<div style="padding:8px 12px;color:#e78">Ошибка подключения</div>';
+                });
+        }
+
+        function switchQuality(q, file, label) {
+            video.src = VIDEO_BASE_URL + file;
+            video.load();
+            currentQualityLabel.textContent = label;
+            playerQualityMenu.style.display = 'none';
+        }
+
+        function startConversion(q, label) {
+            const opt = qualityOptionsList.querySelector(`.quality-option[data-quality="${q}"]`);
+            if (opt) opt.style.pointerEvents = 'none';
+            showToast(`Конвертация: ${label}`, 'info');
+            fetch(`/api/convert/${VIDEO_ID}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ quality: q })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) { showToast(data.error, 'error'); if (opt) opt.style.pointerEvents = 'auto'; return; }
+                    if (data.status === 'already_running') { showToast('Уже в процессе', 'info'); if (opt) opt.style.pointerEvents = 'auto'; return; }
+                    pollConversion(q, label);
+                })
+                .catch(() => { showToast('Ошибка запроса', 'error'); if (opt) opt.style.pointerEvents = 'auto'; });
+        }
+
+        function pollConversion(q, label) {
+            const opt = qualityOptionsList.querySelector(`.quality-option[data-quality="${q}"]`);
+            let count = 0;
+            const interval = setInterval(() => {
+                count++;
+                fetch(`/api/quality/${VIDEO_ID}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        const task = (data.tasks || {})[q];
+                        const info = (data.qualities || {})[q];
+                        if (task === undefined && info && info.available) {
+                            clearInterval(interval);
+                            loadQualities();
+                            showToast(`✓ ${label} готово`, 'success');
+                            if (opt) opt.style.pointerEvents = 'auto';
+                            return;
+                        }
+                        if (task !== undefined && task >= 0 && task < 100 && opt) {
+                            opt.innerHTML = '<span>' + label + '</span><span style="color:#aaa;font-size:12px;">↻ ' + task + '%</span>';
+                        }
+                        if (task === 100) {
+                            clearInterval(interval);
+                            loadQualities();
+                            showToast(`✓ ${label} готово`, 'success');
+                            if (opt) opt.style.pointerEvents = 'auto';
+                        }
+                        if (task === -1) {
+                            clearInterval(interval);
+                            loadQualities();
+                            showToast(`✗ Ошибка конвертации`, 'error');
+                            if (opt) opt.style.pointerEvents = 'auto';
+                        }
+                        if (count > 900) { clearInterval(interval); if (opt) opt.style.pointerEvents = 'auto'; }
+                    });
+            }, 3000);
+        }
+
         // Hide controls on idle
         let idleTimeout;
         function resetIdleTimer() {

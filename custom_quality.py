@@ -86,7 +86,7 @@ def api_convert_video(vid_id):
         input_path = os.path.join(vdir, vfile)
         ext = os.path.splitext(vfile)[1]
         output_path = os.path.join(vdir, f"video_{quality}{ext}")
-        tmp_path = output_path + ".tmp"
+        tmp_path = os.path.join(vdir, f"video_{quality}_tmp{ext}")
         log_path = os.path.join(vdir, f"video_{quality}_ffmpeg.log")
 
         for old in [tmp_path, output_path + ".tmp", log_path]:
@@ -103,18 +103,31 @@ def api_convert_video(vid_id):
                 if m: duration = int(m.group(1))*3600 + int(m.group(2))*60 + float(m.group(3))
             except: pass
 
-        audio_opts = ["-c:a", "copy"]
+        has_audio = False
+        audio_codec = None
         try:
             probe = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_name', '-of', 'default=noprint_wrappers=1:nokey=1', input_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
             acodec = probe.stdout.strip().lower()
-            if acodec == 'opus' or not acodec or acodec != 'aac': audio_opts = ["-c:a", "aac", "-b:a", "192k"]
+            if acodec:
+                has_audio = True
+                audio_codec = acodec
         except: pass
+
+        if has_audio:
+            if audio_codec in ('aac', 'mp4a'):
+                audio_opts = ["-c:a", "copy"]
+            else:
+                audio_opts = ["-c:a", "aac", "-b:a", "192k"]
+        else:
+            audio_opts = []
+
+        audio_144 = ["-c:a", "aac", "-b:a", "32k", "-ac", "1", "-ar", "22050"] if has_audio else []
 
         presets = {
             "1080": ["-vf", "scale=-2:1080:flags=lanczos,format=yuv420p", "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_opts,
             "720": ["-vf", "scale=-2:720:flags=lanczos,format=yuv420p", "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_opts,
             "480": ["-vf", "scale=-2:480:flags=lanczos,format=yuv420p", "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_opts,
-            "144": ["-vf", "scale=256:144:flags=neighbor,format=yuv420p", "-c:v", "libx264", "-profile:v", "baseline", "-level", "3.0", "-preset", "ultrafast", "-b:v", "100k", "-maxrate", "150k", "-bufsize", "200k", "-g", "30", "-keyint_min", "30", "-sc_threshold", "0", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "32k", "-ac", "1", "-ar", "22050"],
+            "144": ["-vf", "scale=256:144:flags=neighbor,format=yuv420p", "-c:v", "libx264", "-profile:v", "baseline", "-level", "3.0", "-preset", "ultrafast", "-b:v", "100k", "-maxrate", "150k", "-bufsize", "200k", "-g", "30", "-keyint_min", "30", "-sc_threshold", "0", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_144,
             "enhance": ["-vf", "unsharp=lx=5:ly=5:la=1.2:cx=5:cy=5:ca=0.8,eq=contrast=1.10:brightness=0.03:saturation=1.08,hqdn3d=luma_spatial=4.0:chroma_spatial=3.0:luma_tmp=6.0:chroma_tmp=4.5,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-tune", "film", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_opts
         }
 
