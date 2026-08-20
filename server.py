@@ -37,7 +37,7 @@ class PoServerManager:
         self.process = None
         self._monitor_thread = None
         self._stop_event = threading.Event()
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._restart_count = 0
         self._running = False
         self._server_url = None
@@ -162,11 +162,11 @@ class PoServerManager:
                     self.process.terminate()
                     self.process.wait(timeout=3)
                     logger.info("Сервер остановлен")
-                except:
+                except Exception:
                     self.process.kill()
                     logger.warning("Сервер принудительно завершён")
                 self.process = None
-            return True
+            return self._kill_process_on_port(PO_SERVER_PORT)
 
     def restart(self) -> bool:
         logger.info("Перезапуск сервера...")
@@ -186,7 +186,7 @@ class PoServerManager:
                         break
                     self._restart_count += 1
                     logger.info(f"Перезапуск #{self._restart_count}")
-                    self.stop()
+                    self._kill_process_on_port(PO_SERVER_PORT)
                     time.sleep(2)
                     if self._launch_server():
                         start_time = time.time()

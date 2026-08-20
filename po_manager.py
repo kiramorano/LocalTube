@@ -16,9 +16,12 @@ def get_extractor():
     return _extractor
 
 def get_po_args() -> Dict:
-    # Оставляем yt-dlp самому решать, какой клиент лучше использовать 
-    # с учетом наличия cookies.txt
-    return {}
+    # Возвращает extractor_args по настройкам (player_client + po_token)
+    try:
+        from auth_options import build_ydl_args
+        return build_ydl_args()
+    except Exception:
+        return {}
 
 def get_po_method() -> str:
     return "yt-dlp Default (Cookies Mode)"
