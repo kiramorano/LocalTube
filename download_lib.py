@@ -17,6 +17,7 @@ from po_manager import get_po_args
 
 try:
     import yt_dlp
+    from yt_dlp.utils import DownloadCancelled
 except ImportError:
     logger.error("Ошибка: установите yt-dlp: pip install yt-dlp")
     sys.exit(1)
@@ -80,7 +81,13 @@ def get_ydl_opts(format_id, merge_format, progress_hook, temp_dir):
 
     return opts
 
-def download_single_video_impl(url, format_id, output_dir, progress_dict, progress_callback, merge_format):
+class DownloadCancelledByUser(Exception):
+    """Пользователь отменил загрузку через очередь."""
+    pass
+
+
+def download_single_video_impl(url, format_id, output_dir, progress_dict, progress_callback, merge_format,
+                               should_cancel=None):
     with locks_mutex:
         if download_locks.get(url):
             logger.info(f"Видео {url} уже скачивается.")
@@ -93,6 +100,10 @@ def download_single_video_impl(url, format_id, output_dir, progress_dict, progre
 
         def internal_hook(d):
             nonlocal last_callback_time
+            # DownloadCancelled — единственное исключение, которое yt-dlp не глотает
+            # при ignoreerrors, поэтому отмену пробрасываем именно им.
+            if should_cancel and should_cancel():
+                raise DownloadCancelled('Загрузка отменена пользователем')
             if d['status'] == 'downloading':
                 p = d.get('_percent_str', '0%').replace('%', '').strip()
                 try:
@@ -100,18 +111,25 @@ def download_single_video_impl(url, format_id, output_dir, progress_dict, progre
                 except:
                     percent = 0
                 
-                if progress_dict:
+                # Пустой словарь тоже надо заполнять, поэтому сравнение с None,
+                # а не проверка на истинность.
+                if progress_dict is not None:
                     progress_dict['percent'] = percent
                 
                 now = time.time()
                 if now - last_callback_time > 1.0 or percent >= 100:
                     if progress_callback:
-                        progress_callback(percent, f"Загрузка: {percent}%")
+                        speed = d.get('_speed_str') or 'скорость неизвестна'
+                        eta = d.get('_eta_str') or 'ETA неизвестно'
+                        progress_callback(percent, f"Загрузка: {percent}% · {speed} · ETA {eta}")
                     last_callback_time = now
             
             elif d['status'] == 'finished':
                 if progress_callback:
                     progress_callback(100, "Склеивание и обработка...")
+
+        if should_cancel and should_cancel():
+            raise DownloadCancelledByUser('Загрузка отменена пользователем')
 
         opts = get_ydl_opts(format_id, merge_format, internal_hook, temp_dir)
         
@@ -123,30 +141,48 @@ def download_single_video_impl(url, format_id, output_dir, progress_dict, progre
                 shutil.rmtree(temp_dir, ignore_errors=True)
                 return False
 
+        def _place(src_path, dst_path):
+            """Переносит файл из временной папки на место назначения.
+
+            os.replace перезаписывает существующий файл одним неделимым
+            действием. Прежняя схема (os.remove, затем shutil.move) оставляла
+            окно, в котором старого файла уже нет, а нового ещё нет: сбой между
+            ними терял, например, info.json при повторной загрузке.
+            """
+            try:
+                os.replace(src_path, dst_path)
+            except OSError:
+                # Разные диски: os.replace не работает через границу тома.
+                shutil.move(src_path, dst_path + '.tmp')
+                os.replace(dst_path + '.tmp', dst_path)
+
         final_video = None
         for f in os.listdir(temp_dir):
             src = os.path.join(temp_dir, f)
             if f.endswith(('.mp4', '.mkv', '.webm', '.avi')):
                 ext = os.path.splitext(f)[1]
                 dst = os.path.join(output_dir, f"video{ext}")
-                if os.path.exists(dst): os.remove(dst)
-                shutil.move(src, dst)
+                _place(src, dst)
                 final_video = dst
             elif f.endswith('.json'):
                 dst = os.path.join(output_dir, "info.json")
-                # БАГФИКС: shutil.move падал, если info.json уже существовал (повторная загрузка)
-                if os.path.exists(dst): os.remove(dst)
-                shutil.move(src, dst)
+                _place(src, dst)
             elif f.endswith(('.jpg', '.webp', '.png')):
                 dst = os.path.join(output_dir, "thumbnail.jpg")
-                if os.path.exists(dst): os.remove(dst)
-                shutil.move(src, dst)
+                _place(src, dst)
 
         return True if final_video else False
 
+    except (DownloadCancelled, DownloadCancelledByUser):
+        logger.info(f"Загрузка отменена пользователем: {url}")
+        if progress_dict is not None:
+            progress_dict['status'] = 'cancelled'
+            progress_dict['message'] = 'Отменено'
+        # Частично скачанное видео не оставляем: temp-папка чистится в finally.
+        raise DownloadCancelledByUser('Загрузка отменена пользователем')
     except Exception as e:
         logger.error(f"Ошибка download_lib: {e}")
-        if progress_dict:
+        if progress_dict is not None:
             progress_dict['status'] = 'error'
             progress_dict['message'] = str(e)
         return False
@@ -174,7 +210,7 @@ def download_media(urls, format_id, is_playlist, progress_data):
         progress_data['status'] = 'error'
     return success
 
-def download_single_sync(urls, format_id, progress_callback, merge_format='mp4'):
+def download_single_sync(urls, format_id, progress_callback, merge_format='mp4', should_cancel=None):
     if isinstance(urls, str): urls = [urls]
     
     config = load_config()
@@ -184,6 +220,10 @@ def download_single_sync(urls, format_id, progress_callback, merge_format='mp4')
     success_count = 0
 
     for idx, url in enumerate(urls, 1):
+        # Отмена прекращает всю задачу, а не только текущее видео из списка.
+        if should_cancel and should_cancel():
+            raise DownloadCancelledByUser('Загрузка отменена пользователем')
+        output_dir = None
         try:
             po_args = get_po_args()
             info_opts = {
@@ -217,11 +257,32 @@ def download_single_sync(urls, format_id, progress_callback, merge_format='mp4')
                 overall = ((idx - 1) * 100 + p) / total
                 progress_callback(overall, f"[{idx}/{total}] {msg}")
 
-            res = download_single_video_impl(url, format_id, output_dir, None, sub_cb, merge_format)
-            if res: success_count += 1
+            res = download_single_video_impl(url, format_id, output_dir, None, sub_cb, merge_format,
+                                            should_cancel=should_cancel)
+            if res:
+                success_count += 1
+                try:
+                    from channel_assets import fetch_and_save
+                    threading.Thread(target=fetch_and_save, args=(author, info), daemon=True).start()
+                except Exception as e:
+                    logger.warning(f"Не удалось запустить скачивание шапки канала: {e}")
 
+        except DownloadCancelledByUser:
+            # Отмену нельзя глотать вместе с обычными ошибками — иначе очередь
+            # продолжит скачивать следующие видео задачи.
+            cleanup_empty_dir(output_dir)
+            raise
         except Exception as e:
             logger.error(f"Ошибка в цикле загрузки: {e}")
             continue
 
     return success_count > 0 # Считаем успешным, если хотя бы 1 видео скачалось
+
+
+def cleanup_empty_dir(path):
+    """Удаляет каталог видео, если после отмены в нём не осталось файлов."""
+    try:
+        if path and os.path.isdir(path) and not os.listdir(path):
+            os.rmdir(path)
+    except Exception as e:
+        logger.warning(f"Не удалось удалить пустой каталог {path}: {e}")

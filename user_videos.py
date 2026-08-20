@@ -5,6 +5,9 @@ import hashlib
 import time
 import subprocess
 
+from utils import write_json_atomic, read_json
+from logger import logger
+
 USER_VIDEOS_ROOT = "uservideos"
 
 def get_user_videos_dir():
@@ -125,8 +128,8 @@ def add_user_video(source_path, title, description, username, custom_thumbnail_p
         "added_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "folder": video_id
     }
-    with open(os.path.join(video_dir, "info.json"), 'w', encoding='utf-8') as f:
-        json.dump(info, f, indent=2, ensure_ascii=False)
+    # backup=False: файл создаётся впервые.
+    write_json_atomic(os.path.join(video_dir, "info.json"), info, backup=False)
 
     info['video_path'] = target_video
     info['thumb_path'] = thumb_path if os.path.exists(thumb_path) else None
@@ -138,8 +141,10 @@ def edit_user_video(video_id, new_title, new_description, username, new_thumbnai
         return None
     video_dir = os.path.join(get_user_folder(username), video_info['folder'])
     info_path = os.path.join(video_dir, "info.json")
-    with open(info_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
+    data = read_json(info_path, default=None)
+    if not isinstance(data, dict):
+        logger.warning(f"user_videos: не удалось прочитать {info_path}")
+        return None
 
     if new_title:
         data['title'] = ensure_unique_title(get_user_folder(username), new_title)
@@ -149,8 +154,8 @@ def edit_user_video(video_id, new_title, new_description, username, new_thumbnai
     if new_thumbnail_path and os.path.isfile(new_thumbnail_path):
         shutil.copy2(new_thumbnail_path, os.path.join(video_dir, "thumbnail.jpg"))
 
-    with open(info_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    # Правка существующего файла: бэкап нужен, чтобы сбой не стёр описание.
+    write_json_atomic(info_path, data)
 
     video_info.update(data)
     video_info['thumb_path'] = os.path.join(video_dir, "thumbnail.jpg") if os.path.exists(os.path.join(video_dir, "thumbnail.jpg")) else None
