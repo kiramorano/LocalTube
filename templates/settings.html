@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки — LocalTube</title>
+    <link id="theme-style" rel="stylesheet" href="">
+    <link rel="stylesheet" href="/static/css/fonts.css">
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    <style>
+        :root[data-theme="dark"] { --bg:#0f0f0f; --text:#f1f1f1; --muted:#aaa; --border:#3f3f3f; --card:#1e1e1e; --button:#272727; }
+        :root[data-theme="light"] { --bg:#fff; --text:#0f0f0f; --muted:#606060; --border:#ddd; --card:#f8f8f8; --button:#eee; }
+        #bg-layer-1, #bg-layer-2 { position:fixed; top:0; left:0; width:100%; height:100%; background-size:cover; background-position:center center; background-repeat:no-repeat; transition:opacity 1.5s ease-in-out; pointer-events:none; z-index:-3; }
+        #bg-layer-2 { z-index:-2; }
+        :root[data-theme="frutiger-aero"] { --bg:transparent; --text:#fff; --muted:#e3f2fd; --border:rgba(255,255,255,.35); --card:rgba(255,255,255,.18); --button:rgba(255,255,255,.22); }
+        :root[data-theme="frutiger-aero"] body { background-color:#b3d9f0; }
+        :root[data-theme="frutiger-aero"] section { backdrop-filter:blur(16px) saturate(180%); -webkit-backdrop-filter:blur(16px) saturate(180%); box-shadow:0 8px 32px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.3); }
+        :root[data-theme="frutiger-aero"] input, :root[data-theme="frutiger-aero"] select, :root[data-theme="frutiger-aero"] textarea { background:rgba(255,255,255,.25); }
+        :root[data-theme="frutiger-aero"] option { color:#0f0f0f; }
+        * { box-sizing:border-box; } body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); } header { height:56px; display:flex; align-items:center; padding:0 20px; border-bottom:1px solid var(--border); } a { color:inherit; text-decoration:none; } main { width:min(760px, calc(100% - 32px)); margin:32px auto; } h1 { margin:0 0 24px; font-size:28px; } section { padding:20px; margin-bottom:16px; background:var(--card); border:1px solid var(--border); border-radius:12px; } h2 { margin:0 0 16px; font-size:18px; } label { display:block; margin:14px 0 6px; font-size:14px; } input, select, textarea, button { font:inherit; } input, select, textarea { width:100%; padding:10px 12px; color:var(--text); background:var(--bg); border:1px solid var(--border); border-radius:8px; } textarea { resize:vertical; } .row { display:flex; gap:10px; flex-wrap:wrap; } .row > * { flex:1; min-width:160px; } button { padding:10px 14px; color:var(--text); background:var(--button); border:1px solid var(--border); border-radius:20px; cursor:pointer; } button.primary { color:#000; background:#3ea6ff; border-color:#3ea6ff; } #status { color:var(--muted); font-size:14px; min-height:20px; }
+    </style>
+</head>
+<body>
+    <div id="bg-layer-1" style="background-image:none; opacity:0;"></div>
+    <div id="bg-layer-2" style="background-image:none; opacity:0;"></div>
+    <header><a href="/">LocalTube</a></header>
+    <main>
+        <h1>Настройки</h1>
+        <section>
+            <h2>Профиль и оформление</h2>
+            <label for="username">Отображаемое имя</label><input id="username" type="text" placeholder="Гость">
+            <label for="avatar">Ссылка на аватар</label><input id="avatar" type="text" placeholder="URL или data:image/...">
+            <label for="theme">Тема</label>
+            <select id="theme"><option value="dark">Тёмная</option><option value="light">Светлая</option><option value="frutiger-aero">Frutiger Aero</option></select>
+        </section>
+        <section>
+            <h2>Загрузка с YouTube</h2>
+            <label for="client">Клиент YouTube</label>
+            <select id="client"><option value="">Авто</option><option value="tv">TV</option><option value="web">Web</option><option value="web_safari">Web Safari</option><option value="web_embedded">Web Embedded</option><option value="mweb">Mobile Web</option><option value="android">Android</option><option value="android_vr">Android VR</option><option value="ios">iOS</option></select>
+            <label for="po">PO Token</label>
+            <select id="po"><option value="off">Выключено</option><option value="bgutil:http">bgutil HTTP</option><option value="bgutil:cli">bgutil CLI</option></select>
+            <label for="cookies">Cookies (Netscape или JSON)</label><textarea id="cookies" rows="5" placeholder="# Netscape HTTP Cookie File"></textarea>
+            <div class="row"><button type="button" id="importCookies">Импортировать cookies</button><button type="button" id="deleteCookies">Удалить cookies</button></div>
+        </section>
+        <section>
+            <h2>Мои данные</h2>
+            <p id="userdataSummary" style="margin:0 0 12px; color:var(--muted); font-size:14px;">Загрузка...</p>
+            <div class="row">
+                <button type="button" id="clearHistory">Очистить историю</button>
+                <button type="button" id="clearFavorites">Очистить избранное</button>
+                <button type="button" id="clearHidden">Показать все каналы</button>
+            </div>
+            <p style="margin:12px 0 0; color:var(--muted); font-size:13px;">Избранное, история и скрытые каналы хранятся на сервере и доступны со всех устройств.</p>
+        </section>
+        <section>
+            <h2>Обслуживание</h2>
+            <div class="row"><button type="button" id="authCheck">Проверить плагины</button><button type="button" id="authRefresh">Обновить статус</button></div>
+            <p id="status"></p>
+        </section>
+        <button class="primary" id="save">Сохранить настройки</button>
+    </main>
+    <script>
+        const $ = id => document.getElementById(id);
+        const settings = JSON.parse(localStorage.getItem('lt_settings') || '{}');
+        $('username').value = settings.username || '';
+        $('avatar').value = settings.avatar || '';
+        $('theme').value = localStorage.getItem('lt_theme') || 'dark';
+        let activeBgLayer = 2, bgTimer = null;
+        function setBackgroundImage(url) {
+            const layer1 = $('bg-layer-1'), layer2 = $('bg-layer-2');
+            const target = activeBgLayer === 2 ? layer1 : layer2;
+            const other = activeBgLayer === 2 ? layer2 : layer1;
+            target.style.backgroundImage = `url('${url}')`;
+            target.style.opacity = 0;
+            requestAnimationFrame(() => { target.style.opacity = 1; other.style.opacity = 0; });
+            setTimeout(() => { activeBgLayer = activeBgLayer === 2 ? 1 : 2; other.style.backgroundImage = 'none'; }, 1600);
+        }
+        function clearBackground() {
+            if (bgTimer) { clearInterval(bgTimer); bgTimer = null; }
+            for (const id of ['bg-layer-1', 'bg-layer-2']) { $(id).style.backgroundImage = 'none'; $(id).style.opacity = 0; }
+        }
+        async function pickBackground(theme) {
+            const response = await fetch(`/api/theme-backgrounds/${theme}`);
+            const images = await response.json();
+            if (!Array.isArray(images) || !images.length) return null;
+            const name = images[Math.floor(Math.random() * images.length)];
+            return `/static/images/themes/${theme}/${encodeURIComponent(name)}`;
+        }
+        async function loadThemeBackground(theme) {
+            if (theme !== 'frutiger-aero') return clearBackground();
+            try {
+                const url = await pickBackground(theme);
+                if (!url) return clearBackground();
+                setBackgroundImage(url);
+                if (bgTimer) clearInterval(bgTimer);
+                bgTimer = setInterval(async () => {
+                    const next = await pickBackground(theme);
+                    if (next) setBackgroundImage(next);
+                }, 30000);
+            } catch (e) { clearBackground(); }
+        }
+        function applyTheme(theme) {
+            const link = $('theme-style');
+            document.documentElement.dataset.theme = theme;
+            link.href = theme === 'frutiger-aero' ? '/static/css/themes/frutiger-aero.css' : '';
+            document.documentElement.style.fontFamily = theme === 'frutiger-aero' ? "'Aero_03', Arial, sans-serif" : "'Roboto', Arial, sans-serif";
+            localStorage.setItem('lt_theme', theme);
+            loadThemeBackground(theme);
+        }
+        applyTheme($('theme').value);
+        $('theme').addEventListener('change', e => applyTheme(e.target.value));
+        async function authStatus() {
+            try { const data = await (await fetch('/api/auth/status')).json(); $('client').value = data.options?.player_client || ''; $('po').value = data.options?.po_token || 'off'; $('status').textContent = `Cookies: ${data.cookies_exists ? 'установлены' : 'нет'}; плагины: ${data.plugins_dir ? 'установлены' : 'не найдены'}; bgutil HTTP: ${data.bgutil_http_alive ? 'доступен' : 'недоступен'}.`; } catch { $('status').textContent = 'Не удалось получить статус.'; }
+        }
+        $('save').addEventListener('click', async () => { settings.username = $('username').value.trim(); settings.avatar = $('avatar').value.trim(); localStorage.setItem('lt_settings', JSON.stringify(settings)); applyTheme($('theme').value); await fetch('/api/auth/options', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({player_client:$('client').value, po_token:$('po').value})}); $('status').textContent = 'Настройки сохранены.'; });
+        $('importCookies').addEventListener('click', async () => { const text = $('cookies').value.trim(); if (!text) return $('status').textContent = 'Вставьте cookies.'; const res = await fetch('/api/cookies/import', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text})}); const data = await res.json(); $('status').textContent = res.ok ? `Cookies импортированы: ${data.cookies_count}.` : (data.error || 'Ошибка импорта.'); });
+        $('deleteCookies').addEventListener('click', async () => { await fetch('/api/cookies', {method:'DELETE'}); $('status').textContent = 'Cookies удалены.'; });
+        $('authCheck').addEventListener('click', async () => { await fetch('/api/auth/ensure', {method:'POST'}); authStatus(); });
+        $('authRefresh').addEventListener('click', authStatus);
+        authStatus();
+
+        // ===== Мои данные (избранное, история, скрытые каналы) =====
+        function pluralize(n, forms) {
+            const mod100 = n % 100, mod10 = n % 10;
+            if (mod100 >= 11 && mod100 <= 14) return forms[2];
+            if (mod10 === 1) return forms[0];
+            if (mod10 >= 2 && mod10 <= 4) return forms[1];
+            return forms[2];
+        }
+        function renderUserdata(data) {
+            const f = (data.favorites || []).length;
+            const h = (data.history || []).length;
+            const c = (data.hidden_channels || []).length;
+            $('userdataSummary').textContent =
+                `В избранном ${f} ${pluralize(f, ['видео', 'видео', 'видео'])}, ` +
+                `в истории ${h} ${pluralize(h, ['запись', 'записи', 'записей'])}, ` +
+                `скрыто ${c} ${pluralize(c, ['канал', 'канала', 'каналов'])}.`;
+        }
+        async function loadUserdata() {
+            try {
+                const res = await fetch('/api/userdata');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                renderUserdata(await res.json());
+            } catch (err) {
+                console.error('Не удалось загрузить данные:', err);
+                $('userdataSummary').textContent = 'Не удалось загрузить данные.';
+            }
+        }
+        // Очистка необратима, поэтому спрашиваем подтверждение.
+        async function clearSection(section, question) {
+            if (!confirm(question)) return;
+            try {
+                const res = await fetch(`/api/userdata/clear/${section}`, { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+                renderUserdata(data);
+                $('status').textContent = 'Данные очищены.';
+            } catch (err) {
+                console.error('Не удалось очистить:', err);
+                $('status').textContent = 'Не удалось очистить: ' + err.message;
+            }
+        }
+        $('clearHistory').addEventListener('click', () =>
+            clearSection('history', 'Очистить всю историю просмотров? Это действие необратимо.'));
+        $('clearFavorites').addEventListener('click', () =>
+            clearSection('favorites', 'Удалить все видео из избранного? Это действие необратимо.'));
+        $('clearHidden').addEventListener('click', () =>
+            clearSection('hidden_channels', 'Показать все скрытые каналы?'));
+        loadUserdata();
+    </script>
+</body>
+</html>

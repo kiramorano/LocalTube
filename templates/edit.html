@@ -3,62 +3,262 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Редактировать видео</title>
-    <link id="theme-style" rel="stylesheet" href="">
+    <title>Редактировать видео - LocalTube</title>
     <style>
-        :root[data-theme="dark"] { --yt-bg:#0f0f0f; --yt-card-bg:#1a1a1a; --yt-search-bg:#272727; --yt-spec-text-primary:#f1f1f1; --yt-spec-text-secondary:#aaaaaa; --yt-spec-border:#3f3f3f; --yt-button-hover:#333333; }
-        :root[data-theme="light"] { --yt-bg:#ffffff; --yt-card-bg:#f7f7f7; --yt-search-bg:#ffffff; --yt-spec-text-primary:#0f0f0f; --yt-spec-text-secondary:#606060; --yt-spec-border:#d8d8d8; --yt-button-hover:#eeeeee; }
-        * { box-sizing:border-box; }
-        body { margin:0; min-height:100vh; background:var(--yt-bg); color:var(--yt-spec-text-primary); font-family:Arial,sans-serif; padding:64px 20px; transition:background .3s ease,color .3s ease; }
-        .container { max-width:600px; margin:0 auto; background:var(--yt-card-bg); padding:24px; border-radius:16px; border:1px solid var(--yt-spec-border); }
-        h2 { margin:0 0 24px; }
-        form { display:flex; flex-direction:column; gap:16px; }
-        label { display:flex; flex-direction:column; gap:8px; font-size:14px; font-weight:600; }
-        input, textarea, button { width:100%; padding:12px; border-radius:8px; font:inherit; }
-        input, textarea { background:var(--yt-search-bg); color:var(--yt-spec-text-primary); border:1px solid var(--yt-spec-border); }
-        input[readonly] { opacity:.72; cursor:not-allowed; }
-        textarea { min-height:140px; resize:vertical; }
-        input[type="file"] { min-height:48px; color:var(--yt-spec-text-secondary); }
-        button { border:0; background:#3ea6ff; color:#000; font-weight:bold; cursor:pointer; min-height:44px; }
-        input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline:2px solid #3ea6ff; outline-offset:2px; }
-        .back-link { display:inline-block; margin-bottom:20px; color:var(--yt-spec-text-primary); background:var(--yt-button-hover); padding:8px 16px; border-radius:20px; text-decoration:none; }
-        #message { margin-top:16px; color:var(--yt-spec-text-secondary); overflow-wrap:anywhere; }
-        @media (max-width:600px) { body { padding:24px 12px; } .container { padding:20px 16px; } }
+        :root[data-theme="dark"] {
+            --yt-bg: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa;
+            --yt-spec-border: #3f3f3f; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: #272727;
+            --yt-button-hover: #3f3f3f; --yt-header-height: 56px; --yt-search-bg: #121212;
+            --yt-modal-bg: #212121; --yt-card-bg: #1a1a1a;
+        }
+        :root[data-theme="light"] {
+            --yt-bg: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060;
+            --yt-spec-border: #e5e5e5; --yt-spec-icon-inactive: #030303; --yt-button-bg: #f2f2f2;
+            --yt-button-hover: #e0e0e0; --yt-header-height: 56px; --yt-search-bg: #f8f8f8;
+            --yt-modal-bg: #ffffff; --yt-card-bg: #f9f9f9;
+        }
+        :root { --yt-sidebar-width: 240px; --yt-font-family: 'Roboto', Arial, sans-serif; }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        input, button, select, textarea { font-family: inherit; }
+        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; position: relative; transition: background-color 0.5s ease, color 0.5s ease; }
+
+        #bg-layer-1, #bg-layer-2 { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center center; background-repeat: no-repeat; transition: opacity 1.5s ease-in-out; pointer-events: none; z-index: -3; }
+        #bg-layer-2 { z-index: -2; }
+        body::after { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: rgba(0, 0, 0, 0.05); pointer-events: none; transition: background 1s ease; }
+        [data-theme="frutiger-aero"] body::after { background: rgba(0, 0, 0, 0.1); }
+
+        header { position: fixed; top: 0; left: 0; right: 0; height: var(--yt-header-height); background-color: var(--yt-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 100; border-bottom: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .menu-icon { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); cursor: pointer; transition: fill 0.3s ease; }
+        .logo { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 500; text-decoration: none; color: var(--yt-spec-text-primary); transition: color 0.3s ease; }
+        .logo svg { width: 30px; height: 20px; fill: #FF0000; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .icon-btn { background: none; border: none; cursor: pointer; fill: var(--yt-spec-icon-inactive); width: 24px; height: 24px; transition: fill 0.3s ease; }
+        .user-profile-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 12px; border-radius: 20px; transition: background 0.3s ease; text-decoration: none; color: var(--yt-spec-text-primary); }
+        .user-profile-btn:hover { background-color: var(--yt-button-hover); }
+        .user-name-display { font-weight: 500; font-size: 14px; display: none; }
+        .user-avatar-placeholder { width: 32px; height: 32px; border-radius: 50%; background-color: #00897b; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; overflow: hidden; }
+        .user-avatar-placeholder img { width: 100%; height: 100%; object-fit: cover; }
+        @media (min-width: 768px) { .user-name-display { display: block; } }
+
+        .sidebar-drawer { position: fixed; top: var(--yt-header-height); left: -240px; width: 240px; height: calc(100vh - var(--yt-header-height)); background: var(--yt-bg); z-index: 200; transition: left 0.3s ease; padding: 12px; overflow-y: auto; }
+        .sidebar-drawer.active { left: 0; }
+        .sidebar-overlay { position: fixed; top: var(--yt-header-height); left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .sidebar-overlay.active { opacity: 1; pointer-events: all; }
+        .sidebar-item { display: flex; align-items: center; gap: 16px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; text-decoration: none; transition: background 0.2s; }
+        .sidebar-item:hover { background-color: var(--yt-button-hover); }
+        .sidebar-item svg { width: 24px; height: 24px; fill: currentColor; }
+        .sidebar-divider { height: 1px; background-color: var(--yt-spec-border); margin: 12px 0; }
+        .sidebar-title { padding: 8px 12px; font-size: 16px; font-weight: 500; margin-top: 8px; }
+
+        .page-content { padding-top: calc(var(--yt-header-height) + 24px); padding-bottom: 40px; max-width: 1280px; margin: 0 auto; }
+        .container { max-width: 600px; margin: 0 auto; background: var(--yt-card-bg); padding: 24px; border-radius: 12px; border: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; }
+        h2 { margin-bottom: 20px; font-size: 22px; }
+        form { display: flex; flex-direction: column; gap: 16px; }
+        label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: 600; }
+        input, textarea, button { width: 100%; padding: 12px; border-radius: 8px; font: inherit; }
+        input, textarea { background: var(--yt-search-bg); color: var(--yt-spec-text-primary); border: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; }
+        input[readonly] { opacity: .72; cursor: not-allowed; }
+        textarea { min-height: 140px; resize: vertical; }
+        input[type="file"] { min-height: 48px; color: var(--yt-spec-text-secondary); }
+        button { border: 0; background: #3ea6ff; color: #000; font-weight: bold; cursor: pointer; min-height: 44px; transition: background 0.3s ease; }
+        button:hover { background: #65b8ff; }
+        input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid #3ea6ff; outline-offset: 2px; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: var(--yt-spec-text-primary); background: var(--yt-button-hover); padding: 8px 16px; border-radius: 20px; text-decoration: none; transition: background 0.5s ease, color 0.5s ease; }
+        #message { margin-top: 16px; color: var(--yt-spec-text-secondary); overflow-wrap: anywhere; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-content { background: var(--yt-modal-bg); width: 90%; max-width: 550px; border-radius: 12px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; }
+        .modal-content h2 { margin-bottom: 20px; font-size: 22px; transition: color 0.5s ease; }
+        .setting-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+        .setting-group label { font-size: 14px; transition: color 0.5s ease; }
+        .setting-group input[type="text"], .setting-group select, .setting-group textarea { background: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 10px; border-radius: 8px; width: 100%; transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+        .btn-primary { background: #3ea6ff; color: #000; border: none; padding: 10px 20px; border-radius: 20px; font-weight: 500; cursor: pointer; transition: background 0.3s ease; }
+        .btn-primary:hover { background: #65b8ff; }
+        .btn-secondary { background: transparent; color: var(--yt-spec-text-primary); border: 1px solid var(--yt-spec-border); padding: 10px 20px; border-radius: 20px; cursor: pointer; transition: background 0.3s ease, border-color 0.5s ease, color 0.5s ease; }
+        .btn-secondary:hover { background: var(--yt-button-hover); }
+
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: var(--yt-button-hover); color: var(--yt-spec-text-primary); padding: 12px 20px; border-radius: 8px; animation: slideIn 0.3s ease forwards; border: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; min-width: 200px; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+         @media (max-width: 600px) { body { padding: 0; } .page-content { padding: calc(var(--yt-header-height) + 12px) 12px 24px; } .container { padding: 20px 16px; } }
     </style>
+    <link id="fonts-link" rel="stylesheet" href="/static/css/fonts.css">
+    <link id="theme-style-link" rel="stylesheet" href="">
     <link rel="stylesheet" href="/static/css/mobile.css">
+    <script src="/static/js/mobile.js" defer></script>
 </head>
 <body>
-    <div class="container">
-        <a href="/" class="back-link">← На главную</a>
-        <h2>Редактировать видео</h2>
-        <form id="editForm" enctype="multipart/form-data">
-            <label for="username">Автор<input type="text" id="username" readonly></label>
-            <label for="title">Название<input type="text" id="title" placeholder="Название"></label>
-            <label for="description">Описание<textarea id="description" placeholder="Описание"></textarea></label>
-            <label for="thumbFile">Новое превью<input type="file" id="thumbFile" accept="image/jpeg,image/png,image/webp"></label>
-            <button type="submit">Сохранить</button>
-        </form>
-        <div id="message"></div>
+    <div id="bg-layer-1" style="background-image: none; opacity: 0;"></div>
+    <div id="bg-layer-2" style="background-image: none; opacity: 1;"></div>
+
+    <header>
+        <div class="header-left">
+            <svg class="menu-icon" id="sidebarToggle" viewBox="0 0 24 24"><path d="M21,6H3V5h18V6z M21,11H3v1h18V11z M21,17H3v1h18V17z"></path></svg>
+            <a href="/" class="logo"><svg viewBox="0 0 24 24"><path d="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5s-6.25,0-7.81,0.42c-0.88,0.23-1.54,0.89-1.77,1.77 C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42 c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19z M10,15V9l5.2,3L10,15z"/></svg>LocalTube</a>
+        </div>
+        <div class="header-right">
+            <a class="icon-btn" id="themeToggleHeader" href="/settings" title="Настройки"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg></a>
+            <a class="user-profile-btn" href="/settings"><span class="user-name-display" id="headerUsername">Гость</span><div class="user-avatar-placeholder" id="headerAvatar">Г</div></a>
+        </div>
+    </header>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar-drawer" id="sidebarDrawer">
+        <a href="/" class="sidebar-item" data-nav="all"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg><span>На главную</span></a>
+        <div class="sidebar-divider"></div>
+        <a href="/settings" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>Настройки</span></a>
+    </aside>
+
+    <div class="page-content">
+        <div class="container">
+            <a href="/" class="back-link">← На главную</a>
+            <h2>Редактировать видео</h2>
+            <form id="editForm" enctype="multipart/form-data">
+                <label for="username">Автор<input type="text" id="username" readonly></label>
+                <label for="title">Название<input type="text" id="title" placeholder="Название"></label>
+                <label for="description">Описание<textarea id="description" placeholder="Описание"></textarea></label>
+                <label for="thumbFile">Новое превью<input type="file" id="thumbFile" accept="image/jpeg,image/png,image/webp"></label>
+                <button type="submit">Сохранить</button>
+            </form>
+            <div id="message"></div>
+        </div>
     </div>
+
+    <div id="toast-container"></div>
     <script>
-        // Поддержка темы
+        let activeBgLayer = 2, bgTimer = null;
+
+        function setBackgroundImage(url) {
+            const layer1 = document.getElementById('bg-layer-1');
+            const layer2 = document.getElementById('bg-layer-2');
+            let targetLayer, otherLayer;
+            if (activeBgLayer === 2) { targetLayer = layer1; otherLayer = layer2; }
+            else { targetLayer = layer2; otherLayer = layer1; }
+            targetLayer.style.backgroundImage = `url('${url}')`;
+            targetLayer.style.opacity = 0;
+            requestAnimationFrame(() => { targetLayer.style.opacity = 1; otherLayer.style.opacity = 0; });
+            setTimeout(() => {
+                activeBgLayer = (activeBgLayer === 2) ? 1 : 2;
+                otherLayer.style.backgroundImage = 'none';
+            }, 1600);
+        }
+
+        async function loadThemeBackground(theme) {
+            const layer1 = document.getElementById('bg-layer-1');
+            const layer2 = document.getElementById('bg-layer-2');
+            if (theme !== 'frutiger-aero') {
+                layer1.style.backgroundImage = 'none';
+                layer2.style.backgroundImage = 'none';
+                layer1.style.opacity = 0;
+                layer2.style.opacity = 0;
+                if (bgTimer) clearInterval(bgTimer);
+                bgTimer = null;
+                return;
+            }
+            try {
+                const response = await fetch(`/api/theme-backgrounds/${theme}`);
+                const images = await response.json();
+                if (images.length === 0) { layer1.style.backgroundImage = 'none'; layer2.style.backgroundImage = 'none'; layer1.style.opacity = 0; layer2.style.opacity = 0; return; }
+                const imageName = images[Math.floor(Math.random() * images.length)];
+                const imageUrl = `/static/images/themes/${theme}/${encodeURIComponent(imageName)}?w=${window.innerWidth}&h=${window.innerHeight}`;
+                setBackgroundImage(imageUrl);
+                if (bgTimer) clearInterval(bgTimer);
+                bgTimer = setInterval(async () => {
+                    const resp = await fetch(`/api/theme-backgrounds/${theme}`);
+                    const newImages = await resp.json();
+                    if (newImages.length === 0) return;
+                    const newName = newImages[Math.floor(Math.random() * newImages.length)];
+                    const newUrl = `/static/images/themes/${theme}/${encodeURIComponent(newName)}?w=${window.innerWidth}&h=${window.innerHeight}`;
+                    setBackgroundImage(newUrl);
+                }, 30000);
+            } catch (e) {
+                console.error('Ошибка загрузки фона:', e);
+                layer1.style.backgroundImage = 'none';
+                layer2.style.backgroundImage = 'none';
+                layer1.style.opacity = 0;
+                layer2.style.opacity = 0;
+            }
+        }
+
         function loadTheme(theme) {
-            const link = document.getElementById('theme-style');
+            const link = document.getElementById('theme-style-link') || document.getElementById('theme-style');
+            const fontsLink = document.getElementById('fonts-link');
             if (!theme || theme === 'dark' || theme === 'light') {
                 link.href = '';
                 document.documentElement.setAttribute('data-theme', theme || 'dark');
+                if (fontsLink) fontsLink.disabled = false;
+                document.documentElement.style.fontFamily = "'Roboto', Arial, sans-serif";
+                if (bgTimer) clearInterval(bgTimer);
+                bgTimer = null;
+                document.getElementById('bg-layer-1').style.backgroundImage = 'none';
+                document.getElementById('bg-layer-2').style.backgroundImage = 'none';
+                document.getElementById('bg-layer-1').style.opacity = 0;
+                document.getElementById('bg-layer-2').style.opacity = 0;
             } else {
                 link.href = '/static/css/themes/' + theme + '.css';
                 document.documentElement.setAttribute('data-theme', theme);
+                if (fontsLink) fontsLink.disabled = false;
+                if (theme === 'frutiger-aero') {
+                    document.documentElement.style.fontFamily = "'Aero_03', Arial, sans-serif";
+                } else {
+                    document.documentElement.style.fontFamily = "'Roboto', Arial, sans-serif";
+                }
+                loadThemeBackground(theme);
             }
             localStorage.setItem('lt_theme', theme || 'dark');
         }
+
         const savedTheme = localStorage.getItem('lt_theme') || 'dark';
         loadTheme(savedTheme);
 
-        // Остальная логика
+        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"username":"Гость","avatar":""}');
+
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarDrawer = document.getElementById('sidebarDrawer');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        function toggleSidebar() { sidebarDrawer.classList.toggle('active'); sidebarOverlay.classList.toggle('active'); }
+        if (sidebarToggle && sidebarDrawer) {
+            sidebarToggle.addEventListener('click', toggleSidebar);
+            if (sidebarOverlay) sidebarOverlay.addEventListener('click', toggleSidebar);
+        }
+
+        function applyProfileUI() {
+            const username = userSettings.username || 'Гость';
+            const usernameEl = document.getElementById('headerUsername');
+            const avatarBox = document.getElementById('headerAvatar');
+            if (usernameEl) usernameEl.textContent = username;
+            if (!avatarBox) return;
+            avatarBox.replaceChildren();
+            if (userSettings.avatar) {
+                const image = document.createElement('img');
+                image.src = userSettings.avatar;
+                image.alt = 'Аватар';
+                avatarBox.append(image);
+            } else {
+                avatarBox.textContent = username.charAt(0).toUpperCase();
+            }
+        }
+        function showToast(msg) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        applyProfileUI();
+
         const videoId = window.location.pathname.split('/').pop();
-        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"username":"Гость"}');
+        const userSettingsGlobal = JSON.parse(localStorage.getItem('lt_settings') || '{"username":"Гость"}');
         async function load() {
             const res = await fetch(`/api/user_video/info/${videoId}`);
             const data = await res.json();
@@ -79,10 +279,10 @@
             const response = await fetch(`/api/user_video/edit/${videoId}`, { method: 'POST', body: formData });
             const data = await response.json();
             if (response.ok) {
-                alert('Сохранено');
-                window.location.href = '/';
+                showToast('Видео сохранено');
+                setTimeout(() => window.location.href = '/', 1000);
             } else {
-                alert('Ошибка: ' + data.error);
+                showToast('Ошибка: ' + data.error);
             }
         };
     </script>

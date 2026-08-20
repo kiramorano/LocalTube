@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ author }} — LocalTube</title>
+    <link id="theme-style" rel="stylesheet" href="">
+    <link rel="stylesheet" href="/static/css/fonts.css">
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    <style>
+        :root[data-theme="dark"] { --bg:#0f0f0f; --text:#f1f1f1; --muted:#aaa; --border:#3f3f3f; --card:#1d1d1d; --button:#272727; }
+        :root[data-theme="light"] { --bg:#fff; --text:#0f0f0f; --muted:#606060; --border:#e5e5e5; --card:#f8f8f8; --button:#f2f2f2; }
+        #bg-layer-1, #bg-layer-2 { position:fixed; top:0; left:0; width:100%; height:100%; background-size:cover; background-position:center center; background-repeat:no-repeat; transition:opacity 1.5s ease-in-out; pointer-events:none; z-index:-3; }
+        #bg-layer-2 { z-index:-2; }
+        :root[data-theme="frutiger-aero"] { --bg:transparent; --text:#fff; --muted:#e3f2fd; --border:rgba(255,255,255,.35); --card:rgba(255,255,255,.18); --button:rgba(255,255,255,.22); }
+        :root[data-theme="frutiger-aero"] body { background-color:#b3d9f0; }
+        :root[data-theme="frutiger-aero"] header { background:rgba(255,255,255,.2); backdrop-filter:blur(16px) saturate(180%); -webkit-backdrop-filter:blur(16px) saturate(180%); }
+        :root[data-theme="frutiger-aero"] .playlist-card { backdrop-filter:blur(12px) saturate(180%); -webkit-backdrop-filter:blur(12px) saturate(180%); }
+        :root[data-theme="frutiger-aero"] option { color:#0f0f0f; }
+        * { box-sizing:border-box; } body { margin:0; min-height:100vh; color:var(--text); background:var(--bg); } a { color:inherit; text-decoration:none; } button, select { font:inherit; }
+        header { height:56px; display:flex; align-items:center; gap:16px; padding:0 20px; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:3; background:var(--bg); } .logo { font-size:20px; font-weight:700; } .spacer { flex:1; } .header-link { color:var(--muted); font-size:14px; }
+        main { width:min(1280px, calc(100% - 40px)); margin:0 auto 48px; } .banner { height:220px; margin-top:20px; border-radius:14px; background:#303030 center/cover no-repeat; } .channel-head { display:flex; gap:22px; padding:20px 0; align-items:flex-start; } .avatar { width:110px; height:110px; border-radius:50%; flex:0 0 auto; overflow:hidden; display:grid; place-items:center; background:#6b4aa0; color:#fff; font-size:40px; } .avatar img { width:100%; height:100%; object-fit:cover; } .head-copy { min-width:0; flex:1; } h1 { margin:0 0 8px; font-size:32px; } .stats, .muted { color:var(--muted); font-size:14px; } .actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; } .button { border:0; border-radius:20px; padding:10px 16px; background:var(--button); color:var(--text); cursor:pointer; } .button.primary { color:#000; background:#3ea6ff; } .tabs { display:flex; gap:24px; border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; } .tabs::-webkit-scrollbar { display:none; } .tab { border:0; color:var(--muted); background:transparent; padding:14px 2px 12px; border-bottom:3px solid transparent; cursor:pointer; white-space:nowrap; } .tab.active { color:var(--text); border-color:var(--text); } .panel { display:none; padding-top:24px; } .panel.active { display:block; } .section-head { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:18px; } .section-head h2 { margin:0; font-size:20px; } select { padding:8px 10px; color:var(--text); background:var(--button); border:1px solid var(--border); border-radius:8px; }
+        .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:20px; } .card { position:relative; min-width:0; } .thumb { width:100%; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#303030; position:relative; display:grid; place-items:center; color:#bbb; } .thumb img { width:100%; height:100%; object-fit:cover; } .duration { position:absolute; right:6px; bottom:6px; padding:3px 5px; border-radius:4px; background:rgba(0,0,0,.85); color:#fff; font-size:12px; } .card h3 { margin:9px 0 4px; line-height:1.35; font-size:15px; } .card .meta { color:var(--muted); font-size:13px; } .short-grid .thumb { aspect-ratio:9/16; }
+        .featured { display:grid; grid-template-columns:minmax(300px, 2fr) minmax(240px, 1fr); gap:20px; } .featured-card .thumb { aspect-ratio:16/9; } .about { max-width:760px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; } .about a { color:#3ea6ff; text-decoration:underline; } .about-meta { margin-top:22px; display:grid; gap:8px; color:var(--muted); } .playlist-card { background:var(--card); border:1px solid var(--border); padding:10px; border-radius:12px; } .empty { padding:36px; text-align:center; color:var(--muted); border:1px dashed var(--border); border-radius:12px; }
+         #toast { position:fixed; right:20px; bottom:20px; z-index:8; background:#222; color:#fff; padding:12px 16px; border-radius:8px; opacity:0; pointer-events:none; transition:opacity .2s; } #toast.visible { opacity:1; }
+         .sync-panel { margin:0 0 18px; padding:14px 16px; border:1px solid var(--border); border-radius:10px; background:var(--card); display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+         .sync-status { font-size:13px; font-weight:600; }
+         .sync-status.success { color:#00b86b; } .sync-status.checking { color:#3ea6ff; } .sync-status.error { color:#e05252; } .sync-status.interrupted { color:#d99000; } .sync-status.never, .sync-status.unknown { color:var(--muted); }
+         .sync-details { flex:1; min-width:220px; color:var(--muted); font-size:13px; }
+         .sync-error { width:100%; color:#e05252; font-size:12px; overflow-wrap:anywhere; }
+         .sync-button { border:1px solid var(--border); border-radius:18px; padding:8px 13px; background:var(--button); color:var(--text); cursor:pointer; }
+         .sync-button:disabled { cursor:wait; opacity:.65; }
+         :root[data-theme="frutiger-aero"] .sync-panel { backdrop-filter:blur(12px) saturate(180%); -webkit-backdrop-filter:blur(12px) saturate(180%); }
+
+        @media (max-width:700px) { main { width:min(100%, calc(100% - 24px)); } .tabs-wrap { position:relative; } .tabs-wrap::after { content:''; position:absolute; top:0; right:0; width:28px; height:100%; pointer-events:none; background:linear-gradient(to right, transparent, var(--bg)); } :root[data-theme="frutiger-aero"] .tabs-wrap::after { background:none; } .tabs { gap:18px; } .tab { padding-inline:2px; } .banner { height:130px; margin-top:12px; } .channel-head { gap:14px; } .avatar { width:72px; height:72px; font-size:28px; } h1 { font-size:24px; } .featured { grid-template-columns:1fr; } .grid { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; } .card h3 { font-size:14px; } }
+    </style>
+</head>
+<body>
+<div id="bg-layer-1" style="background-image:none; opacity:0;"></div>
+<div id="bg-layer-2" style="background-image:none; opacity:0;"></div>
+<header><a class="logo" href="/">LocalTube</a><span class="spacer"></span><a class="header-link" href="/settings">Настройки</a></header>
+<main>
+    {% if banner_url %}<div class="banner" style="background-image:url('{{ banner_url }}')"></div>{% else %}<div class="banner"></div>{% endif %}
+    <section class="sync-panel" aria-live="polite">
+        <span id="syncStatus" class="sync-status unknown">Статус канала: проверка ещё не выполнялась</span>
+        <span id="syncDetails" class="sync-details"></span>
+        <button type="button" class="sync-button" id="syncButton">Обновить канал</button>
+        <div id="syncError" class="sync-error" hidden></div>
+    </section>
+    <section class="channel-head">
+        <div class="avatar">{% if author_avatar %}<img src="{{ author_avatar }}" alt="{{ author }}">{% else %}{{ author[:1]|upper }}{% endif %}</div>
+        <div class="head-copy"><h1>{{ author }}</h1><div class="stats">{{ total_videos }} видео{% if subscribers %} · {{ subscribers }} подписчиков{% endif %}</div><div class="actions">{% if channel_url %}<button class="button primary" id="downloadRemaining">Скачать остальные видео</button>{% endif %}<button class="button" data-tab="about">О канале</button><button class="button" type="button" id="hideChannelBtn" aria-pressed="{{ 'true' if is_hidden else 'false' }}">{{ 'Показать канал' if is_hidden else 'Скрыть канал' }}</button></div></div>
+    </section>
+    <div class="tabs-wrap"><nav class="tabs" aria-label="Разделы канала"><button class="tab active" data-tab="home">Главная</button><button class="tab" data-tab="videos">Видео</button><button class="tab" data-tab="shorts">Shorts{% if total_shorts %} ({{ total_shorts }}){% endif %}</button><button class="tab" data-tab="playlists">Плейлисты{% if playlists %} ({{ playlists|length }}){% endif %}</button><button class="tab" data-tab="about">О канале</button></nav></div>
+    <section id="home" class="panel active">
+        {% set regular = videos|rejectattr('is_short')|list %}
+        {% if regular %}<div class="section-head"><h2>Рекомендуемое</h2></div><div class="featured"><a class="featured-card" href="/watch/{{ regular[0].id }}"><div class="thumb">{% if regular[0].thumb %}<img src="/media/{{ regular[0].author|urlencode }}/{{ regular[0].folder|urlencode }}/{{ regular[0].thumb|urlencode }}" alt="">{% else %}Нет превью{% endif %}{% if regular[0].duration %}<span class="duration">{{ regular[0].duration|human_duration }}</span>{% endif %}</div><h3>{{ regular[0].title }}</h3><div class="meta">{{ regular[0].upload_date|human_date or 'Локальное видео' }}</div></a><div><h2>Последние видео</h2>{% for v in regular[1:5] %}<a href="/watch/{{ v.id }}" style="display:block;padding:10px 0;border-bottom:1px solid var(--border)"><strong>{{ v.title }}</strong><div class="meta">{{ v.upload_date|human_date }}</div></a>{% endfor %}</div></div>{% else %}<div class="empty">Обычных видео пока нет.</div>{% endif %}
+    </section>
+    <section id="videos" class="panel"><div class="section-head"><h2>Видео</h2><select data-sort="videos"><option value="new">Сначала новые</option><option value="old">Сначала старые</option></select></div><div class="grid" id="videosGrid">{% for v in videos if not v.is_short %}<a href="/watch/{{ v.id }}" class="card" data-date="{{ v.upload_date }}"><div class="thumb">{% if v.thumb %}<img loading="lazy" src="/media/{{ v.author|urlencode }}/{{ v.folder|urlencode }}/{{ v.thumb|urlencode }}" alt="">{% else %}Нет превью{% endif %}{% if v.duration %}<span class="duration">{{ v.duration|human_duration }}</span>{% endif %}</div><h3>{{ v.title }}</h3><div class="meta">{{ v.upload_date|human_date or 'Дата неизвестна' }} · {{ v.size_mb }} МБ</div></a>{% endfor %}</div></section>
+    <section id="shorts" class="panel"><div class="section-head"><h2>Shorts</h2><select data-sort="shorts"><option value="new">Сначала новые</option><option value="old">Сначала старые</option></select></div><div class="grid short-grid" id="shortsGrid">{% for v in videos if v.is_short %}<a href="/watch/{{ v.id }}" class="card" data-date="{{ v.upload_date }}"><div class="thumb">{% if v.thumb %}<img loading="lazy" src="/media/{{ v.author|urlencode }}/{{ v.folder|urlencode }}/{{ v.thumb|urlencode }}" alt="">{% else %}Нет превью{% endif %}{% if v.duration %}<span class="duration">{{ v.duration|human_duration }}</span>{% endif %}</div><h3>{{ v.title }}</h3><div class="meta">{{ v.upload_date|human_date or 'Дата неизвестна' }}</div></a>{% endfor %}</div>{% if not total_shorts %}<div class="empty">Shorts пока нет.</div>{% endif %}</section>
+    <section id="playlists" class="panel"><div class="section-head"><h2>Плейлисты</h2></div><div class="grid">{% for p in playlists %}<article class="playlist-card"><div class="thumb">{% if p.thumbnail %}<img loading="lazy" src="{{ p.thumbnail }}" alt="">{% else %}Нет превью{% endif %}</div><h3>{{ p.title }}</h3><div class="meta">{{ p.video_count }} видео</div></article>{% else %}<div class="empty">Плейлисты не найдены.</div>{% endfor %}</div></section>
+    <section id="about" class="panel"><h2>О канале</h2><div class="about" id="description">{{ description or 'Описание канала отсутствует.' }}</div><div class="about-meta"><div>Видео: {{ total_videos }}</div>{% if joined_date %}<div>Дата регистрации: {{ joined_date|human_date }}</div>{% endif %}{% if country %}<div>Страна: {{ country }}</div>{% endif %}</div></section>
+</main>
+<div id="toast"></div>
+<script>
+    const toast = text => { const el = document.getElementById('toast'); el.textContent = text; el.classList.add('visible'); setTimeout(() => el.classList.remove('visible'), 3200); };
+    const channelAuthor = {{ author|tojson }};
+    const channelRemainingUrl = {{ ('/api/channel/' ~ author ~ '/remaining')|tojson }};
+    const channelSyncStatusUrl = {{ ('/api/channel/' ~ author ~ '/sync-status')|tojson }};
+    const channelSyncUrl = {{ ('/api/channel/' ~ author ~ '/sync')|tojson }};
+    const initialSyncStatus = {{ sync_status|tojson }};
+
+    // ===== Скрытие канала =====
+    // Состояние приходит с сервера вместе со страницей, поэтому надпись кнопки
+    // сразу правильная и запрос при загрузке не нужен.
+    let channelHidden = {{ is_hidden|tojson }};
+    let hideRequestInFlight = false;
+
+    function updateHideChannelButton() {
+        const btn = document.getElementById('hideChannelBtn');
+        if (!btn) return;
+        btn.textContent = channelHidden ? 'Показать канал' : 'Скрыть канал';
+        btn.setAttribute('aria-pressed', channelHidden ? 'true' : 'false');
+        btn.disabled = hideRequestInFlight;
+    }
+
+    async function toggleHideChannel() {
+        if (hideRequestInFlight) return;
+        const shouldHide = !channelHidden;
+        hideRequestInFlight = true;
+        updateHideChannelButton();
+        try {
+            const res = await fetch('/api/userdata/hidden-channel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                // Явное состояние, а не «переключи»: повторный запрос не
+                // перевернёт результат.
+                body: JSON.stringify({ author: channelAuthor, hidden: shouldHide }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+            channelHidden = Array.isArray(data.hidden_channels)
+                ? data.hidden_channels.includes(channelAuthor)
+                : shouldHide;
+            toast(channelHidden
+                ? `Канал "${channelAuthor}" скрыт из рекомендаций`
+                : `Канал "${channelAuthor}" больше не скрыт`);
+        } catch (err) {
+            console.error('Не удалось изменить видимость канала:', err);
+            toast('Не удалось сохранить на сервере');
+        } finally {
+            hideRequestInFlight = false;
+            updateHideChannelButton();
+        }
+    }
+
+    document.getElementById('hideChannelBtn')?.addEventListener('click', toggleHideChannel);
+    updateHideChannelButton();
+
+    function activateTab(name) {
+        document.querySelectorAll('.tab').forEach(el => el.classList.toggle('active', el.dataset.tab === name));
+        document.querySelectorAll('.panel').forEach(el => el.classList.toggle('active', el.id === name));
+        const activeTab = document.querySelector(`.tab[data-tab="${name}"]`);
+        if (activeTab) activeTab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+    document.querySelectorAll('[data-tab]').forEach(el => el.addEventListener('click', () => activateTab(el.dataset.tab)));
+    document.querySelectorAll('[data-sort]').forEach(select => select.addEventListener('change', () => { const grid = document.getElementById(select.dataset.sort + 'Grid'); const cards = [...grid.children].sort((a,b) => (a.dataset.date || '').localeCompare(b.dataset.date || '') * (select.value === 'new' ? -1 : 1)); cards.forEach(card => grid.append(card)); }));
+    const description = document.getElementById('description');
+    const linkPattern = /(https?:\/\/[^\s<]+)/g;
+    const descriptionText = description.textContent;
+    const descriptionFragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    for (const match of descriptionText.matchAll(linkPattern)) {
+        descriptionFragment.append(document.createTextNode(descriptionText.slice(lastIndex, match.index)));
+        const link = document.createElement('a');
+        link.href = match[0];
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = match[0];
+        descriptionFragment.append(link);
+        lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex) {
+        descriptionFragment.append(document.createTextNode(descriptionText.slice(lastIndex)));
+        description.replaceChildren(descriptionFragment);
+    }
+    function formatSyncTime(value) {
+        if (!value) return '';
+        const date = new Date(Number(value) * 1000);
+        return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('ru-RU');
+    }
+    function renderSyncStatus(data) {
+        const status = data.in_progress ? 'checking' : (data.status || 'never');
+        const labels = { checking: 'Проверка канала…', success: 'Канал синхронизирован', error: 'Ошибка синхронизации', interrupted: 'Проверка прервана', never: 'Проверка ещё не выполнялась', unknown: 'Статус неизвестен' };
+        const statusEl = document.getElementById('syncStatus');
+        const detailsEl = document.getElementById('syncDetails');
+        const errorEl = document.getElementById('syncError');
+        statusEl.className = `sync-status ${status}`;
+        statusEl.textContent = labels[status] || status;
+        const time = data.finished_at || data.updated_at;
+        detailsEl.textContent = time ? `Последняя попытка: ${formatSyncTime(time)}` : (status === 'checking' ? 'YouTube может отвечать несколько секунд.' : '');
+        const isProblem = status === 'error' || status === 'interrupted';
+        errorEl.hidden = !isProblem || !data.error;
+        errorEl.textContent = isProblem ? (data.error || '') : '';
+        const button = document.getElementById('syncButton');
+        button.disabled = status === 'checking';
+        button.textContent = status === 'checking' ? 'Проверяю…' : 'Обновить канал';
+    }
+    async function loadSyncStatus() {
+        try { renderSyncStatus(await (await fetch(channelSyncStatusUrl)).json()); } catch (error) { renderSyncStatus({ status:'error', error:'Не удалось получить статус канала.' }); }
+    }
+    async function startChannelSync() {
+        const button = document.getElementById('syncButton');
+        button.disabled = true;
+        try {
+            const response = await fetch(channelSyncUrl, { method:'POST' });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Не удалось запустить синхронизацию');
+            renderSyncStatus({ status:'checking', in_progress:true });
+            const poll = setInterval(async () => {
+                try {
+                    const status = await (await fetch(channelSyncStatusUrl)).json();
+                    renderSyncStatus(status);
+                    if (!status.in_progress && status.status !== 'checking') {
+                        clearInterval(poll);
+                        if (status.status === 'success') setTimeout(() => window.location.reload(), 500);
+                    }
+                } catch (_) {}
+            }, 1500);
+        } catch (error) {
+            renderSyncStatus({ status:'error', error:error.message });
+        }
+    }
+    document.getElementById('syncButton').addEventListener('click', startChannelSync);
+    renderSyncStatus(initialSyncStatus);
+    if (initialSyncStatus.in_progress || initialSyncStatus.status === 'checking') {
+        loadSyncStatus();
+        setTimeout(() => loadSyncStatus(), 1500);
+    }
+
+    async function fetchRemainingVideos(button) {
+        button.disabled = true;
+        button.textContent = 'Проверяю канал…';
+        try {
+            const status = await (await fetch(channelSyncStatusUrl)).json();
+            if (status.in_progress) throw new Error('Синхронизация канала ещё выполняется.');
+            if (status.status === 'error') throw new Error('Последняя проверка канала завершилась ошибкой: нажмите «Обновить канал».');
+            const res = await fetch(channelRemainingUrl, {method:'POST'});
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Ошибка получения списка');
+            if (!data.videos.length) { toast('Все доступные видео уже скачаны.'); return; }
+            const add = await fetch('/api/queue/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({urls:data.videos.map(v => v.url), title:channelAuthor + ` — остальные видео (${data.count})`, merge_format:'mp4'})});
+            const result = await add.json();
+            if (!add.ok) throw new Error(result.error || 'Не удалось добавить в очередь');
+            toast(`Добавлено в очередь: ${data.count} видео.`);
+        } catch (error) { toast(error.message || 'Ошибка очереди.'); }
+        finally { button.disabled = false; button.textContent = 'Скачать остальные видео'; }
+    }
+    document.getElementById('downloadRemaining')?.addEventListener('click', event => fetchRemainingVideos(event.currentTarget));
+    let activeBgLayer = 2, bgTimer = null;
+    function setBackgroundImage(url) {
+        const layer1 = document.getElementById('bg-layer-1'), layer2 = document.getElementById('bg-layer-2');
+        const target = activeBgLayer === 2 ? layer1 : layer2;
+        const other = activeBgLayer === 2 ? layer2 : layer1;
+        target.style.backgroundImage = `url('${url}')`;
+        target.style.opacity = 0;
+        requestAnimationFrame(() => { target.style.opacity = 1; other.style.opacity = 0; });
+        setTimeout(() => { activeBgLayer = activeBgLayer === 2 ? 1 : 2; other.style.backgroundImage = 'none'; }, 1600);
+    }
+    function clearBackground() {
+        if (bgTimer) { clearInterval(bgTimer); bgTimer = null; }
+        for (const id of ['bg-layer-1', 'bg-layer-2']) { const el = document.getElementById(id); el.style.backgroundImage = 'none'; el.style.opacity = 0; }
+    }
+    async function pickBackground(theme) {
+        const images = await (await fetch(`/api/theme-backgrounds/${theme}`)).json();
+        if (!Array.isArray(images) || !images.length) return null;
+        return `/static/images/themes/${theme}/${encodeURIComponent(images[Math.floor(Math.random() * images.length)])}`;
+    }
+    async function loadThemeBackground(theme) {
+        if (theme !== 'frutiger-aero') return clearBackground();
+        try {
+            const url = await pickBackground(theme);
+            if (!url) return clearBackground();
+            setBackgroundImage(url);
+            if (bgTimer) clearInterval(bgTimer);
+            bgTimer = setInterval(async () => { const next = await pickBackground(theme); if (next) setBackgroundImage(next); }, 30000);
+        } catch (e) { clearBackground(); }
+    }
+    (function loadTheme(){
+        const theme = localStorage.getItem('lt_theme') || 'dark';
+        document.documentElement.dataset.theme = theme;
+        document.getElementById('theme-style').href = theme === 'frutiger-aero' ? '/static/css/themes/frutiger-aero.css' : '';
+        document.documentElement.style.fontFamily = theme === 'frutiger-aero' ? "'Aero_03', Arial, sans-serif" : "'Roboto', Arial, sans-serif";
+        loadThemeBackground(theme);
+    })();
+</script>
+</body>
+</html>

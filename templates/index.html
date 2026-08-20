@@ -1,27 +1,1066 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru" data-theme="dark">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#0f0f0f"><title>LocalTube</title>
-  <link rel="stylesheet" href="/static/css/mobile.css">
-  <style>
-    :root{--bg:#0f0f0f;--panel:#181818;--text:#f1f1f1;--muted:#aaa;--line:#303030;--accent:#ff0033}
-    *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font:15px Arial,sans-serif}a{color:inherit;text-decoration:none}
-    .topbar{height:60px;position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:16px;padding:0 20px;background:rgba(15,15,15,.96);border-bottom:1px solid var(--line)}
-    .brand{font-size:20px;font-weight:700;white-space:nowrap}.brand b{color:var(--accent)}.search{flex:1;max-width:620px;margin:auto;display:flex}.search input{width:100%;padding:12px 16px;border:1px solid var(--line);border-radius:24px 0 0 24px;background:#121212;color:var(--text);outline:none}.search button{width:52px;border:1px solid var(--line);border-left:0;border-radius:0 24px 24px 0;background:#242424;color:var(--text)}.top-actions{display:flex;gap:8px;align-items:center}.btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 14px;border:1px solid var(--line);border-radius:20px;background:#242424;color:var(--text);cursor:pointer}.btn.primary{background:var(--accent);border-color:var(--accent);font-weight:700}
-    .layout{display:flex;max-width:1500px;margin:auto}.side{width:220px;flex:none;padding:18px 12px;border-right:1px solid var(--line);min-height:calc(100vh - 60px)}.side a{display:block;padding:12px;border-radius:10px;margin-bottom:5px}.side a:hover{background:#272727}.main{flex:1;min-width:0;padding:24px clamp(14px,3vw,36px) 80px}.hero{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}.hero h1{margin:0;font-size:28px}.hero p{color:var(--muted);margin:8px 0 0}.section{margin:28px 0}.section h2{font-size:20px;margin:0 0 14px}.chips{display:flex;gap:8px;overflow:auto;padding-bottom:4px}.chip{white-space:nowrap;padding:9px 14px;border-radius:18px;background:#272727;color:var(--text)}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:20px 14px}.card{min-width:0}.thumb{display:block;aspect-ratio:16/9;background:#252525;border-radius:10px;overflow:hidden;position:relative}.thumb img{width:100%;height:100%;object-fit:cover}.placeholder{height:100%;display:grid;place-items:center;color:#777;font-size:34px}.card h3{font-size:15px;line-height:20px;margin:9px 4px 5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.meta{color:var(--muted);font-size:13px;margin:0 4px}.empty{padding:36px 16px;text-align:center;border:1px dashed var(--line);border-radius:12px;color:var(--muted)}.bottom-nav{display:none}
-    @media(max-width:760px){.topbar{height:56px;padding:0 12px;gap:10px}.brand{font-size:18px}.search{order:3;position:absolute;left:12px;right:12px;top:64px;max-width:none}.top-actions .upload-label{display:none}.layout{display:block;padding-top:54px}.side{display:none}.main{padding:18px 12px 82px}.hero{align-items:flex-start;flex-direction:column;margin-bottom:18px}.hero h1{font-size:24px}.hero .btn{width:100%}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 10px}.thumb{border-radius:7px}.card h3{font-size:13px;line-height:17px;margin-top:6px}.meta{font-size:11px}.bottom-nav{display:flex;position:fixed;z-index:20;bottom:0;left:0;right:0;height:62px;padding-bottom:env(safe-area-inset-bottom);background:rgba(24,24,24,.98);border-top:1px solid var(--line);justify-content:space-around}.bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;color:var(--muted);min-width:64px}.bottom-nav a.active,.bottom-nav a:hover{color:#fff}.bottom-nav .plus{font-size:25px;color:var(--accent);line-height:16px}}
-    @media(max-width:360px){.grid{grid-template-columns:1fr}.search input{font-size:14px}}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalTube</title>
+    <style>
+        :root[data-theme="dark"] { --yt-bg: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa; --yt-spec-border: #3f3f3f; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: #272727; --yt-button-hover: #3f3f3f; --yt-header-height: 56px; --yt-search-bg: #121212; --yt-modal-bg: #212121; }
+        :root[data-theme="light"] { --yt-bg: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060; --yt-spec-border: #e5e5e5; --yt-spec-icon-inactive: #030303; --yt-button-bg: #f2f2f2; --yt-button-hover: #e0e0e0; --yt-header-height: 56px; --yt-search-bg: #f8f8f8; --yt-modal-bg: #ffffff; }
+        :root { --yt-sidebar-width: 240px; --video-card-min-width: 310px; --yt-font-family: 'Roboto', Arial, sans-serif; }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; position: relative; transition: background-color 0.5s ease, color 0.5s ease; }
+        #bg-layer-1, #bg-layer-2 { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center center; background-repeat: no-repeat; transition: opacity 1.5s ease-in-out; pointer-events: none; z-index: -3; }
+        #bg-layer-2 { z-index: -2; }
+        body::after { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: rgba(0, 0, 0, 0.05); pointer-events: none; }
+        [data-theme="frutiger-aero"] body::after { background: rgba(0, 0, 0, 0.1); }
+
+        header { position: fixed; top: 0; left: 0; right: 0; height: var(--yt-header-height); background-color: var(--yt-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 100; border-bottom: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .menu-icon { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); cursor: pointer; transition: fill 0.3s ease; }
+        .logo { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 500; text-decoration: none; color: var(--yt-spec-text-primary); transition: color 0.3s ease; }
+        .logo svg { width: 30px; height: 20px; fill: #FF0000; }
+        .header-center { display: flex; align-items: center; flex: 1; justify-content: center; padding: 0 12px; }
+        .search-container { display: flex; align-items: center; width: 100%; max-width: 732px; }
+        .url-input { flex: 1; background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); border-radius: 24px 0 0 24px; padding: 0 16px; height: 40px; color: var(--yt-spec-text-primary); font-size: 16px; outline: none; }
+        .url-input:focus { border-color: #1c62b9; }
+        .download-btn { background-color: var(--yt-button-hover); border: 1px solid var(--yt-spec-border); border-left: none; height: 40px; width: 52px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 0 24px 24px 0; transition: background-color 0.3s ease; }
+        .download-btn svg { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); transition: fill 0.3s ease; }
+        .download-btn.direct-btn { background-color: #3ea6ff; border-left: 1px solid var(--yt-spec-border); font-weight: bold; font-size: 18px; color: #000; padding: 0 16px; justify-content: center; }
+        .download-btn.direct-btn:hover { background-color: #65b8ff; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .icon-btn { background: none; border: none; cursor: pointer; fill: var(--yt-spec-icon-inactive); width: 24px; height: 24px; transition: fill 0.3s ease; }
+        .user-profile-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 12px; border-radius: 20px; transition: background 0.3s ease; text-decoration: none; color: var(--yt-spec-text-primary); }
+        .user-profile-btn:hover { background-color: var(--yt-button-hover); }
+        .user-name-display { font-weight: 500; font-size: 14px; display: none; }
+        .user-avatar-placeholder { width: 32px; height: 32px; border-radius: 50%; background-color: #00897b; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; overflow: hidden; }
+        .user-avatar-placeholder img { width: 100%; height: 100%; object-fit: cover; }
+        @media (min-width: 768px) { .user-name-display { display: block; } }
+
+        .sidebar-drawer { position: fixed; top: var(--yt-header-height); left: -240px; width: 240px; height: calc(100vh - var(--yt-header-height)); background: var(--yt-bg); z-index: 200; transition: left 0.3s ease; padding: 12px; overflow-y: auto; }
+        .sidebar-drawer.active { left: 0; }
+        .sidebar-overlay { position: fixed; top: var(--yt-header-height); left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .sidebar-overlay.active { opacity: 1; pointer-events: all; }
+        .sidebar-item { display: flex; align-items: center; gap: 16px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; text-decoration: none; transition: background 0.2s; }
+        .sidebar-item:hover { background-color: var(--yt-button-hover); }
+        .sidebar-item svg { width: 24px; height: 24px; fill: currentColor; }
+        .sidebar-divider { height: 1px; background-color: var(--yt-spec-border); margin: 12px 0; }
+        .sidebar-title { padding: 8px 12px; font-size: 16px; font-weight: 500; margin-top: 8px; }
+
+        .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 24px; flex-wrap: wrap; background-color: var(--yt-bg); padding: 12px; border-radius: 12px; border: 1px solid var(--yt-spec-border); }
+        .toolbar input, .toolbar select, .toolbar button { background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 8px 12px; border-radius: 8px; outline: none; cursor: pointer; }
+
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--video-card-min-width, 310px), 1fr)); gap: 20px; }
+        .video-card { display: block; text-decoration: none; border-radius: 12px; position: relative; cursor: pointer; }
+        .video-thumb { width: 100%; aspect-ratio: 16/9; background: #272727; border-radius: 12px; overflow: hidden; position: relative; }
+        .video-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .video-details { display: flex; gap: 12px; padding: 12px; }
+        .video-author-avatar { width: 36px; height: 36px; border-radius: 50%; background-color: #5c6bc0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: 500; overflow: hidden; }
+        .video-author-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .video-info { display: flex; flex-direction: column; width: 100%; min-width: 0; }
+        .video-title { font-size: 16px; font-weight: 500; line-height: 22px; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .video-meta { color: var(--yt-spec-text-secondary); font-size: 14px; }
+        .card-actions { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; opacity: 0; z-index: 10; }
+        .action-btn { background: rgba(0,0,0,0.8); border: none; border-radius: 4px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; fill: white; }
+        .fav-active { fill: #FFD700 !important; }
+         .video-card:hover .card-actions, .video-card:focus-within .card-actions, .short-card:hover .card-actions, .short-card:focus-within .card-actions { opacity: 1; }
+
+        .shorts-shelf-container { margin: 40px 0; padding: 24px 0; border-top: 4px solid var(--yt-button-hover); border-bottom: 4px solid var(--yt-button-hover); }
+        .shorts-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+        .shorts-title h2 { font-size: 20px; }
+        .shorts-shelf { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 12px; }
+        .short-card { flex: 0 0 auto; width: 210px; text-decoration: none; position: relative; }
+        .short-thumb { width: 100%; aspect-ratio: 9/16; border-radius: 12px; overflow: hidden; background-color: #272727; }
+        .short-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .short-title { font-size: 16px; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .short-card:hover .card-actions { opacity: 1; }
+
+        .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+        .chip { background-color: var(--yt-button-bg); padding: 8px 14px; border-radius: 20px; font-size: 14px; cursor: pointer; }
+        .chip:hover { background-color: var(--yt-button-hover); }
+        .chip.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg); }
+
+        .empty-message { padding: 36px 16px; text-align: center; border: 1px dashed var(--yt-spec-border); border-radius: 12px; color: var(--yt-spec-text-secondary); }
+
+        #miniplayer-container { position: fixed; bottom: 20px; right: 20px; width: 350px; min-width: 250px; max-width: 800px; resize: horizontal; background: var(--yt-bg); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.6); border: 1px solid var(--yt-spec-border); z-index: 1000; display: none; flex-direction: column; overflow: hidden; }
+        .mp-video-wrapper { width: 100%; aspect-ratio: 16/9; background: #000; cursor: pointer; }
+        .mp-video-wrapper video { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+        .mp-controls { padding: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .mp-info { flex: 1; overflow: hidden; margin-right: 8px; }
+        .mp-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+        .mp-author { font-size: 12px; color: var(--yt-spec-text-secondary); }
+        .mp-actions { display: flex; gap: 8px; }
+        .mp-btn { background: none; border: none; fill: var(--yt-spec-text-primary); cursor: pointer; width: 24px; height: 24px; opacity: 0.8; }
+        .mp-btn:hover { opacity: 1; }
+        .mp-close-btn:hover { fill: #FF0000; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-content { background: var(--yt-modal-bg); width: 90%; max-width: 550px; border-radius: 12px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid var(--yt-spec-border); }
+        .modal-content h2 { margin-bottom: 20px; font-size: 22px; }
+        .setting-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+        .setting-group label { font-size: 14px; }
+        .setting-group input[type="text"], .setting-group select, .setting-group textarea { background: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 10px; border-radius: 8px; width: 100%; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+        .btn-primary { background: #3ea6ff; color: #000; border: none; padding: 10px 20px; border-radius: 20px; font-weight: 500; cursor: pointer; }
+        .btn-primary:hover { background: #65b8ff; }
+        .btn-secondary { background: transparent; color: var(--yt-spec-text-primary); border: 1px solid var(--yt-spec-border); padding: 10px 20px; border-radius: 20px; cursor: pointer; }
+        .btn-secondary:hover { background: var(--yt-button-hover); }
+        .quality-card { display: flex; align-items: center; padding: 12px; border-radius: 8px; background: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); margin-bottom: 8px; cursor: pointer; }
+        .quality-status { color: var(--yt-spec-text-secondary); font-size: 13px; margin-bottom: 12px; }
+
+        #progressBox { position: fixed; top: var(--yt-header-height); left: 0; right: 0; background: #212121; padding: 12px 24px; z-index: 99; display: none; color: white; }
+        .progress-bar-container { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+        .progress-fill { height: 100%; width: 0%; background: #FF0000; transition: width 0.3s; }
+
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: var(--yt-button-hover); color: var(--yt-spec-text-primary); padding: 12px 20px; border-radius: 8px; animation: slideIn 0.3s ease forwards; border: 1px solid var(--yt-spec-border); min-width: 200px; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        .playlist-item { padding: 8px; border-bottom: 1px solid var(--yt-spec-border); }
+        .hidden-channel-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 8px; }
+        .hidden-channel-item:hover { background-color: var(--yt-button-hover); }
+        .unhide-btn { background: none; border: none; color: var(--yt-spec-text-primary); cursor: pointer; padding: 4px 8px; border-radius: 16px; background-color: var(--yt-button-hover); font-size: 12px; }
+
+        /* ===== Очередь ===== */
+         .queue-header { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+         .queue-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+         .queue-toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+         .queue-filter-label { color: var(--yt-spec-text-secondary); font-size: 13px; }
+         .queue-filter { color: var(--yt-spec-text-primary); background: var(--yt-button-bg); border: 1px solid var(--yt-spec-border); border-radius: 8px; padding: 8px 10px; }
+         .queue-summary { color: var(--yt-spec-text-secondary); font-size: 13px; margin-bottom: 16px; min-height: 18px; }
+         .queue-current-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--yt-spec-text-secondary); font-size: 12px; margin-top: 5px; }
+         .queue-attempts { color: var(--yt-spec-text-secondary); font-size: 12px; }
+         .queue-priority { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-top: 4px; border: 1px solid var(--yt-spec-border); }
+         .queue-priority.priority-high { color: #ffb300; border-color: #ffb300; }
+         .queue-priority.priority-low { color: var(--yt-spec-text-secondary); }
+         .queue-priority-select { color: var(--yt-spec-text-primary); background: var(--yt-button-bg); border: 1px solid var(--yt-spec-border); border-radius: 16px; padding: 6px 10px; font-size: 12px; }
+         .queue-priority-select option { color: #0f0f0f; }
+         .cancel-btn { background: var(--yt-button-bg); color: var(--yt-spec-text-primary); border: 1px solid var(--yt-spec-border); padding: 6px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; }
+         .cancel-btn:hover { background: var(--yt-button-hover); }
+         .status-cancelled { color: #ff9800; }
+         .queue-clear-btn { background: #ff4d4d; border-color: #ff4d4d; color: #fff; }
+        .queue-item { display: flex; align-items: center; gap: 16px; background-color: var(--yt-card-bg); border: 1px solid var(--yt-spec-border); border-radius: 12px; padding: 14px 16px; }
+        .queue-item-info { flex: 1; min-width: 0; }
+        .queue-item-title { font-size: 15px; font-weight: 500; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .queue-item-meta { font-size: 13px; color: var(--yt-spec-text-secondary); margin-bottom: 8px; }
+        .queue-item-error { font-size: 13px; color: #ff4d4d; margin-bottom: 8px; }
+        .queue-item-status { flex-shrink: 0; font-size: 13px; font-weight: 500; padding: 6px 14px; border-radius: 16px; white-space: nowrap; }
+        .status-waiting { background-color: var(--yt-button-hover); color: var(--yt-spec-text-primary); }
+        .status-downloading { background-color: #3ea6ff; color: #000; }
+        .status-completed { background-color: rgba(0, 230, 118, 0.15); color: #00e676; }
+        .status-error { background-color: rgba(255, 77, 77, 0.15); color: #ff4d4d; }
+        .status-paused { background-color: var(--yt-button-hover); color: var(--yt-spec-text-secondary); }
+        .queue-item-actions { display: flex; gap: 8px; flex-shrink: 0; }
+        .retry-btn, .remove-btn { background: none; border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 6px 12px; border-radius: 16px; cursor: pointer; font-size: 13px; }
+        .retry-btn:hover, .remove-btn:hover { background-color: var(--yt-button-hover); }
+        .progress-bar { height: 6px; background-color: var(--yt-button-hover); border-radius: 3px; overflow: hidden; }
+         .progress-fill-queue { height: 100%; background: linear-gradient(90deg, #3ea6ff, #7db4ff); border-radius: 3px; transition: width 0.4s ease; }
+
+         @media (max-width: 760px) {
+            header { padding: 0 12px; height: 56px; }
+            .header-center { display: none; }
+            .header-right { gap: 8px; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .video-grid { grid-template-columns: repeat(2, 1fr); gap: 18px; }
+        }
+    </style>
+    <link id="theme-style-link" rel="stylesheet" href="">
+    <link id="fonts-link" rel="stylesheet" href="/static/css/fonts.css">
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    <script src="/static/js/mobile.js" defer></script>
 </head>
 <body>
-<header class="topbar"><a class="brand" href="/">Local<span>Tube</span></a><form class="search" onsubmit="return filterCards()"><input id="search" placeholder="Поиск по локальным видео" aria-label="Поиск"><button aria-label="Найти">⌕</button></form><div class="top-actions"><a class="btn upload-label" href="/upload">＋ Загрузить</a></div></header>
-<div class="layout"><aside class="side"><a href="/">⌂ Главная</a><a href="#videos">▣ Видео</a><a href="#shorts">▶ Shorts</a><a href="#playlists">☷ Плейлисты</a><a href="/upload">＋ Загрузить</a></aside>
-<main class="main"><section class="hero"><div><h1>Твоя локальная библиотека</h1><p>Смотри видео без рекламы и интернета.</p></div><a class="btn primary" href="/upload">＋ Добавить видео</a></section>
-{% if authors %}<section class="section"><h2>Каналы</h2><div class="chips">{% for author in authors %}<a class="chip" href="#videos">{{ author.name }}</a>{% endfor %}</div></section>{% endif %}
-<section class="section" id="videos"><h2>Все видео</h2>{% if all_videos or user_videos %}<div class="grid">{% for v in all_videos + user_videos %}<article class="card" data-title="{{ v.title|lower }}"><a class="thumb" href="/watch/{{ v.id }}">{% if v.source == 'user' and v.thumb %}<img loading="lazy" src="/usermedia/{{ v.thumb }}" alt="">{% elif v.source != 'user' %}<img loading="lazy" src="/api/thumbnail/{{ v.id }}" alt="">{% else %}<div class="placeholder">▶</div>{% endif %}</a><h3><a href="/watch/{{ v.id }}">{{ v.title }}</a></h3><p class="meta">{{ v.author }}{% if v.size_mb %} · {{ v.size_mb }} МБ{% endif %}</p></article>{% endfor %}</div>{% else %}<div class="empty">Видео пока нет. Добавь первое локальное видео.</div>{% endif %}</section>
-{% if shorts %}<section class="section" id="shorts"><h2>Shorts</h2><div class="grid">{% for v in shorts %}<article class="card"><a class="thumb" href="/watch/{{ v.id }}"><img loading="lazy" src="/api/thumbnail/{{ v.id }}" alt=""></a><h3><a href="/watch/{{ v.id }}">{{ v.title }}</a></h3><p class="meta">{{ v.author }}</p></article>{% endfor %}</div></section>{% endif %}
-{% if playlists %}<section class="section" id="playlists"><h2>Плейлисты</h2><div class="chips">{% for p in playlists %}<span class="chip">{{ p.title }} · {{ p.video_count }}</span>{% endfor %}</div></section>{% endif %}
-</main></div><nav class="bottom-nav"><a class="active" href="/">⌂<span>Главная</span></a><a href="#videos">▣<span>Видео</span></a><a href="/upload"><span class="plus">＋</span><span>Добавить</span></a><a href="#playlists">☷<span>Плейлисты</span></a></nav>
-<script>function filterCards(){const q=document.getElementById('search').value.toLowerCase().trim();document.querySelectorAll('.card').forEach(c=>c.hidden=q&&!c.dataset.title.includes(q));return false}</script>
-</body></html>
+    <div id="bg-layer-1" style="background-image: none; opacity: 0;"></div>
+    <div id="bg-layer-2" style="background-image: none; opacity: 1;"></div>
+
+    <header>
+        <div class="header-left">
+            <svg class="menu-icon" id="sidebarToggle" viewBox="0 0 24 24"><path d="M21,6H3V5h18V6z M21,11H3v1h18V11z M21,17H3v1h18V17z"></path></svg>
+            <a href="/" class="logo"><svg viewBox="0 0 24 24"><path d="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5s-6.25,0-7.81,0.42c-0.88,0.23-1.54,0.89-1.77,1.77 C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42 c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19z M10,15V9l5.2,3L10,15z"/></svg>LocalTube</a>
+        </div>
+        <div class="header-right">
+            <a class="icon-btn" id="themeToggleHeader" href="/settings" title="Настройки"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg></a>
+            <a class="user-profile-btn" href="/settings"><span class="user-name-display" id="headerUsername">Гость</span><div class="user-avatar-placeholder" id="headerAvatar">Г</div></a>
+        </div>
+    </header>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar-drawer" id="sidebarDrawer">
+        <a href="#" class="sidebar-item active" data-nav="all" onclick="filterNav('all'); return false;"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg><span>Главная</span></a>
+        <a href="#" class="sidebar-item" data-nav="shorts" onclick="filterNav('shorts'); return false;"><svg viewBox="0 0 24 24"><path d="M17.77,10.32l-1.2-.5L18,9.06a3.74,3.74,0 0 0-3.5-6.62L6,6.94a3.74,3.74,0 0 0,.23,6.74l1.2.49L6,14.93a3.75,3.75,0 0 0,3.5,6.63l8.5-4.5a3.74,3.74,0 0 0-.23-6.74Z"/></svg><span>Shorts</span></a>
+        <a href="#" class="sidebar-item" data-nav="favorites" onclick="filterNav('favorites'); return false;"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg><span>Избранное</span></a>
+        <a href="#" class="sidebar-item" data-nav="history" onclick="filterNav('history'); return false;"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.14-8-8s3.58-8 8-8 8 3.14 8 8-3.14 8-8 8zm.5-13H11v6h3V7h-2V4z"/></svg><span>История</span></a>
+        <a href="#" class="sidebar-item" data-nav="queue" onclick="filterNav('queue'); return false;"><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 6h8v2h-8V6zm0 4h8v2h-8v-2zm0 4h6v2h-6v-2z"/></svg><span>Очередь</span></a>
+        <div class="sidebar-divider"></div>
+        {% for author in authors %}
+        <a href="/channel/{{ author.name }}" class="sidebar-item">
+            <div style="width:28px;height:28px;border-radius:50%;background:#8e24aa;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;overflow:hidden;">{% if author.avatar %}<img src="{{ author.avatar }}" style="width:100%;height:100%;object-fit:cover;">{% else %}{{ author.name[:1]|upper }}{% endif %}</div>
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ author.name }}</span>
+        </a>
+        {% endfor %}
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-title">Скрытые каналы</div>
+        <div id="hiddenChannelsList"></div>
+        <div class="sidebar-divider"></div>
+        <a href="/settings" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>Настройки</span></a>
+    </aside>
+
+    <main id="mainContent" style="margin-left: var(--yt-sidebar-width); padding: calc(var(--yt-header-height) + 24px) 24px 40px; min-height: 100vh;">
+        {% if not all_videos and not user_videos and not shorts and not playlists %}
+        <div class="empty-message"><h2>Здесь пока нет видео</h2><p>Скачанные и добавленные вручную видео появятся здесь.</p></div>
+        {% else %}
+        {% if user_videos %}
+        <div class="my-videos-section">
+            <h2>📹 Мои видео</h2>
+            <div class="video-grid" id="myVideosGrid">
+                {% for v in user_videos %}
+                <a href="/watch/{{ v.id }}" class="video-card" data-id="{{ v.id }}" data-title="{{ v.title|lower|e }}" data-author="{{ v.author }}" data-size="{{ v.size_mb }}" onclick="markHistory('{{ v.id }}')">
+                    <div class="video-thumb">
+                        {% if v.source == 'user' and v.thumb %}<img loading="lazy" src="/usermedia/{{ v.author }}/{{ v.folder }}/thumbnail.jpg" alt="">{% elif v.source != 'user' %}<img loading="lazy" src="/api/thumbnail/{{ v.id }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">Нет превью</div>{% endif %}
+                        <div class="card-actions"><button class="action-btn" title="Копировать ссылку" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button><button class="action-btn fav-btn" title="В избранное" onclick="event.preventDefault(); event.stopPropagation(); toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button></div>
+                    </div>
+                    <div class="video-details">
+                        <div class="video-author-avatar">{% if v.author_avatar %}<img src="{{ v.author_avatar }}">{% else %}{{ v.author[:1]|upper }}{% endif %}</div>
+                    <div class="video-info"><div class="video-title">{{ v.title }}</div><div class="video-meta">{{ v.author }} · {{ v.size_mb }} МБ{% if v.duration %} · {{ "%d:%02d"|format(v.duration // 60, v.duration % 60) }}{% endif %}</div></div>
+
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if shorts %}
+        <div class="shorts-shelf-container">
+            <div class="shorts-title"><h2>📱 Shorts</h2><a href="/" onclick="filterNav('shorts'); return false;" style="color: var(--yt-spec-text-secondary); font-size: 14px;">Показать все →</a></div>
+            <div class="shorts-shelf">
+                {% for s in shorts %}
+                <a href="/watch/{{ s.id }}" class="short-card" data-id="{{ s.id }}" data-title="{{ s.title|lower|e }}" data-author="{{ s.author }}" onclick="markHistory('{{ s.id }}')">
+                    <div class="short-thumb">{% if s.thumb %}<img loading="lazy" src="/api/thumbnail/{{ s.id }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">Нет</div>{% endif %}</div>
+                    <div class="short-title">{{ s.title }}</div>
+                    <div class="video-meta">{{ s.author }} · {{ s.size_mb }} МБ</div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="video-grid" id="mainGrid">
+
+            {% for v in all_videos %}
+            <a href="{{ url_for('watch', vid_id=v.id) }}" class="video-card" data-size="{{ v.size_mb }}" data-author="{{ v.author }}" data-id="{{ v.id }}" data-title="{{ v.title|lower|e }}" onclick="markHistory('{{ v.id }}')">
+                <div class="video-thumb">{% if v.thumb %}<img loading="lazy" src="{{ url_for('media', filename=v.author ~ '/' ~ v.folder ~ '/' ~ v.thumb) }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">Нет превью</div>{% endif %}</div>
+                <div class="video-details">
+                    <div class="video-author-avatar">{% if v.author_avatar %}<img src="{{ v.author_avatar }}" style="width:100%;height:100%;object-fit:cover;">{% else %}{{ v.author[:1]|upper }}{% endif %}</div>
+                    <div class="video-info"><div class="video-title">{{ v.title }}</div><div class="video-meta">{{ v.author }} · {{ v.size_mb }} МБ{% if v.duration %} · {{ "%d:%02d"|format(v.duration // 60, v.duration % 60) }}{% endif %}</div></div>
+                </div>
+                <div class="card-actions"><button class="action-btn" title="Копировать ссылку" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button><button class="action-btn fav-btn" title="В избранное" onclick="event.preventDefault(); event.stopPropagation(); toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button></div>
+            </a>
+            {% endfor %}
+        </div>
+
+        {% if playlists %}
+        <div class="chips" id="playlistChips" style="margin-top: 24px;">
+            {% for p in playlists %}
+            <span class="chip" style="cursor: default;">{{ p.title }} · {{ p.video_count }} видео</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endif %}
+    </main>
+
+    <div id="queueContainer" style="display: none; margin-left: var(--yt-sidebar-width); padding: calc(var(--yt-header-height) + 24px) 24px 40px; min-height: 100vh;">
+         <div class="queue-toolbar">
+             <div class="queue-toolbar-actions"><button onclick="pauseQueue()" class="btn-secondary">⏸ Пауза</button><button onclick="resumeQueue()" class="btn-primary">▶ Возобновить</button><button onclick="retryFailedQueueTasks()" class="btn-secondary">Повторить ошибки</button><button onclick="clearQueue()" class="btn-secondary queue-clear-btn">Очистить завершённые</button></div>
+             <label class="queue-filter-label" for="queueFilter">Показать</label><select id="queueFilter" class="queue-filter"><option value="all">Все задачи</option><option value="active">Активные</option><option value="waiting">Ожидают</option><option value="downloading">Загружаются</option><option value="completed">Завершённые</option><option value="error">С ошибками</option><option value="cancelled">Отменённые</option></select>
+         </div>
+         <div id="queueSummary" class="queue-summary"></div>
+         <div id="queueList" style="display: flex; flex-direction: column; gap: 12px;"></div>
+    </div>
+
+    <div id="miniplayer-container" aria-label="Мини-плеер">
+        <div class="mp-video-wrapper" id="mp-video-wrapper"><video id="mp-video" playsinline></video></div>
+        <div class="mp-controls"><div class="mp-info"><div class="mp-title" id="mp-title"></div><div class="mp-author" id="mp-author"></div></div><div class="mp-actions"><button type="button" class="mp-btn" id="mp-playpause" title="Воспроизвести или пауза">▶</button><button type="button" class="mp-btn mp-close-btn" id="mp-close" title="Закрыть">×</button></div></div>
+    </div>
+
+    <div id="toast-container"></div>
+    <script>
+        let mpVideo = null, mpContainer = null, mpPausePlayBtn = null;
+        let isDragging = false, dragStartX, dragStartY, initialLeft, initialBottom;
+
+        function initMiniPlayer() {
+            mpContainer = document.getElementById('miniplayer-container');
+            mpVideo = document.getElementById('mp-video');
+            mpPausePlayBtn = document.getElementById('mp-playpause');
+            const mpCloseBtn = document.getElementById('mp-close');
+            if (!mpContainer) return;
+            const savedMP = localStorage.getItem('lt_miniplayer');
+            if (savedMP) {
+                try {
+                    const data = JSON.parse(savedMP);
+                    if (data.url && data.title) showMiniPlayer(data.url, data.title, data.author, data.time);
+                } catch(e) {}
+            }
+            let header = mpContainer.querySelector('.mp-controls');
+            header.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', stopDrag);
+
+            function startDrag(e) {
+                if (e.target.closest('.mp-actions')) return;
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                const rect = mpContainer.getBoundingClientRect();
+                initialLeft = rect.left;
+                initialBottom = window.innerHeight - rect.bottom;
+                mpContainer.style.transition = 'none';
+                e.preventDefault();
+            }
+            function onDrag(e) {
+                if (!isDragging) return;
+                const dx = e.clientX - dragStartX;
+                const dy = e.clientY - dragStartY;
+                let newLeft = initialLeft + dx;
+                let newBottom = initialBottom - dy;
+                newLeft = Math.max(10, Math.min(window.innerWidth - mpContainer.offsetWidth - 10, newLeft));
+                newBottom = Math.max(10, Math.min(window.innerHeight - mpContainer.offsetHeight - 10, newBottom));
+                mpContainer.style.left = newLeft + 'px';
+                mpContainer.style.right = 'auto';
+                mpContainer.style.bottom = newBottom + 'px';
+            }
+            function stopDrag() { isDragging = false; mpContainer.style.transition = ''; }
+
+            if (mpPausePlayBtn) mpPausePlayBtn.addEventListener('click', () => { if (mpVideo.paused) mpVideo.play(); else mpVideo.pause(); });
+            mpCloseBtn.addEventListener('click', closeMiniPlayer);
+            mpVideo.addEventListener('play', () => { mpPausePlayBtn.textContent = '❚❚'; });
+            mpVideo.addEventListener('pause', () => { mpPausePlayBtn.textContent = '▶'; });
+            mpVideo.addEventListener('timeupdate', () => {
+                const saved = JSON.parse(localStorage.getItem('lt_miniplayer') || '{}');
+                if (saved.url) {
+                    saved.time = mpVideo.currentTime;
+                    localStorage.setItem('lt_miniplayer', JSON.stringify(saved));
+                }
+            });
+            mpVideo.addEventListener('ended', closeMiniPlayer);
+            document.getElementById('mp-video-wrapper')?.addEventListener('click', () => {
+                if (mpVideo.paused) mpVideo.play(); else mpVideo.pause();
+            });
+        }
+
+        function showMiniPlayer(videoUrl, title, author, currentTime = 0) {
+            if (!mpContainer) return;
+            mpVideo.src = videoUrl;
+            document.getElementById('mp-title').innerText = title;
+            document.getElementById('mp-author').innerText = author || '';
+            mpVideo.currentTime = currentTime || 0;
+            mpVideo.play().catch(e => console.log('autoplay blocked', e));
+            mpContainer.style.display = 'flex';
+            localStorage.setItem('lt_miniplayer', JSON.stringify({ url: videoUrl, title, author, time: mpVideo.currentTime }));
+        }
+
+        function closeMiniPlayer() {
+            if (mpVideo) { mpVideo.pause(); mpVideo.src = ''; }
+            mpContainer.style.display = 'none';
+            localStorage.removeItem('lt_miniplayer');
+        }
+
+        function showToast(msg, type = 'info', retryCallback = null) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            if (type === 'error') {
+                toast.style.background = '#ff4d4d';
+                toast.style.color = 'white';
+                toast.style.border = '1px solid #cc0000';
+                toast.style.borderRadius = '8px';
+                toast.style.padding = '12px 20px';
+                toast.style.display = 'flex';
+                toast.style.alignItems = 'center';
+                toast.style.justifyContent = 'space-between';
+                toast.style.gap = '12px';
+                toast.style.minWidth = '250px';
+                toast.style.boxShadow = '0 4px 12px rgba(255,0,0,0.3)';
+            }
+            const msgSpan = document.createElement('span');
+            msgSpan.innerText = msg;
+            toast.appendChild(msgSpan);
+            if (type === 'error' && retryCallback) {
+                const retryBtn = document.createElement('button');
+                retryBtn.innerText = '🔄 Повторить';
+                retryBtn.style.background = 'rgba(255,255,255,0.2)';
+                retryBtn.style.border = 'none';
+                retryBtn.style.color = 'white';
+                retryBtn.style.padding = '4px 12px';
+                retryBtn.style.borderRadius = '16px';
+                retryBtn.style.cursor = 'pointer';
+                retryBtn.style.fontWeight = 'bold';
+                retryBtn.onclick = () => { toast.remove(); retryCallback(); };
+                toast.appendChild(retryBtn);
+            }
+            container.appendChild(toast);
+            if (type !== 'error' || !retryCallback) {
+                setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 5000);
+            }
+        }
+
+        function showErrorToast(msg, retryCallback = null) { showToast(msg, 'error', retryCallback); }
+
+        let activeBgLayer = 2, bgTimer = null;
+        function setBackgroundImage(url) {
+            const layer1 = document.getElementById('bg-layer-1');
+            const layer2 = document.getElementById('bg-layer-2');
+            let targetLayer, otherLayer;
+            if (activeBgLayer === 2) { targetLayer = layer1; otherLayer = layer2; }
+            else { targetLayer = layer2; otherLayer = layer1; }
+            targetLayer.style.backgroundImage = `url('${url}')`;
+            targetLayer.style.opacity = 0;
+            requestAnimationFrame(() => { targetLayer.style.opacity = 1; otherLayer.style.opacity = 0; });
+            setTimeout(() => {
+                activeBgLayer = (activeBgLayer === 2) ? 1 : 2;
+                otherLayer.style.backgroundImage = 'none';
+            }, 1600);
+        }
+
+        async function loadThemeBackground(theme) {
+            const layer1 = document.getElementById('bg-layer-1');
+            const layer2 = document.getElementById('bg-layer-2');
+            if (theme !== 'frutiger-aero') {
+                layer1.style.backgroundImage = 'none';
+                layer2.style.backgroundImage = 'none';
+                layer1.style.opacity = 0;
+                layer2.style.opacity = 0;
+                if (bgTimer) clearInterval(bgTimer);
+                bgTimer = null;
+                return;
+            }
+            try {
+                const response = await fetch(`/api/theme-backgrounds/${theme}`);
+                const images = await response.json();
+                if (images.length === 0) { layer1.style.backgroundImage = 'none'; layer2.style.backgroundImage = 'none'; layer1.style.opacity = 0; layer2.style.opacity = 0; return; }
+                const imageName = images[Math.floor(Math.random() * images.length)];
+                const imageUrl = `/static/images/themes/${theme}/${encodeURIComponent(imageName)}?w=${window.innerWidth}&h=${window.innerHeight}`;
+                setBackgroundImage(imageUrl);
+                if (bgTimer) clearInterval(bgTimer);
+                bgTimer = setInterval(async () => {
+                    const resp = await fetch(`/api/theme-backgrounds/${theme}`);
+                    const newImages = await resp.json();
+                    if (newImages.length === 0) return;
+                    const newName = newImages[Math.floor(Math.random() * newImages.length)];
+                    const newUrl = `/static/images/themes/${theme}/${encodeURIComponent(newName)}?w=${window.innerWidth}&h=${window.innerHeight}`;
+                    setBackgroundImage(newUrl);
+                }, 30000);
+            } catch (e) {
+                console.error('Ошибка загрузки фона:', e);
+                layer1.style.backgroundImage = 'none';
+                layer2.style.backgroundImage = 'none';
+                layer1.style.opacity = 0;
+                layer2.style.opacity = 0;
+            }
+        }
+
+        function loadTheme(theme) {
+            const link = document.getElementById('theme-style-link') || document.getElementById('theme-style');
+            const fontsLink = document.getElementById('fonts-link');
+            if (!theme || theme === 'dark' || theme === 'light') {
+                link.href = '';
+                document.documentElement.setAttribute('data-theme', theme || 'dark');
+                if (fontsLink) fontsLink.disabled = false;
+                document.documentElement.style.fontFamily = "'Roboto', Arial, sans-serif";
+                if (bgTimer) clearInterval(bgTimer);
+                bgTimer = null;
+                document.getElementById('bg-layer-1').style.backgroundImage = 'none';
+                document.getElementById('bg-layer-2').style.backgroundImage = 'none';
+                document.getElementById('bg-layer-1').style.opacity = 0;
+                document.getElementById('bg-layer-2').style.opacity = 0;
+                const bgBtn = document.getElementById('bg-btn');
+                if (bgBtn) bgBtn.style.display = 'none';
+            } else {
+                link.href = '/static/css/themes/' + theme + '.css';
+                document.documentElement.setAttribute('data-theme', theme);
+                if (fontsLink) fontsLink.disabled = false;
+                if (theme === 'frutiger-aero') {
+                    document.documentElement.style.fontFamily = "'Aero_03', Arial, sans-serif";
+                } else {
+                    document.documentElement.style.fontFamily = "'Roboto', Arial, sans-serif";
+                }
+                loadThemeBackground(theme);
+                const bgBtn = document.getElementById('bg-btn');
+                if (bgBtn) bgBtn.style.display = theme === 'frutiger-aero' ? 'inline-flex' : 'none';
+            }
+            localStorage.setItem('lt_theme', theme || 'dark');
+        }
+
+        const savedTheme = localStorage.getItem('lt_theme') || 'dark';
+        loadTheme(savedTheme);
+
+        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"username":"Гость","avatar":""}');
+        document.getElementById('headerUsername').innerText = userSettings.username || 'Гость';
+        const avatarBox = document.getElementById('headerAvatar');
+        if(userSettings.avatar) avatarBox.innerHTML = `<img src="${userSettings.avatar}" alt="Аватар">`;
+        else avatarBox.innerHTML = (userSettings.username || 'Г').charAt(0).toUpperCase();
+
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarDrawer = document.getElementById('sidebarDrawer');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        function toggleSidebar() { sidebarDrawer.classList.toggle('active'); sidebarOverlay.classList.toggle('active'); }
+        if (sidebarToggle && sidebarDrawer) {
+            sidebarToggle.addEventListener('click', toggleSidebar);
+            if (sidebarOverlay) sidebarOverlay.addEventListener('click', toggleSidebar);
+        }
+
+        let currentNav = 'all';
+        let isListView = false;
+        // Избранное, история и скрытые каналы хранятся на сервере. Здесь только
+        // локальная копия для мгновенной отрисовки; она синхронизируется в loadUserData().
+        // Данные приходят вместе со страницей: не нужно ждать запроса, поэтому
+        // избранное и фильтры корректны с первой отрисовки.
+        let favorites = {{ favorites|default([])|tojson }};
+        // Имя watchHistory, а не history: иначе затеняется window.history.
+        let watchHistory = {{ watch_history|default([])|tojson }};
+        // Карточки скрытых каналов уже отфильтрованы сервером, список нужен
+        // только для управления в сайдбаре.
+        let hiddenChannels = {{ hidden_channels|default([])|tojson }};
+
+        // Разовый перенос старых данных из localStorage на сервер.
+        async function migrateLocalUserData() {
+            const legacy = {
+                favorites: JSON.parse(localStorage.getItem('lt_favorites') || '[]'),
+                history: JSON.parse(localStorage.getItem('lt_history') || '[]'),
+                hidden_channels: JSON.parse(localStorage.getItem('lt_hidden_channels') || '[]'),
+            };
+            const hasLegacy = legacy.favorites.length || legacy.history.length || legacy.hidden_channels.length;
+            if (!hasLegacy) return null;
+            try {
+                // Бэкап до отправки: если что-то пойдёт не так, данные можно
+                // восстановить из lt_migration_backup вручную.
+                localStorage.setItem('lt_migration_backup', JSON.stringify({
+                    saved_at: new Date().toISOString(), data: legacy,
+                }));
+                const res = await fetch('/api/userdata/migrate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(legacy),
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                // Сверяем, что сервер действительно принял все записи, и только
+                // потом удаляем локальные копии.
+                const complete = ['favorites', 'history', 'hidden_channels'].every(key => {
+                    const saved = new Set(data[key] || []);
+                    return legacy[key].every(item => saved.has(item));
+                });
+                if (!complete) throw new Error('Сервер сохранил не все данные');
+                localStorage.removeItem('lt_favorites');
+                localStorage.removeItem('lt_history');
+                localStorage.removeItem('lt_hidden_channels');
+                const moved = Object.values(data.added || {}).reduce((a, b) => a + b, 0);
+                if (moved) showToast(`Данные перенесены на сервер: ${moved}`);
+                return data;
+            } catch (err) {
+                console.error('Не удалось перенести данные на сервер:', err);
+                showToast('Не удалось перенести данные на сервер, работаем локально');
+                // Возвращаем локальные данные: пользователь не должен увидеть
+                // пустое избранное из-за проблемы с сервером.
+                return {
+                    favorites: legacy.favorites,
+                    history: legacy.history,
+                    hidden_channels: legacy.hidden_channels,
+                    offline: true,
+                };
+            }
+        }
+
+        // Если сервер недоступен, продолжаем работать через localStorage:
+        // потерять отметку лучше не дать вовсе.
+        let userDataOffline = false;
+        // Промис загрузки: обработчики кликов ждут его, чтобы не действовать
+        // по пустым спискам.
+        let userDataReady = null;
+
+        function applyUserData(data) {
+            favorites = data.favorites || [];
+            watchHistory = data.history || [];
+            hiddenChannels = data.hidden_channels || [];
+        }
+
+        function saveUserDataLocally() {
+            try {
+                localStorage.setItem('lt_favorites', JSON.stringify(favorites));
+                localStorage.setItem('lt_history', JSON.stringify(watchHistory));
+                localStorage.setItem('lt_hidden_channels', JSON.stringify(hiddenChannels));
+            } catch (err) {
+                console.error('Не удалось сохранить данные локально:', err);
+            }
+        }
+
+        // Отправляет изменение на сервер. При ошибке переходит в offline-режим
+        // и сохраняет всё в localStorage, чтобы изменение не пропало.
+        async function pushUserData(url, body) {
+            if (userDataOffline) { saveUserDataLocally(); return null; }
+            try {
+                const options = { method: 'POST' };
+                if (body !== undefined) {
+                    options.headers = { 'Content-Type': 'application/json' };
+                    options.body = JSON.stringify(body);
+                }
+                const res = await fetch(url, options);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return await res.json();
+            } catch (err) {
+                console.error('Не удалось сохранить на сервере:', err);
+                userDataOffline = true;
+                saveUserDataLocally();
+                showToast('Сервер недоступен, изменения сохранены локально');
+                return null;
+            }
+        }
+
+        async function loadUserData() {
+            const migrated = await migrateLocalUserData();
+            if (migrated) {
+                applyUserData(migrated);
+                if (migrated.offline) userDataOffline = true;
+                return;
+            }
+            try {
+                const res = await fetch('/api/userdata');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                applyUserData(await res.json());
+            } catch (err) {
+                console.error('Не удалось загрузить пользовательские данные:', err);
+                userDataOffline = true;
+                // Данные, отрендеренные вместе со страницей, уже актуальны:
+                // перезаписываем их локальной копией только если она полнее.
+                const local = {
+                    favorites: JSON.parse(localStorage.getItem('lt_favorites') || '[]'),
+                    history: JSON.parse(localStorage.getItem('lt_history') || '[]'),
+                    hidden_channels: JSON.parse(localStorage.getItem('lt_hidden_channels') || '[]'),
+                };
+                if (local.favorites.length || local.history.length || local.hidden_channels.length) {
+                    applyUserData(local);
+                }
+            }
+        }
+
+        // Запускаем запрос сразу, не дожидаясь конца скрипта: чем раньше придут
+        // данные, тем короче показ карточек скрытых каналов.
+        userDataReady = loadUserData();
+
+        function filterNav(nav) {
+            if (nav === 'shorts') {
+                const watched = new Set(watchHistory);
+                const shorts = Array.from(document.querySelectorAll('.short-card'));
+                const candidates = shorts.filter(card => !watched.has(card.dataset.id));
+                const selected = (candidates.length ? candidates : shorts)[Math.floor(Math.random() * (candidates.length ? candidates.length : shorts.length))];
+                if (selected) { window.location.href = selected.href; return; }
+                showToast('Локальных Shorts пока нет');
+                return;
+            }
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+            const target = document.querySelector(`.sidebar-item[data-nav="${nav}"]`);
+            if (target) target.classList.add('active');
+            const chips = document.querySelectorAll('.chip');
+            chips.forEach(c => c.classList.remove('active'));
+            if (nav === 'all') { const allChip = document.querySelector('.chip[data-nav="all"]'); if(allChip) allChip.classList.add('active'); }            currentNav = nav;
+
+            const mainGrid = document.getElementById('mainGrid');
+            const shortsContainer = document.querySelector('.shorts-shelf-container');
+            const myVideosSection = document.querySelector('.my-videos-section');
+            const queueContainer = document.getElementById('queueContainer');
+
+            if (mainGrid) mainGrid.style.display = 'none';
+            if (shortsContainer) shortsContainer.style.display = 'none';
+            if (myVideosSection) myVideosSection.style.display = 'none';
+            if (queueContainer) queueContainer.style.display = 'none';
+
+            if (nav === 'queue') {
+                if (queueContainer) queueContainer.style.display = 'block';
+                loadQueue();
+            } else {
+                if (mainGrid) mainGrid.style.display = (isListView ? 'flex' : 'grid');
+                if (shortsContainer) shortsContainer.style.display = nav === 'all' ? 'block' : 'none';
+                if (myVideosSection) myVideosSection.style.display = ['all', 'favorites', 'history'].includes(nav) ? 'block' : 'none';
+                applyFilters();
+            }
+            if (sidebarDrawer && sidebarDrawer.classList.contains('active')) {
+                sidebarDrawer.classList.remove('active');
+                sidebarOverlay.classList.remove('active');
+            }
+        }
+
+        function applyFilters() {
+            if (currentNav === 'queue') return;
+            const query = document.getElementById('localSearch') ? document.getElementById('localSearch').value.toLowerCase().trim() : '';
+            const sort = document.getElementById('sortSelect') ? document.getElementById('sortSelect').value : 'default';
+            const grid = document.getElementById('mainGrid');
+            const myGrid = document.getElementById('myVideosGrid');
+
+            function shouldShow(card) {
+                const title = card.getAttribute('data-title');
+                const author = card.getAttribute('data-author');
+                const vid = card.getAttribute('data-id');
+                let show = title && title.includes(query);
+                if (currentNav === 'favorites') show = show && favorites.includes(vid);
+                else if (currentNav === 'history') show = show && watchHistory.includes(vid);
+                else if (currentNav !== 'all' && currentNav !== 'shorts') show = show && (author === currentNav);
+                if (show && isChannelHidden(author)) show = false;
+                return show;
+            }
+
+            if (grid) {
+                let cards = Array.from(grid.querySelectorAll('.video-card'));
+                cards.forEach(card => { card.style.display = shouldShow(card) ? 'block' : 'none'; });
+                if (sort !== 'default') {
+                    cards.sort((a,b) => {
+                        if (sort === 'az' || sort === 'za') {
+                            const tA = a.getAttribute('data-title'), tB = b.getAttribute('data-title');
+                            return sort === 'az' ? tA.localeCompare(tB) : tB.localeCompare(tA);
+                        } else {
+                            const sA = parseFloat(a.getAttribute('data-size')) || 0, sB = parseFloat(b.getAttribute('data-size')) || 0;
+                            return sort === 'sizeAsc' ? sA - sB : sB - sA;
+                        }
+                    });
+                    cards.forEach(card => grid.appendChild(card));
+                }
+            }
+            if (myGrid) {
+                let myCards = Array.from(myGrid.querySelectorAll('.video-card'));
+                myCards.forEach(card => { card.style.display = shouldShow(card) ? 'block' : 'none'; });
+            }
+        }
+
+        function toggleView() {
+            isListView = !isListView;
+            const grid = document.getElementById('mainGrid');
+            const myGrid = document.getElementById('myVideosGrid');
+            if (isListView) { if(grid) grid.classList.add('list-view'); if(myGrid) myGrid.classList.add('list-view'); }
+            else { if(grid) grid.classList.remove('list-view'); if(myGrid) myGrid.classList.remove('list-view'); }
+        }
+
+        async function toggleFav(id, btn) {
+            // Ждём загрузки: иначе favorites пуст, клиент решит «добавляю», а
+            // сервер по своему актуальному списку сделает обратное.
+            await userDataReady;
+            const shouldBeFavorite = !favorites.includes(id);
+            // Интерфейс обновляем сразу, не дожидаясь ответа сервера.
+            if (shouldBeFavorite) {
+                favorites = favorites.concat([id]);
+                showToast('Добавлено в избранное');
+            } else {
+                favorites = favorites.filter(x => x !== id);
+                showToast('Удалено из избранного');
+            }
+            if (btn) btn.classList.toggle('fav-active', shouldBeFavorite);
+            if (currentNav === 'favorites') applyFilters();
+            // Передаём желаемое состояние, а не «переключи»: повторный или
+            // запоздавший запрос не перевернёт результат.
+            const data = await pushUserData(
+                `/api/userdata/favorite/${encodeURIComponent(id)}`, { active: shouldBeFavorite });
+            if (data && data.favorites) {
+                favorites = data.favorites;
+                markFavoriteButtons();
+                if (currentNav === 'favorites') applyFilters();
+            }
+        }
+
+        async function markHistory(id) {
+            watchHistory = watchHistory.filter(x => x !== id);
+            watchHistory.unshift(id);
+            const data = await pushUserData(`/api/userdata/watched/${encodeURIComponent(id)}`);
+            if (data && data.history) watchHistory = data.history;
+        }
+
+        function copyLink(url) { navigator.clipboard.writeText(url).then(() => showToast('Ссылка скопирована!')); }
+
+        function isChannelHidden(channelName) { return hiddenChannels.includes(channelName); }
+        async function toggleHideChannel(channelName) {
+            await userDataReady;
+            const shouldHide = !hiddenChannels.includes(channelName);
+            if (shouldHide) {
+                hiddenChannels = hiddenChannels.concat([channelName]);
+                showToast(`Канал "${channelName}" скрыт`);
+            } else {
+                hiddenChannels = hiddenChannels.filter(c => c !== channelName);
+                showToast(`Канал "${channelName}" больше не скрыт`);
+            }
+            updateHiddenChannelsList();
+            applyFilters();
+            // Явное состояние вместо переключения: см. комментарий в toggleFav.
+            const data = await pushUserData('/api/userdata/hidden-channel',
+                { author: channelName, hidden: shouldHide });
+            if (data && data.hidden_channels) {
+                hiddenChannels = data.hidden_channels;
+                updateHiddenChannelsList();
+                applyFilters();
+            }
+        }
+        function updateHiddenChannelsList() {
+            const container = document.getElementById('hiddenChannelsList');
+            if (!container) return;
+            container.replaceChildren();
+            if (hiddenChannels.length === 0) {
+                const empty = document.createElement('div');
+                empty.style.cssText = 'padding: 8px 12px; color: var(--yt-spec-text-secondary); font-size: 13px;';
+                empty.textContent = 'Нет скрытых каналов';
+                container.append(empty);
+                return;
+            }
+            hiddenChannels.forEach(channel => {
+                const item = document.createElement('div');
+                item.className = 'hidden-channel-item';
+                const label = document.createElement('span');
+                label.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+                label.textContent = channel;
+                const button = document.createElement('button');
+                button.className = 'unhide-btn';
+                button.type = 'button';
+                button.textContent = 'Показать';
+                button.addEventListener('click', () => toggleHideChannel(channel));
+                item.append(label, button);
+                container.append(item);
+            });
+        }
+        updateHiddenChannelsList();
+
+        function applyProfileUI() {
+            const username = userSettings.username || 'Гость';
+            const usernameEl = document.getElementById('headerUsername');
+            const avatarBox = document.getElementById('headerAvatar');
+            if (usernameEl) usernameEl.textContent = username;
+            if (!avatarBox) return;
+            avatarBox.replaceChildren();
+            if (userSettings.avatar) {
+                const image = document.createElement('img');
+                image.src = userSettings.avatar;
+                image.alt = 'Аватар';
+                avatarBox.append(image);
+            } else {
+                avatarBox.textContent = username.charAt(0).toUpperCase();
+            }
+        }
+        applyProfileUI();
+
+        let queuePollInterval = null, lastQueueTasks = [], lastQueuePaused = false;
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+        }
+
+        async function loadQueue() {
+            try {
+                const res = await fetch('/api/queue/list');
+                if (!res.ok) throw new Error('Сервер вернул ошибку ' + res.status);
+                const data = await res.json();
+                lastQueueTasks = data.tasks || [];
+                lastQueuePaused = !!data.paused;
+                renderQueue(lastQueueTasks, lastQueuePaused);
+            } catch(err) {
+                console.error('Ошибка загрузки очереди:', err);
+                showErrorToast('Не удалось загрузить очередь: ' + err.message, loadQueue);
+            }
+        }
+
+        function renderQueue(tasks, paused = false) {
+            const container = document.getElementById('queueList');
+            const summary = document.getElementById('queueSummary');
+            if (!container) return;
+            const filter = document.getElementById('queueFilter')?.value || 'all';
+            const counts = tasks.reduce((acc, task) => { acc[task.status] = (acc[task.status] || 0) + 1; return acc; }, {});
+            if (summary) summary.textContent = `Всего: ${tasks.length} · В работе: ${counts.downloading || 0} · Ожидают: ${counts.waiting || 0} · Завершено: ${counts.completed || 0} · Ошибки: ${counts.error || 0}${counts.cancelled ? ` · Отменено: ${counts.cancelled}` : ''}${paused ? ' · Очередь приостановлена' : ''}`;
+            const visible = tasks.filter(task => filter === 'all' || (filter === 'active' ? ['waiting', 'downloading'].includes(task.status) : task.status === filter));
+            if (!visible.length) {
+                container.innerHTML = `<div class="queue-empty">${tasks.length ? 'Нет задач, соответствующих фильтру' : 'Очередь пуста'}</div>`;
+                return;
+            }
+            container.innerHTML = visible.map(task => {
+                const statuses = {
+                    waiting: ['⏳ Ожидание', 'status-waiting'], downloading: ['⬇ Загрузка', 'status-downloading'],
+                    completed: ['✓ Завершено', 'status-completed'], error: ['✕ Ошибка', 'status-error'],
+                    cancelled: ['⊘ Отменено', 'status-cancelled']
+                };
+                let [statusText, statusClass] = statuses[task.status] || [escapeHtml(task.status), ''];
+                if (task.cancelling) { statusText = '⊘ Отмена...'; statusClass = 'status-cancelled'; }
+                const progress = Math.max(0, Math.min(100, Number(task.progress) || 0));
+                const position = task.total_urls > 1 ? `Видео ${task.current_index || 0}/${task.total_urls}` : `${task.urls.length} видео`;
+                const metrics = task.status === 'downloading' ? [task.speed, task.eta ? `ETA ${task.eta}` : ''].filter(Boolean).join(' · ') : '';
+                const currentUrl = task.status === 'downloading' && task.current_url ? `<div class="queue-current-url" title="${escapeHtml(task.current_url)}">${escapeHtml(task.current_url)}</div>` : '';
+                const attempts = task.attempts > 1 ? `<span class="queue-attempts">Попытка ${task.attempts}</span>` : '';
+                const priorityLabels = { high: 'Высокий', normal: 'Обычный', low: 'Низкий' };
+                const priority = task.priority || 'normal';
+                const priorityBadge = priority !== 'normal' ? `<span class="queue-priority priority-${escapeHtml(priority)}">${escapeHtml(priorityLabels[priority] || priority)} приоритет</span>` : '';
+                const prioritySelect = task.status === 'waiting'
+                    ? `<select class="queue-priority-select" aria-label="Приоритет задачи" onchange="setQueuePriority('${escapeHtml(task.id)}', this.value)">
+                        ${['high', 'normal', 'low'].map(p => `<option value="${p}"${p === priority ? ' selected' : ''}>${priorityLabels[p]}</option>`).join('')}
+                       </select>`
+                    : '';
+                const cancelBtn = ['waiting', 'downloading'].includes(task.status) && !task.cancelling
+                    ? `<button onclick="cancelQueueTask('${escapeHtml(task.id)}')" class="cancel-btn">Отменить</button>`
+                    : '';
+                return `<div class="queue-item" data-id="${escapeHtml(task.id)}">
+                    <div class="queue-item-info">
+                        <div class="queue-item-title">${escapeHtml(task.title)}</div>
+                        ${priorityBadge}
+                        <div class="queue-item-meta">${position} · ${Math.round(progress)}%${metrics ? ` · ${escapeHtml(metrics)}` : ''}${attempts ? ` · ${attempts}` : ''}</div>
+                        ${currentUrl}${task.error ? `<div class="queue-item-error">${escapeHtml(task.error)}</div>` : ''}
+                        <div class="progress-bar"><div class="progress-fill-queue" style="width:${progress}%;"></div></div>
+                        <div class="queue-item-meta">${escapeHtml(task.message || '')}</div>
+                    </div>
+                    <div class="queue-item-status ${statusClass}">${statusText}</div>
+                    <div class="queue-item-actions">
+                        ${prioritySelect}
+                        ${['error', 'cancelled'].includes(task.status) ? `<button onclick="retryQueueTask('${escapeHtml(task.id)}')" class="retry-btn">Повторить</button>` : ''}
+                        ${cancelBtn}
+                        ${task.status !== 'downloading' ? `<button onclick="removeQueueTask('${escapeHtml(task.id)}')" class="remove-btn">Удалить</button>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function addToQueue(urls, formatId, title, mergeFormat = 'mp4') {
+            fetch('/api/queue/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ urls: urls, format_id: formatId, title: title, merge_format: mergeFormat })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) showErrorToast('Ошибка: ' + data.error);
+                else { showToast('Добавлено в очередь'); if (currentNav === 'queue') loadQueue(); }
+            })
+            .catch(err => showErrorToast('Ошибка добавления в очередь: ' + err.message, () => addToQueue(urls, formatId, title, mergeFormat)));
+        }
+
+        function retryQueueTask(taskId) {
+            fetch(`/api/queue/retry/${taskId}`, { method: 'POST' })
+                .then(async res => { const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`); loadQueue(); showToast('Повторная загрузка запущена'); })
+                .catch(err => showErrorToast('Ошибка повтора: ' + err.message, () => retryQueueTask(taskId)));
+        }
+
+        function removeQueueTask(taskId) {
+            fetch(`/api/queue/remove/${taskId}`, { method: 'DELETE' })
+                .then(() => { loadQueue(); showToast('Задача удалена'); })
+                .catch(err => showErrorToast('Ошибка удаления', () => removeQueueTask(taskId)));
+        }
+
+        function cancelQueueTask(taskId) {
+            const task = lastQueueTasks.find(t => t.id === taskId);
+            const isActive = task && task.status === 'downloading';
+            if (isActive && !confirm('Прервать текущую загрузку? Уже скачанная часть видео будет удалена.')) return;
+            fetch(`/api/queue/cancel/${taskId}`, { method: 'POST' })
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                    loadQueue();
+                    showToast(data.was_downloading ? 'Загрузка прерывается...' : 'Задача отменена');
+                })
+                .catch(err => showErrorToast('Не удалось отменить: ' + err.message, () => cancelQueueTask(taskId)));
+        }
+
+        function setQueuePriority(taskId, priority) {
+            fetch(`/api/queue/priority/${taskId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ priority: priority })
+            })
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                    loadQueue();
+                    showToast('Приоритет обновлён');
+                })
+                .catch(err => showErrorToast('Не удалось изменить приоритет: ' + err.message));
+        }
+
+        function pauseQueue() {
+            fetch('/api/queue/pause', { method: 'POST' })
+                .then(() => { loadQueue(); showToast('Пауза: текущая загрузка завершится, следующие не начнутся'); })
+                .catch(err => showErrorToast('Ошибка', () => pauseQueue()));
+        }
+
+        function resumeQueue() {
+            fetch('/api/queue/resume', { method: 'POST' })
+                .then(() => { loadQueue(); showToast('Очередь возобновлена'); })
+                .catch(err => showErrorToast('Ошибка', () => resumeQueue()));
+        }
+
+        function clearQueue() {
+            if (!confirm('Удалить завершённые, отменённые задачи и задачи с ошибками? Активные и ожидающие останутся.')) return;
+            fetch('/api/queue/clear', { method: 'POST' })
+                .then(() => { loadQueue(); showToast('Завершённые задачи удалены'); })
+                .catch(err => showErrorToast('Ошибка', () => clearQueue()));
+        }
+
+        document.getElementById('queueFilter')?.addEventListener('change', () => renderQueue(lastQueueTasks, lastQueuePaused));
+
+        function retryFailedQueueTasks() {
+            const failed = lastQueueTasks.filter(task => task.status === 'error');
+            if (!failed.length) return showToast('Задач с ошибками нет');
+            Promise.all(failed.map(task => fetch(`/api/queue/retry/${task.id}`, { method: 'POST' })))
+                .then(() => { loadQueue(); showToast(`Повтор запущен: ${failed.length}`); })
+                .catch(err => showErrorToast('Не удалось повторить задачи: ' + err.message, retryFailedQueueTasks));
+        }
+
+        function startQueuePolling() {
+            if (queuePollInterval) clearInterval(queuePollInterval);
+            queuePollInterval = setInterval(() => { loadQueue(); }, 3000);
+        }
+
+        startQueuePolling();
+
+        function markFavoriteButtons() {
+            const favSet = new Set(favorites);
+            document.querySelectorAll('.fav-btn').forEach(btn => {
+                const card = btn.closest('.video-card');
+                if (!card) return;
+                btn.classList.toggle('fav-active', favSet.has(card.getAttribute('data-id')));
+            });
+        }
+
+        // Данные приходят с сервера асинхронно, поэтому интерфейс, зависящий от
+        // них, обновляется после загрузки. Запрос уже начат выше.
+        // Данные уже пришли вместе со страницей, поэтому применяем их сразу.
+        markFavoriteButtons();
+        updateHiddenChannelsList();
+        applyFilters();
+
+        // Синхронизация с сервером на случай, если данные изменились в другой
+        // вкладке или произошла разовая миграция из localStorage.
+        userDataReady.then(() => {
+            markFavoriteButtons();
+            updateHiddenChannelsList();
+            applyFilters();
+        }).catch(err => {
+            console.error('Ошибка применения пользовательских данных:', err);
+        });
+
+        initMiniPlayer();
+
+        async function preloadAllThumbnails() {
+            const cards = document.querySelectorAll('.video-card, .short-card');
+            cards.forEach(async card => {
+                const videoId = card.getAttribute('data-id');
+                if (!videoId) return;
+                const thumbImg = card.querySelector('.video-thumb img, .short-thumb img');
+                if (!thumbImg) return;
+                const currentSrc = thumbImg.src;
+                if (currentSrc && currentSrc !== '' && currentSrc !== 'about:blank' && !currentSrc.includes('/api/thumbnail/')) return;
+                try {
+                    const res = await fetch(`/api/thumbnail/${videoId}`);
+                    if (res.ok) {
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        thumbImg.src = url;
+                        thumbImg.onload = () => URL.revokeObjectURL(url);
+                    }
+                } catch(e) { console.error('Ошибка предзагрузки:', e); }
+            });
+        }
+        document.addEventListener('DOMContentLoaded', preloadAllThumbnails);
+        startQueuePolling();
+    </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+@font-face { font-family: 'Aero_03'; src: url('/static/fonts/AERO_03.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+
+html, body, button, input, select, textarea { font-family: var(--yt-font-family, 'Roboto', Arial, sans-serif); }
+
+[data-theme="frutiger-aero"] html,
+[data-theme="frutiger-aero"] body,
+[data-theme="frutiger-aero"] button,
+[data-theme="frutiger-aero"] input,
+[data-theme="frutiger-aero"] select,
+[data-theme="frutiger-aero"] textarea { font-family: 'Aero_03', Arial, sans-serif; }

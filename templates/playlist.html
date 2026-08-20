@@ -4,54 +4,157 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ playlist.title }} - LocalTube</title>
-    <link id="theme-style" rel="stylesheet" href="">
     <style>
-        @font-face { font-family: 'Roboto'; src: url('/static/fonts/Roboto-Regular.woff2') format('woff2'); font-weight: 400; }
-        @font-face { font-family: 'Roboto'; src: url('/static/fonts/Roboto-Medium.woff2') format('woff2'); font-weight: 500; }
-        @font-face { font-family: 'Roboto'; src: url('/static/fonts/Roboto-Bold.woff2') format('woff2'); font-weight: 700; }
-        :root[data-theme="dark"] { --yt-bg: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa; --yt-spec-border: #3f3f3f; --yt-button-hover: #272727; }
-        :root[data-theme="light"] { --yt-bg: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060; --yt-spec-border: #e5e5e5; --yt-button-hover: #f2f2f2; }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; }
-        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); transition: background-color 0.5s ease, color 0.5s ease; }
-        .container { max-width: 1280px; margin: 0 auto; padding: 80px 24px 40px; }
-        .btn-back { background: var(--yt-button-hover); border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; margin-bottom: 20px; display: inline-flex; align-items: center; gap: 8px; transition: background 0.5s ease, color 0.5s ease; }
+        :root[data-theme="dark"] {
+            --yt-bg: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa;
+            --yt-spec-border: #3f3f3f; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: #272727;
+            --yt-button-hover: #3f3f3f; --yt-header-height: 56px; --yt-search-bg: #121212;
+            --yt-modal-bg: #212121; --yt-card-bg: #1a1a1a;
+        }
+        :root[data-theme="light"] {
+            --yt-bg: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060;
+            --yt-spec-border: #e5e5e5; --yt-spec-icon-inactive: #030303; --yt-button-bg: #f2f2f2;
+            --yt-button-hover: #e0e0e0; --yt-header-height: 56px; --yt-search-bg: #f8f8f8;
+            --yt-modal-bg: #ffffff; --yt-card-bg: #f9f9f9;
+        }
+        :root { --yt-sidebar-width: 240px; --yt-font-family: 'Roboto', Arial, sans-serif; }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; position: relative; transition: background-color 0.5s ease, color 0.5s ease; }
+
+        #bg-layer-1, #bg-layer-2 {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-size: cover; background-position: center center; background-repeat: no-repeat;
+            transition: opacity 1.5s ease-in-out; pointer-events: none; z-index: -3;
+        }
+        #bg-layer-2 { z-index: -2; }
+        body::after {
+            content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1; background: rgba(0, 0, 0, 0.05); pointer-events: none; transition: background 1s ease;
+        }
+        [data-theme="frutiger-aero"] body::after { background: rgba(0, 0, 0, 0.1); }
+
+        header {
+            position: fixed; top: 0; left: 0; right: 0; height: var(--yt-header-height);
+            background-color: var(--yt-bg); display: flex; align-items: center;
+            justify-content: space-between; padding: 0 16px; z-index: 100;
+            border-bottom: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease;
+        }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .menu-icon { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); cursor: pointer; transition: fill 0.3s ease; }
+        .logo { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 500; text-decoration: none; color: var(--yt-spec-text-primary); transition: color 0.3s ease; }
+        .logo svg { width: 30px; height: 20px; fill: #FF0000; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .icon-btn { background: none; border: none; cursor: pointer; fill: var(--yt-spec-icon-inactive); width: 24px; height: 24px; transition: fill 0.3s ease; }
+        .user-profile-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 12px; border-radius: 20px; transition: background 0.3s ease; text-decoration: none; color: var(--yt-spec-text-primary); }
+        .user-profile-btn:hover { background-color: var(--yt-button-hover); }
+        .user-name-display { font-weight: 500; font-size: 14px; display: none; }
+        .user-avatar-placeholder { width: 32px; height: 32px; border-radius: 50%; background-color: #00897b; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; overflow: hidden; }
+        .user-avatar-placeholder img { width: 100%; height: 100%; object-fit: cover; }
+        @media (min-width: 768px) { .user-name-display { display: block; } }
+
+        .sidebar-drawer {
+            position: fixed; top: var(--yt-header-height); left: -240px; width: 240px;
+            height: calc(100vh - var(--yt-header-height)); background: var(--yt-bg);
+            z-index: 200; transition: left 0.3s ease; padding: 12px; overflow-y: auto;
+        }
+        .sidebar-drawer.active { left: 0; }
+        .sidebar-overlay {
+            position: fixed; top: var(--yt-header-height); left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        .sidebar-overlay.active { opacity: 1; pointer-events: all; }
+        .sidebar-item { display: flex; align-items: center; gap: 16px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; text-decoration: none; transition: background 0.2s; }
+        .sidebar-item:hover { background-color: var(--yt-button-hover); }
+        .sidebar-item svg { width: 24px; height: 24px; fill: currentColor; }
+        .sidebar-divider { height: 1px; background-color: var(--yt-spec-border); margin: 12px 0; }
+        .sidebar-title { padding: 8px 12px; font-size: 16px; font-weight: 500; margin-top: 8px; }
+        .hidden-channel-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 8px; }
+        .hidden-channel-item:hover { background-color: var(--yt-button-hover); }
+        .unhide-btn { background: none; border: none; color: var(--yt-spec-text-primary); cursor: pointer; padding: 4px 8px; border-radius: 16px; background-color: var(--yt-button-hover); font-size: 12px; }
+
+        .page-content { padding-top: calc(var(--yt-header-height) + 24px); padding-bottom: 40px; max-width: 1280px; margin: 0 auto; }
         .playlist-header { display: flex; gap: 24px; margin-bottom: 32px; align-items: center; flex-wrap: wrap; }
-        .playlist-thumb { width: 200px; height: 200px; background: #272727; border-radius: 12px; object-fit: cover; transition: background 0.5s ease; }
-        .playlist-info h1 { margin: 0 0 8px; font-size: 28px; color: var(--yt-spec-text-primary); transition: color 0.5s ease; }
-        .playlist-meta { color: var(--yt-spec-text-secondary); margin-bottom: 16px; transition: color 0.5s ease; }
+        .playlist-thumb { width: 200px; height: 200px; background: #272727; border-radius: 12px; object-fit: cover; flex-shrink: 0; }
+        .playlist-info h1 { margin: 0 0 8px; font-size: 28px; color: var(--yt-spec-text-primary); }
+        .playlist-meta { color: var(--yt-spec-text-secondary); margin-bottom: 16px; }
         .video-list { display: flex; flex-direction: column; gap: 12px; }
-        .video-item { display: flex; gap: 12px; padding: 8px; border-radius: 8px; text-decoration: none; color: var(--yt-spec-text-primary); transition: background 0.3s ease, color 0.5s ease; }
+        .video-item { display: flex; gap: 12px; padding: 8px; border-radius: 8px; text-decoration: none; color: var(--yt-spec-text-primary); transition: background 0.3s ease; }
         .video-item:hover { background: var(--yt-button-hover); }
         .video-thumb { width: 160px; height: 90px; background: #272727; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
         .video-thumb img { width: 100%; height: 100%; object-fit: cover; }
-        .video-details { flex: 1; }
-        .video-title { font-weight: 500; margin-bottom: 4px; }
-        .video-meta { font-size: 14px; color: var(--yt-spec-text-secondary); transition: color 0.5s ease; }
-        .playlist-info, .video-details { min-width: 0; }
-        .playlist-info h1, .video-title { overflow-wrap: anywhere; }
-        .video-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        button:focus-visible, a:focus-visible { outline: 2px solid #3ea6ff; outline-offset: 2px; }
-        @media (max-width: 600px) {
-            .container { padding: 24px 12px 32px; }
-            .playlist-header { align-items: flex-start; gap: 16px; margin-bottom: 24px; }
-            .playlist-thumb { width: 96px; height: 96px; flex: 0 0 auto; }
-            .playlist-info { flex: 1; }
-            .playlist-info h1 { font-size: 22px; line-height: 1.25; }
-            .playlist-meta { margin-bottom: 8px; }
-            .video-item { padding: 8px 0; min-width: 0; }
-            .video-thumb { width: 40%; max-width: 140px; height: auto; aspect-ratio: 16 / 9; }
-            .video-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .video-details { flex: 1; min-width: 0; }
+        .video-title { font-weight: 500; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+        .video-meta { font-size: 14px; color: var(--yt-spec-text-secondary); }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-content { background: var(--yt-modal-bg); width: 90%; max-width: 550px; border-radius: 12px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid var(--yt-spec-border); }
+        .modal-content h2 { margin-bottom: 20px; font-size: 22px; }
+        .setting-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+        .setting-group label { font-size: 14px; }
+        .setting-group input[type="text"], .setting-group select, .setting-group textarea { background: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 10px; border-radius: 8px; width: 100%; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+        .btn-primary { background: #3ea6ff; color: #000; border: none; padding: 10px 20px; border-radius: 20px; font-weight: 500; cursor: pointer; }
+        .btn-secondary { background: transparent; color: var(--yt-spec-text-primary); border: 1px solid var(--yt-spec-border); padding: 10px 20px; border-radius: 20px; cursor: pointer; }
+
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: var(--yt-button-hover); color: var(--yt-spec-text-primary); padding: 12px 20px; border-radius: 8px; border: 1px solid var(--yt-spec-border); animation: slideIn 0.3s ease forwards; min-width: 200px; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        @media (max-width: 760px) {
+            header { padding: 0 12px; }
+            .logo { font-size: 18px; }
+            .page-content { padding: calc(var(--yt-header-height) + 12px) 12px 24px; }
+            .playlist-header { gap: 16px; }
+            .playlist-thumb { width: 120px; height: 120px; }
+            .playlist-info h1 { font-size: 22px; }
+            .video-thumb { width: 40%; max-width: 140px; height: auto; aspect-ratio: 16/9; }
         }
         @media (max-width: 380px) {
             .playlist-header { display: grid; grid-template-columns: 80px minmax(0, 1fr); }
             .playlist-thumb { width: 80px; height: 80px; }
         }
     </style>
+    <link id="fonts-link" rel="stylesheet" href="/static/css/fonts.css">
+    <link id="theme-style-link" rel="stylesheet" href="">
     <link rel="stylesheet" href="/static/css/mobile.css">
+    <script src="/static/js/mobile.js" defer></script>
 </head>
 <body>
-    <div class="container">
-        <button class="btn-back" onclick="window.location.href='/'">&larr; На главную</button>
+    <div id="bg-layer-1" style="background-image: none; opacity: 0;"></div>
+    <div id="bg-layer-2" style="background-image: none; opacity: 1;"></div>
+
+    <header>
+        <div class="header-left">
+            <svg class="menu-icon" id="sidebarToggle" viewBox="0 0 24 24"><path d="M21,6H3V5h18V6z M21,11H3v1h18V11z M21,17H3v1h18V17z"></path></svg>
+            <a href="/" class="logo"><svg viewBox="0 0 24 24"><path d="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5s-6.25,0-7.81,0.42c-0.88,0.23-1.54,0.89-1.77,1.77 C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42 c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19z M10,15V9l5.2,3L10,15z"/></svg>LocalTube</a>
+        </div>
+        <div class="header-right">
+            <a class="icon-btn" id="themeToggleHeader" href="/settings" title="Настройки"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg></a>
+            <a class="user-profile-btn" href="/settings"><span class="user-name-display" id="headerUsername">Гость</span><div class="user-avatar-placeholder" id="headerAvatar">Г</div></a>
+        </div>
+    </header>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar-drawer" id="sidebarDrawer">
+        <a href="/" class="sidebar-item" data-nav="all" onclick="location.href='/'"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg><span>На главную</span></a>
+        <div class="sidebar-divider"></div>
+        {% for author in authors %}
+        <span class="sidebar-item" onclick="filterNavAuthor('{{ author.name }}')">
+            <div style="width:28px;height:28px;border-radius:50%;background:#8e24aa;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;overflow:hidden;">{% if author.avatar %}<img src="{{ author.avatar }}" style="width:100%;height:100%;object-fit:cover;">{% else %}{{ author.name[:1]|upper }}{% endif %}</div>
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ author.name }}</span>
+        </span>
+        {% endfor %}
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-title">Скрытые каналы</div>
+        <div id="hiddenChannelsList"></div>
+        <div class="sidebar-divider"></div>
+        <a href="/settings" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>Настройки</span></a>
+    </aside>
+
+    <div class="page-content">
+        <button class="sidebar-item" onclick="window.location.href='/'" style="margin-bottom: 20px; display: inline-flex;">← На главную</button>
         <div class="playlist-header">
             {% if playlist.thumbnail %}
                 <img class="playlist-thumb" src="{{ playlist.thumbnail }}" alt="{{ playlist.title }}">
@@ -62,7 +165,7 @@
             {% endif %}
             <div class="playlist-info">
                 <h1>{{ playlist.title }}</h1>
-                <div class="playlist-meta">{{ playlist.uploader }} • {{ playlist.video_count }} видео</div>
+                <div class="playlist-meta">{{ playlist.uploader }} · {{ playlist.video_count }} видео</div>
                 <div>{{ playlist.description[:200] }}</div>
             </div>
         </div>
@@ -73,7 +176,7 @@
                     {% if v.thumb %}
                         <img src="{{ url_for('media', filename=v.author ~ '/' ~ v.thumb) }}" alt="Превью: {{ v.title }}" loading="lazy">
                     {% else %}
-                        <div style="background:#272727; width:100%; height:100%; display:flex; align-items:center; justify-content:center;">Нет</div>
+                        <div style="background:#272727; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">Нет</div>
                     {% endif %}
                 </div>
                 <div class="video-details">
@@ -84,20 +187,185 @@
             {% endfor %}
         </div>
     </div>
+
     <script>
+        let bgTimer = null;
+        function loadThemeBackground(theme) {
+            const layer1 = document.getElementById('bg-layer-1');
+            const layer2 = document.getElementById('bg-layer-2');
+            if (bgTimer) clearInterval(bgTimer);
+            bgTimer = null;
+            if (theme !== 'frutiger-aero') {
+                layer1.style.backgroundImage = 'none';
+                layer2.style.backgroundImage = 'none';
+                layer1.style.opacity = 0;
+                layer2.style.opacity = 0;
+                return;
+            }
+            fetch(`/api/theme-backgrounds/${theme}`)
+                .then(response => response.json())
+                .then(images => {
+                    if (!Array.isArray(images) || images.length === 0) return;
+                    const setImage = image => {
+                        const url = `/static/images/themes/${theme}/${encodeURIComponent(image)}`;
+                        layer2.style.backgroundImage = `url('${url}')`;
+                        layer2.style.opacity = 1;
+                        layer1.style.opacity = 0;
+                    };
+                    setImage(images[Math.floor(Math.random() * images.length)]);
+                    bgTimer = setInterval(() => setImage(images[Math.floor(Math.random() * images.length)]), 30000);
+                })
+                .catch(() => {});
+        }
+
+        function filterNavAuthor(author) {
+            const query = String(author || '').toLowerCase();
+            document.querySelectorAll('.video-item').forEach(item => {
+                const authorNode = item.querySelector('.video-meta');
+                item.style.display = !query || (authorNode && authorNode.textContent.toLowerCase().includes(query)) ? 'flex' : 'none';
+            });
+            document.getElementById('sidebarDrawer')?.classList.remove('active');
+            document.getElementById('sidebarOverlay')?.classList.remove('active');
+        }
+
         function loadTheme(theme) {
-            const link = document.getElementById('theme-style');
+            const link = document.getElementById('theme-style-link') || document.getElementById('theme-style');
+            const fontsLink = document.getElementById('fonts-link');
             if (!theme || theme === 'dark' || theme === 'light') {
                 link.href = '';
                 document.documentElement.setAttribute('data-theme', theme || 'dark');
+                if (fontsLink) fontsLink.disabled = false;
+                document.documentElement.style.fontFamily = "'Roboto', Arial, sans-serif";
+                if (bgTimer) clearInterval(bgTimer);
+                bgTimer = null;
+                document.getElementById('bg-layer-1').style.backgroundImage = 'none';
+                document.getElementById('bg-layer-2').style.backgroundImage = 'none';
+                document.getElementById('bg-layer-1').style.opacity = 0;
+                document.getElementById('bg-layer-2').style.opacity = 0;
             } else {
                 link.href = '/static/css/themes/' + theme + '.css';
                 document.documentElement.setAttribute('data-theme', theme);
+                if (fontsLink) fontsLink.disabled = false;
+                if (theme === 'frutiger-aero') {
+                    document.documentElement.style.fontFamily = "'Aero_03', Arial, sans-serif";
+                } else {
+                    document.documentElement.style.fontFamily = "'Roboto', Arial, sans-serif";
+                }
+                loadThemeBackground(theme);
             }
             localStorage.setItem('lt_theme', theme || 'dark');
         }
         const savedTheme = localStorage.getItem('lt_theme') || 'dark';
         loadTheme(savedTheme);
+
+        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"username":"Гость","avatar":""}');
+
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarDrawer = document.getElementById('sidebarDrawer');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        function toggleSidebar() { sidebarDrawer.classList.toggle('active'); sidebarOverlay.classList.toggle('active'); }
+        if (sidebarToggle && sidebarDrawer) {
+            sidebarToggle.addEventListener('click', toggleSidebar);
+            if (sidebarOverlay) sidebarOverlay.addEventListener('click', toggleSidebar);
+        }
+
+        // Список скрытых каналов хранится на сервере.
+        let hiddenChannels = [];
+        function updateHiddenChannelsList() {
+            const container = document.getElementById('hiddenChannelsList');
+            if (!container) return;
+            container.replaceChildren();
+            if (hiddenChannels.length === 0) {
+                const empty = document.createElement('div');
+                empty.style.cssText = 'padding: 8px 12px; color: var(--yt-spec-text-secondary); font-size: 13px;';
+                empty.textContent = 'Нет скрытых каналов';
+                container.append(empty);
+                return;
+            }
+            // Собираем элементы через DOM: имя канала с кавычкой ломало onclick
+            // в строковом шаблоне.
+            hiddenChannels.forEach(channel => {
+                const item = document.createElement('div');
+                item.className = 'hidden-channel-item';
+                const label = document.createElement('span');
+                label.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+                label.textContent = channel;
+                const button = document.createElement('button');
+                button.className = 'unhide-btn';
+                button.type = 'button';
+                button.textContent = 'Показать';
+                button.addEventListener('click', () => toggleHideChannel(channel));
+                item.append(label, button);
+                container.append(item);
+            });
+        }
+        // Сами видео плейлиста не фильтруются: плейлист собран пользователем
+        // вручную, скрытие канала влияет на подборки, а не на явный список.
+        // Здесь список скрытых каналов нужен только для управления в сайдбаре.
+        let hiddenChannelsReady = null;
+
+        async function toggleHideChannel(channelName) {
+            await hiddenChannelsReady;
+            const shouldHide = !hiddenChannels.includes(channelName);
+            if (shouldHide) {
+                hiddenChannels = hiddenChannels.concat([channelName]);
+            } else {
+                hiddenChannels = hiddenChannels.filter(c => c !== channelName);
+            }
+            updateHiddenChannelsList();
+            try {
+                const res = await fetch('/api/userdata/hidden-channel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // Явное состояние, а не «переключи»: запоздавший запрос не
+                    // должен перевернуть результат.
+                    body: JSON.stringify({ author: channelName, hidden: shouldHide }),
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                if (data.hidden_channels) {
+                    hiddenChannels = data.hidden_channels;
+                    updateHiddenChannelsList();
+                }
+            } catch (err) {
+                console.error('Не удалось сохранить скрытые каналы:', err);
+                try {
+                    localStorage.setItem('lt_hidden_channels', JSON.stringify(hiddenChannels));
+                } catch (e) { console.error('Локальное сохранение не удалось:', e); }
+                showToast('Сервер недоступен, изменение сохранено локально');
+            }
+        }
+        hiddenChannelsReady = (async function loadHiddenChannels() {
+            try {
+                const res = await fetch('/api/userdata');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                hiddenChannels = data.hidden_channels || [];
+            } catch (err) {
+                console.error('Не удалось загрузить скрытые каналы:', err);
+                hiddenChannels = JSON.parse(localStorage.getItem('lt_hidden_channels') || '[]');
+            }
+            updateHiddenChannelsList();
+        })();
+        function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;')); }
+        function showToast(msg) { const container = document.getElementById('toast-container'); if (container) { const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000); } }
+        function applyProfileUI() {
+            const username = userSettings.username || 'Гость';
+            const usernameEl = document.getElementById('headerUsername');
+            const avatarBox = document.getElementById('headerAvatar');
+            if (usernameEl) usernameEl.textContent = username;
+            if (!avatarBox) return;
+            avatarBox.replaceChildren();
+            if (userSettings.avatar) {
+                const image = document.createElement('img');
+                image.src = userSettings.avatar;
+                image.alt = 'Аватар';
+                avatarBox.append(image);
+            } else {
+                avatarBox.textContent = username.charAt(0).toUpperCase();
+            }
+        }
+        applyProfileUI();
     </script>
 </body>
 </html>
