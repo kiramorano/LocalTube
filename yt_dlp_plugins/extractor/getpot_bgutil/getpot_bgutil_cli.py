@@ -78,7 +78,9 @@ class BgUtilCliPTP(BgUtilPTPBase):
             command_args.append("--disable-tls-verification")
         self.logger.info(
             f"Generating {request.context.value} PO Token for {request.internal_client_name} client via bgutil CLI")
-        self.logger.debug(f"Command: {" ".join(command_args)}")
+        # Одинарные кавычки внутри f-строки: вложенные двойные требуют Python 3.12+,
+        # а проект поддерживает 3.8+.
+        self.logger.debug(f"Command: {' '.join(command_args)}")
         try:
             stdout, stderr, returncode = Popen.run(
                 command_args,

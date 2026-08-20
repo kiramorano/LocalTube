@@ -173,6 +173,114 @@ def test_channel_page_does_not_touch_real_metadata(client, app_module):
     assert snapshot() == before, "страница канала изменила реальные метаданные"
 
 
+def find_nested_quote_fstrings(source):
+    """Ищет f-строки с вложенными кавычками того же типа.
+
+    Такое разрешено только с Python 3.12, а релизы собираются на 3.11.
+
+    Через ast проверить нельзя: парсер 3.13 принимает такой код независимо от
+    feature_version. Токенизатор 3.12+ разбивает f-строку на FSTRING_START /
+    FSTRING_MIDDLE / FSTRING_END, и внутри подстановки видна обычная строка —
+    по совпадению её кавычек с внешними и определяем проблему.
+    """
+    import io
+    import tokenize
+
+    problems = []
+    start_type = getattr(tokenize, "FSTRING_START", None)
+    if start_type is None:
+        # Python 3.11 и старше сам не разберёт такую f-строку.
+        try:
+            compile(source, "<check>", "exec")
+        except SyntaxError as e:
+            return [e.lineno or 0]
+        return problems
+
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return problems
+
+    open_quotes = []  # стек кавычек активных f-строк
+    for token in tokens:
+        if token.type == start_type:
+            # 'f"', "rf'", 'f\"\"\"' -> берём саму кавычку
+            open_quotes.append(token.string.lstrip("fFrRbB"))
+        elif token.type == getattr(tokenize, "FSTRING_END", None):
+            if open_quotes:
+                open_quotes.pop()
+        elif token.type == tokenize.STRING and open_quotes:
+            # Строка внутри подстановки. Её кавычка не должна совпадать с
+            # кавычкой окружающей f-строки.
+            inner = token.string.lstrip("fFrRbB")[:1]
+            if inner and inner == open_quotes[-1][:1]:
+                problems.append(token.start[0])
+    return problems
+
+
+def test_no_fstrings_needing_python_312():
+    """Вложенные кавычки в f-строках ломают сборку релиза.
+
+    Релизы собираются на Python 3.11. Локально на 3.13 такой код работает,
+    поэтому проблема всплыла только в CI: сборка macOS упала на
+    getpot_bgutil_cli.py с 'f-string: expecting }'.
+    """
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    skip = {"__pycache__", ".git", "node_modules", "venv", ".venv", "buildozer_env"}
+    problems = []
+
+    for root, dirs, files in os.walk(repo):
+        dirs[:] = [d for d in dirs if d not in skip]
+        for name in files:
+            if not name.endswith(".py"):
+                continue
+            path = os.path.join(root, name)
+            with open(path, encoding="utf-8", errors="replace") as f:
+                source = f.read()
+            for line in find_nested_quote_fstrings(source):
+                problems.append(f"{os.path.relpath(path, repo)}:{line}")
+
+    assert not problems, (
+        "f-строки с вложенными кавычками требуют Python 3.12+: " + ", ".join(problems))
+
+
+def test_detector_catches_the_real_case():
+    """Сам детектор обязан ловить конструкцию, которая уронила сборку."""
+    broken = 'x = f"Command: {" ".join(args)}"'
+    assert find_nested_quote_fstrings(broken) == [1]
+    # И не должен ругаться на корректный вариант.
+    assert find_nested_quote_fstrings("x = f\"Command: {' '.join(args)}\"") == []
+
+
+def test_generated_plugin_sources_are_compatible():
+    """Плагины, которые worker.py пишет из строковых литералов, тоже.
+
+    Файл на диске можно починить, но worker пересоздаст его из шаблона.
+    """
+    import ast
+    import inspect
+
+    import worker
+
+    tree = ast.parse(inspect.getsource(worker.fix_plugins))
+    checked = 0
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Assign) and isinstance(node.value, ast.Dict)):
+            continue
+        for key, value in zip(node.value.keys, node.value.values):
+            if not (isinstance(key, ast.Constant) and str(key.value).endswith(".py")):
+                continue
+            try:
+                code = ast.literal_eval(value)
+            except Exception:
+                continue
+            lines = find_nested_quote_fstrings(code)
+            assert not lines, f"шаблон {key.value}: строки {lines} требуют Python 3.12+"
+            checked += 1
+
+    assert checked >= 4, f"проверено только {checked} шаблонов плагинов"
+
+
 def test_creates_missing_directory(tmp_path):
     path = str(tmp_path / "sub" / "dir" / "a.json")
     write_json_atomic(path, {"a": 1})
