@@ -78,6 +78,11 @@ build/
 config.json
 cookies.txt
 queue.json
+userdata.json
+
+# ===== Резервные копии от атомарной записи JSON =====
+*.json.bak
+*.json.tmp
 
 # ===== Временные файлы Android =====
 *.apk
