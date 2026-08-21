@@ -5,164 +5,367 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
-import android.os.Build
-import android.os.Bundle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
-import java.util.concurrent.ConcurrentLinkedQueue
 
+/**
+ * Очередь загрузок с приоритетами, паузой, повтором и сохранением на диск.
+ *
+ * Прежняя версия держала очередь только в памяти (при перезапуске всё
+ * терялось), не умела приоритеты и паузу, а отмена ожидающей задачи не
+ * работала: флаг снимался в самом начале обработки, и загрузка всё равно
+ * начиналась.
+ */
 class DownloadManager(
     private val app: Application,
     private val library: Library,
     private val settings: Settings
 ) {
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val stateFile = File(app.filesDir, "queue.json")
 
     private val _tasks = MutableStateFlow<List<DownloadTask>>(emptyList())
     val tasks: StateFlow<List<DownloadTask>> = _tasks.asStateFlow()
 
-    private val queue = ConcurrentLinkedQueue<String>()
-    private val canceled = ConcurrentLinkedQueue<String>()
+    private val _paused = MutableStateFlow(false)
+    val paused: StateFlow<Boolean> = _paused.asStateFlow()
+
+    /** Сообщает UI, что библиотека изменилась и её надо перечитать. */
+    private val _libraryVersion = MutableStateFlow(0L)
+    val libraryVersion: StateFlow<Long> = _libraryVersion.asStateFlow()
+
+    private val cancelRequests = java.util.Collections.newSetFromMap(
+        java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    )
+
+    /** Мьютекс вместо флага: прежний Boolean без синхронизации терял задачи. */
+    private val workerMutex = Mutex()
+
+    @Volatile
     private var activeId: String? = null
-    private var workerRunning = false
 
     private val notifications by lazy {
-        app.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        app.getSystemService(NotificationManager::class.java)
     }
 
     init {
-        val channel = NotificationChannel(
-            "downloads", "Загрузки", NotificationManager.IMPORTANCE_LOW
-        ).apply { description = "Прогресс загрузки видео" }
-        notifications.createNotificationChannel(channel)
-    }
-
-    fun add(url: String, formatId: String, title: String, subLangs: String? = null): String {
-        val id = UUID.randomUUID().toString().substring(0, 8)
-        _tasks.update { list ->
-            list + DownloadTask(
-                id = id, title = title.ifBlank { "Видео" }, url = url,
-                formatId = formatId, status = TaskStatus.WAITING, progress = 0f,
-                addedAt = System.currentTimeMillis(), error = null, subLangs = subLangs
+        // minSdk 26, поэтому канал создаётся безусловно и без проверки версии.
+        runCatching {
+            notifications?.createNotificationChannel(
+                NotificationChannel("downloads", "Загрузки", NotificationManager.IMPORTANCE_LOW)
             )
         }
-        queue.add(id)
+        restore()
+    }
+
+    // ---------- публичный API ----------
+
+    fun add(
+        url: String,
+        formatId: String,
+        title: String,
+        subLangs: String? = null,
+        priority: TaskPriority = TaskPriority.NORMAL
+    ): String {
+        val id = UUID.randomUUID().toString().substring(0, 8)
+        val task = DownloadTask(
+            id = id,
+            title = title.ifBlank { url },
+            url = url,
+            formatId = formatId,
+            status = TaskStatus.WAITING,
+            progress = 0f,
+            addedAt = System.currentTimeMillis(),
+            error = null,
+            subLangs = subLangs,
+            priority = priority
+        )
+        _tasks.value = _tasks.value + task
+        persist()
         ensureWorker()
         return id
     }
 
     fun cancel(id: String) {
-        canceled.add(id)
-        Engine.cancel(id)
+        val task = _tasks.value.firstOrNull { it.id == id } ?: return
+        if (task.isFinished) return
+        cancelRequests.add(id)
+        if (task.status == TaskStatus.DOWNLOADING) {
+            runCatching { Engine.cancel(id) }
+        } else {
+            // Ожидающую задачу помечаем сразу: она даже не начнётся.
+            update(id, TaskStatus.CANCELED, 0f)
+        }
+        persist()
     }
 
     fun remove(id: String) {
-        _tasks.update { list -> list.filterNot { it.id == id } }
+        // Удаление активной задачи равносильно её отмене.
+        if (_tasks.value.firstOrNull { it.id == id }?.status == TaskStatus.DOWNLOADING) {
+            cancelRequests.add(id)
+            runCatching { Engine.cancel(id) }
+        }
+        _tasks.value = _tasks.value.filterNot { it.id == id }
+        persist()
+    }
+
+    fun retry(id: String) {
+        cancelRequests.remove(id)
+        _tasks.value = _tasks.value.map {
+            if (it.id == id && it.isFinished) {
+                it.copy(status = TaskStatus.WAITING, progress = 0f, error = null, speed = "", etaSeconds = 0)
+            } else it
+        }
+        persist()
+        ensureWorker()
+    }
+
+    fun retryAllFailed() {
+        _tasks.value = _tasks.value.map {
+            if (it.status == TaskStatus.ERROR) {
+                it.copy(status = TaskStatus.WAITING, progress = 0f, error = null)
+            } else it
+        }
+        persist()
+        ensureWorker()
+    }
+
+    fun setPriority(id: String, priority: TaskPriority) {
+        _tasks.value = _tasks.value.map {
+            // Менять приоритет уже качающейся задачи бессмысленно.
+            if (it.id == id && it.status == TaskStatus.WAITING) it.copy(priority = priority) else it
+        }
+        persist()
+    }
+
+    /** Пауза не обрывает текущую загрузку, только не даёт начаться следующим. */
+    fun setPaused(value: Boolean) {
+        _paused.value = value
+        persist()
+        if (!value) ensureWorker()
     }
 
     fun clearFinished() {
-        _tasks.update { list ->
-            list.filterNot { it.status == TaskStatus.COMPLETED || it.status == TaskStatus.ERROR || it.status == TaskStatus.CANCELED }
-        }
+        _tasks.value = _tasks.value.filterNot { it.isFinished }
+        persist()
     }
+
+    // ---------- воркер ----------
 
     private fun ensureWorker() {
-        if (workerRunning) return
-        workerRunning = true
         scope.launch {
-            while (true) {
-                val id = queue.poll() ?: break
-                val task = _tasks.value.firstOrNull { it.id == id } ?: continue
-                activeId = id
-                runTask(task)
-                activeId = null
+            // Мьютекс гарантирует единственного воркера без гонки на флаге.
+            if (!workerMutex.tryLock()) return@launch
+            try {
+                while (true) {
+                    if (_paused.value) {
+                        if (_tasks.value.none { it.status == TaskStatus.WAITING }) break
+                        delay(1000)
+                        continue
+                    }
+                    val next = nextWaiting() ?: break
+                    activeId = next.id
+                    runTask(next)
+                    activeId = null
+                }
+            } finally {
+                workerMutex.unlock()
             }
-            workerRunning = false
         }
     }
 
+    /**
+     * Выбирает задачу с наивысшим приоритетом. При равном приоритете сохраняется
+     * порядок добавления.
+     */
+    private fun nextWaiting(): DownloadTask? = _tasks.value
+        .filter { it.status == TaskStatus.WAITING }
+        .minWithOrNull(compareBy({ it.priority.order }, { it.addedAt }))
+
     private suspend fun runTask(task: DownloadTask) {
-        canceled.remove(task.id)
-        update(task, TaskStatus.DOWNLOADING, 0f)
+        if (cancelRequests.remove(task.id)) {
+            update(task.id, TaskStatus.CANCELED, 0f)
+            return
+        }
+        update(task.id, TaskStatus.DOWNLOADING, 0f, attempts = task.attempts + 1)
         val outDir = File(library.tmpRoot, task.id).apply { mkdirs() }
         try {
             val langs = task.subLangs?.takeIf { it.isNotBlank() } ?: settings.subLangs
             val request = Engine.buildRequest(
-                task.url, task.formatId, outDir,
-                settings.downloadSubs, langs,
-                library.cookiesPath()
+                url = task.url,
+                formatId = task.formatId,
+                outDir = outDir,
+                downloadSubs = settings.downloadSubs,
+                subLangs = langs,
+                cookiesPath = library.cookiesPath()
             )
-            Engine.download(request, task.id) { p ->
-                if (p.isFinite() && p in 0f..100f) {
-                    _tasks.update { list ->
-                        list.map { if (it.id == task.id) it.copy(progress = p) else it }
-                    }
-                    notifyProgress(task, p)
+            var lastNotify = 0L
+            Engine.download(request, task.id) { progress, eta, line ->
+                if (!progress.isFinite() || progress < 0f || progress > 100f) return@download
+                val speed = Engine.parseSpeed(line)
+                updateProgress(task.id, progress, eta, speed)
+                // Уведомление обновляем не чаще раза в секунду: раньше это
+                // происходило на каждый тик и нагружало систему.
+                val now = System.currentTimeMillis()
+                if (now - lastNotify > 1000) {
+                    lastNotify = now
+                    notifyProgress(task, progress)
                 }
             }
-            if (canceled.contains(task.id)) {
-                update(task, TaskStatus.CANCELED, 0f, "Отменено")
-                notifyDone(task, "Отменено")
+            if (cancelRequests.remove(task.id)) {
+                update(task.id, TaskStatus.CANCELED, 0f)
+                notifyDone(task, "Загрузка отменена")
                 return
             }
-            postProcess(outDir, task.id)
-            update(task, TaskStatus.COMPLETED, 100f)
-            notifyDone(task, "Готово")
+            val placed = postProcess(outDir, task.id)
+            if (placed == 0) {
+                update(task.id, TaskStatus.ERROR, 0f, error = "yt-dlp не вернул файлы")
+                notifyDone(task, "Ошибка загрузки")
+                return
+            }
+            library.invalidate()
+            _libraryVersion.value = System.currentTimeMillis()
+            update(task.id, TaskStatus.COMPLETED, 100f)
+            notifyDone(task, "Загрузка завершена")
         } catch (e: Exception) {
-            if (canceled.contains(task.id)) {
-                update(task, TaskStatus.CANCELED, 0f, "Отменено")
-                notifyDone(task, "Отменено")
+            if (cancelRequests.remove(task.id)) {
+                update(task.id, TaskStatus.CANCELED, 0f)
+                notifyDone(task, "Загрузка отменена")
             } else {
-                update(task, TaskStatus.ERROR, task.progress, e.message ?: "Ошибка")
-                notifyDone(task, "Ошибка: ${e.message ?: ""}")
+                update(task.id, TaskStatus.ERROR, 0f, error = (e.message ?: "ошибка").take(300))
+                notifyDone(task, "Ошибка загрузки")
             }
         } finally {
             outDir.deleteRecursively()
+            persist()
         }
     }
 
-    private fun update(task: DownloadTask, status: TaskStatus, progress: Float, error: String? = null) {
-        _tasks.update { list ->
-            list.map {
-                if (it.id == task.id) {
-                    it.copy(status = status, progress = if (status == TaskStatus.COMPLETED) 100f else progress, error = error)
-                } else it
+    // ---------- состояние ----------
+
+    private fun update(
+        id: String,
+        status: TaskStatus,
+        progress: Float,
+        error: String? = null,
+        attempts: Int? = null
+    ) {
+        _tasks.value = _tasks.value.map {
+            if (it.id != id) it else it.copy(
+                status = status,
+                progress = if (status == TaskStatus.COMPLETED) 100f else progress,
+                error = error,
+                attempts = attempts ?: it.attempts,
+                speed = if (status == TaskStatus.DOWNLOADING) it.speed else "",
+                etaSeconds = if (status == TaskStatus.DOWNLOADING) it.etaSeconds else 0
+            )
+        }
+        persist()
+    }
+
+    private fun updateProgress(id: String, progress: Float, eta: Long, speed: String) {
+        _tasks.value = _tasks.value.map {
+            if (it.id != id) it
+            else it.copy(progress = progress, etaSeconds = eta.coerceAtLeast(0), speed = speed)
+        }
+    }
+
+    private fun persist() {
+        runCatching {
+            val arr = JSONArray()
+            _tasks.value.forEach { t ->
+                arr.put(JSONObject().apply {
+                    put("id", t.id)
+                    put("title", t.title)
+                    put("url", t.url)
+                    put("format_id", t.formatId)
+                    put("status", t.status.name)
+                    put("progress", t.progress.toDouble())
+                    put("added_at", t.addedAt)
+                    put("error", t.error ?: "")
+                    put("sub_langs", t.subLangs ?: "")
+                    put("priority", t.priority.name)
+                    put("attempts", t.attempts)
+                })
             }
+            JsonStore.write(stateFile, JSONObject().apply {
+                put("paused", _paused.value)
+                put("tasks", arr)
+            })
         }
     }
 
-    private fun postProcess(outDir: File, taskId: String) {
-        val infoFiles = outDir.listFiles()?.filter { it.isFile && it.name.endsWith(".info.json") } ?: return
+    private fun restore() {
+        val json = JsonStore.read(stateFile) ?: return
+        _paused.value = json.optBoolean("paused", false)
+        val arr = json.optJSONArray("tasks") ?: return
+        val restored = mutableListOf<DownloadTask>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val status = runCatching { TaskStatus.valueOf(o.optString("status")) }
+                .getOrDefault(TaskStatus.WAITING)
+            restored += DownloadTask(
+                id = o.optString("id").ifBlank { UUID.randomUUID().toString().substring(0, 8) },
+                title = o.optString("title"),
+                url = o.optString("url"),
+                formatId = o.optString("format_id", "best"),
+                // Прерванная перезапуском загрузка возвращается в ожидание.
+                status = if (status == TaskStatus.DOWNLOADING) TaskStatus.WAITING else status,
+                progress = if (status == TaskStatus.DOWNLOADING) 0f else o.optDouble("progress", 0.0).toFloat(),
+                addedAt = o.optLong("added_at", System.currentTimeMillis()),
+                error = o.optString("error").ifBlank { null },
+                subLangs = o.optString("sub_langs").ifBlank { null },
+                priority = runCatching { TaskPriority.valueOf(o.optString("priority")) }
+                    .getOrDefault(TaskPriority.NORMAL),
+                attempts = o.optInt("attempts", 0)
+            )
+        }
+        _tasks.value = restored
+        if (restored.any { it.status == TaskStatus.WAITING }) ensureWorker()
+    }
+
+    // ---------- раскладка результата ----------
+
+    /** Возвращает число разложенных видео: ноль означает неудачу. */
+    private fun postProcess(outDir: File, taskId: String): Int {
+        val infoFiles = outDir.listFiles()?.filter { it.isFile && it.name.endsWith(".info.json") }
+            ?: return 0
+        var placed = 0
         var playlistJson: JSONObject? = null
         for (infoFile in infoFiles) {
             val id = infoFile.name.removeSuffix(".info.json")
             val meta = try {
                 JSONObject(infoFile.readText(Charsets.UTF_8))
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 continue
             }
             val author = library.safeName(meta.optString("uploader").ifEmpty { "Unknown" })
+            // Вертикальные видео помечаем в имени папки, как на сервере.
             val destDir = File(File(library.root, author), id).apply { mkdirs() }
             val videoSrc = outDir.listFiles()
                 ?.firstOrNull {
                     it.isFile && it.name.startsWith("$id.") &&
                         it.extension.lowercase() in setOf("mp4", "mkv", "webm", "avi", "mov")
                 }
-            videoSrc?.let { src ->
-                val dest = File(destDir, "video.${src.extension}")
-                if (src.absolutePath != dest.absolutePath) src.copyTo(dest, overwrite = true)
+            if (videoSrc == null) continue
+            val dest = File(destDir, "video.${videoSrc.extension}")
+            if (videoSrc.absolutePath != dest.absolutePath) {
+                // renameTo вместо copyTo: копирование удваивало расход диска.
+                if (!videoSrc.renameTo(dest)) videoSrc.copyTo(dest, overwrite = true)
             }
             infoFile.copyTo(File(destDir, "info.json"), overwrite = true)
             outDir.listFiles()?.forEach { f ->
@@ -176,6 +379,7 @@ class DownloadManager(
                         f.copyTo(File(destDir, name.removePrefix("$id.")), overwrite = true)
                 }
             }
+            placed++
             if (meta.has("playlist_title") && !meta.isNull("playlist_title")) {
                 val pt = meta.optString("playlist_title")
                 val pl = (playlistJson ?: JSONObject().also {
@@ -200,8 +404,9 @@ class DownloadManager(
             if (thumb != null) {
                 thumb.copyTo(File(folder, "thumbnail.${imageExt(thumb)}"), overwrite = true)
             }
-            File(folder, "playlist.json").writeText(pl.toString(2), Charsets.UTF_8)
+            JsonStore.write(File(folder, "playlist.json"), pl)
         }
+        return placed
     }
 
     private fun imageExt(f: File): String? {
@@ -209,16 +414,16 @@ class DownloadManager(
         return if (e in setOf("jpg", "jpeg", "png", "webp")) e else null
     }
 
+    // ---------- уведомления ----------
+
     private fun notifyProgress(task: DownloadTask, progress: Float) {
         if (!settings.enableNotifications) return
         val n = baseNotification(task.title)
             .setContentText("${progress.toInt()}%")
             .setProgress(100, progress.toInt(), false)
+            .setOngoing(true)
             .build()
-        try {
-            notifications.notify(task.id.hashCode(), n)
-        } catch (_: Exception) {
-        }
+        runCatching { notifications?.notify(task.id.hashCode(), n) }
     }
 
     private fun notifyDone(task: DownloadTask, text: String) {
@@ -228,24 +433,13 @@ class DownloadManager(
             .setContentIntent(openApp())
             .setAutoCancel(true)
             .build()
-        try {
-            notifications.notify(task.id.hashCode(), n)
-        } catch (_: Exception) {
-        }
+        runCatching { notifications?.notify(task.id.hashCode(), n) }
     }
 
-    private fun baseNotification(title: String): Notification.Builder {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(app, "downloads")
-                .setSmallIcon(android.R.drawable.stat_sys_download)
-                .setContentTitle(title)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(app)
-                .setSmallIcon(android.R.drawable.stat_sys_download)
-                .setContentTitle(title)
-        }
-    }
+    private fun baseNotification(title: String): Notification.Builder =
+        Notification.Builder(app, "downloads")
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle(title)
 
     private fun openApp(): PendingIntent {
         val intent = app.packageManager.getLaunchIntentForPackage(app.packageName)

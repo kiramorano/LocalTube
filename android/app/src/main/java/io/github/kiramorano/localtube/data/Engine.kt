@@ -120,7 +120,7 @@ object Engine {
 
     private fun bestOption() = FormatOption(
         formatId = "best",
-        label = "Лучшее качество (mp4)",
+        label = "Лучшее доступное",
         isVideo = true,
         resolution = "auto",
         ext = "mp4",
@@ -129,30 +129,59 @@ object Engine {
         codec = ""
     )
 
-    private fun parseFormatsJson(arr: JSONArray?): List<FormatOption> {
+    /**
+     * Разбирает список форматов.
+     *
+     * YouTube отдаёт 1080p и выше только раздельными потоками: видео без звука
+     * плюс отдельное аудио. Раньше фильтр требовал наличия звуковой дорожки, из
+     * за чего список качеств обрывался на 720p. Теперь такие потоки тоже
+     * попадают в список и помечаются префиксом video:, чтобы при загрузке
+     * склеиваться с лучшим аудио.
+     */
+    internal fun parseFormatsJson(arr: JSONArray?): List<FormatOption> {
         val out = mutableListOf<FormatOption>()
         if (arr == null) return out
-        val seen = HashSet<Int>()
+        // Для каждой высоты храним лучший вариант: со звуком предпочтительнее
+        // только если раздельного потока той же высоты нет.
+        val byHeight = LinkedHashMap<Int, FormatOption>()
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
             val h = o.optInt("height", 0)
+            if (h <= 0) continue
             val vcodec = o.optString("vcodec", "none")
+            if (vcodec == "none") continue
             val acodec = o.optString("acodec", "none")
-            if (h > 0 && acodec != "none" && vcodec != "none" && seen.add(h)) {
-                val fps = o.optInt("fps", 0)
-                val size = fileSize(o)
-                out += FormatOption(
-                    formatId = o.optString("format_id"),
-                    label = "${h}p${if (fps > 30) " $fps fps" else ""}",
-                    isVideo = true,
-                    resolution = "${h}p",
-                    ext = o.optString("ext", ""),
-                    sizeMb = size / 1024.0 / 1024.0,
-                    fps = fps,
-                    codec = vcodec.substringBefore(".")
-                )
+            val hasAudio = acodec != "none" && acodec.isNotBlank()
+            val fps = o.optInt("fps", 0)
+            val rawId = o.optString("format_id")
+            if (rawId.isBlank()) continue
+
+            val option = FormatOption(
+                // Раздельный поток помечаем, чтобы buildRequest добавил bestaudio.
+                formatId = if (hasAudio) rawId else "video:$rawId",
+                label = buildString {
+                    append("${h}p")
+                    if (fps > 30) append(" $fps")
+                    if (!hasAudio) append(" ·")
+                },
+                isVideo = true,
+                resolution = "${h}p",
+                ext = o.optString("ext", ""),
+                sizeMb = fileSize(o) / 1024.0 / 1024.0,
+                fps = fps,
+                codec = vcodec.substringBefore("."),
+                needsAudio = !hasAudio
+            )
+            val existing = byHeight[h]
+            if (existing == null) {
+                byHeight[h] = option
+            } else if (existing.fps < fps) {
+                // При равной высоте выбираем более плавный вариант.
+                byHeight[h] = option
             }
         }
+        // Сначала высокое качество.
+        byHeight.entries.sortedByDescending { it.key }.forEach { out += it.value }
         val seenAudio = HashSet<String>()
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
@@ -181,6 +210,20 @@ object Engine {
         return if (f > 0) f else o.optLong("filesize_approx", 0)
     }
 
+    /**
+     * Строит селектор формата для yt-dlp.
+     *
+     * "best" раньше давал best[ext=mp4]/best — прогрессивный поток, то есть не
+     * выше 720p. Теперь запрашивается лучшее видео плюс лучшее аудио.
+     */
+    internal fun formatSelector(formatId: String): String = when {
+        formatId == "best" -> "bestvideo*+bestaudio/best"
+        formatId.startsWith("video:") ->
+            "${formatId.removePrefix("video:")}+bestaudio/${formatId.removePrefix("video:")}"
+        formatId.startsWith("audio:") -> formatId.removePrefix("audio:")
+        else -> formatId
+    }
+
     fun buildRequest(
         url: String,
         formatId: String,
@@ -190,12 +233,7 @@ object Engine {
         cookiesPath: String?
     ): YoutubeDLRequest {
         val req = YoutubeDLRequest(url)
-        val f = when {
-            formatId == "best" -> "best[ext=mp4]/best"
-            formatId.startsWith("video:") -> "${formatId.removePrefix("video:")}+bestaudio"
-            formatId.startsWith("audio:") -> formatId.removePrefix("audio:")
-            else -> formatId
-        }
+        val f = formatSelector(formatId)
         req.addOption("-f", f)
         req.addOption("-o", File(outDir, "%(id)s.%(ext)s").absolutePath)
         req.addOption("--merge-output-format", "mp4")
@@ -217,16 +255,29 @@ object Engine {
         return req
     }
 
+    /**
+     * Запускает загрузку.
+     *
+     * Коллбэк получает не только процент, но и оставшееся время со скоростью:
+     * раньше эти данные приходили от yt-dlp и отбрасывались, поэтому в очереди
+     * не было ни скорости, ни ETA.
+     */
     suspend fun download(
         request: YoutubeDLRequest,
         processId: String,
-        onProgress: (Float) -> Unit
+        onProgress: (progress: Float, etaSeconds: Long, line: String) -> Unit
     ) {
         withContext(Dispatchers.IO) {
-            YoutubeDL.getInstance().execute(request, processId) { progress, _, _ ->
-                onProgress(progress)
+            YoutubeDL.getInstance().execute(request, processId) { progress, etaSeconds, line ->
+                onProgress(progress, etaSeconds, line ?: "")
             }
         }
+    }
+
+    /** Вытаскивает скорость из строки прогресса yt-dlp: "... at 1.25MiB/s ...". */
+    internal fun parseSpeed(line: String): String {
+        val match = Regex("""at\s+([0-9.]+\s*[KMG]?i?B/s)""", RegexOption.IGNORE_CASE).find(line)
+        return match?.groupValues?.getOrNull(1)?.trim().orEmpty()
     }
 
     fun cancel(processId: String) {

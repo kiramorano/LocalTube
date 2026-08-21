@@ -9,6 +9,13 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
+/**
+ * Файловая библиотека. Раскладка повторяет серверную версию, поэтому каталог с
+ * ПК можно перенести копированием.
+ *
+ * Разобранные папки кэшируются: полное пересканирование читало info.json
+ * каждого видео при каждом вызове, а вызывается он на каждом открытии экрана.
+ */
 class Library(context: Context) {
     private val ctx = context.applicationContext
     val root = File(ctx.filesDir, "videos")
@@ -20,6 +27,18 @@ class Library(context: Context) {
 
     private val videoExts = setOf("mp4", "mkv", "webm", "avi", "mov")
     private val imageExts = setOf("jpg", "jpeg", "png", "webp")
+
+    /** Отпечаток папки -> разобранное видео. */
+    private data class CacheEntry(val fingerprint: String, val item: VideoItem)
+
+    private val scanCache = HashMap<String, CacheEntry>()
+    private val cacheLock = Any()
+
+    @Volatile
+    private var cachedCatalog: Catalog? = null
+
+    @Volatile
+    private var catalogBuiltAt = 0L
 
     init {
         for (d in listOf(root, userRoot, playlistsRoot, avatarsRoot, tmpRoot)) d.mkdirs()
@@ -34,7 +53,7 @@ class Library(context: Context) {
                 cookiesFile.outputStream().use { output -> input.copyTo(output) }
             }
             true
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             false
         }
     }
@@ -42,6 +61,9 @@ class Library(context: Context) {
     fun clearCookies() {
         cookiesFile.delete()
     }
+
+    fun cookiesInfo(): Pair<Boolean, Long> =
+        if (cookiesFile.isFile) true to cookiesFile.length() else false to 0L
 
     fun safeName(text: String): String {
         val cleaned = text.replace(Regex("[\\\\/:*?\"<>|]"), "_")
@@ -80,11 +102,31 @@ class Library(context: Context) {
         }?.absolutePath
     }
 
+    /**
+     * Дешёвый отпечаток папки: время правки самой папки плюс размер и время
+     * правки видеофайла и info.json. Если он совпал, папку можно не открывать.
+     */
+    private fun fingerprint(folder: File, video: File?, meta: File): String = buildString {
+        append(folder.lastModified() / 1000)
+        append(':')
+        append(video?.length() ?: 0).append('/').append((video?.lastModified() ?: 0) / 1000)
+        append(':')
+        append(meta.length()).append('/').append(meta.lastModified() / 1000)
+    }
+
     private fun videoFromFolder(authorDir: File, vfolder: File): VideoItem? {
         val video = findVideoFile(vfolder) ?: return null
-        val meta = readJson(File(vfolder, "info.json")) ?: JSONObject()
+        val metaFile = File(vfolder, "info.json")
+        val key = vfolder.absolutePath
+        val print = fingerprint(vfolder, video, metaFile)
+
+        synchronized(cacheLock) {
+            scanCache[key]?.let { if (it.fingerprint == print) return it.item }
+        }
+
+        val meta = readJson(metaFile) ?: JSONObject()
         val id = meta.optString("id").ifEmpty { vfolder.name }
-        return VideoItem(
+        val item = VideoItem(
             id = id,
             title = meta.optString("title").ifEmpty { "Видео ${vfolder.name}" },
             author = meta.optString("uploader").ifEmpty { authorDir.name },
@@ -95,9 +137,22 @@ class Library(context: Context) {
             source = "youtube",
             durationSec = meta.optLong("duration", 0),
             description = meta.optString("description", ""),
-            addedAt = meta.optString("upload_date", "")
+            addedAt = meta.optString("upload_date", ""),
+            uploadDate = meta.optString("upload_date", ""),
+            channelUrl = meta.optString("channel_url", "").ifEmpty { meta.optString("uploader_url", "") },
+            qualities = qualitiesIn(vfolder)
         )
+        synchronized(cacheLock) { scanCache[key] = CacheEntry(print, item) }
+        return item
     }
+
+    /** Локально сконвертированные варианты: video_1080.mp4 и подобные. */
+    private fun qualitiesIn(folder: File): List<String> =
+        folder.listFiles()
+            ?.filter { it.isFile && it.name.startsWith("video_") && it.extension.lowercase() in videoExts }
+            ?.map { it.nameWithoutExtension.removePrefix("video_") }
+            ?.sortedByDescending { it.filter(Char::isDigit).toIntOrNull() ?: 0 }
+            ?: emptyList()
 
     private fun userVideoFromFolder(folder: File): VideoItem? {
         val meta = readJson(File(folder, "meta.json")) ?: return null
@@ -119,19 +174,36 @@ class Library(context: Context) {
         )
     }
 
+    /**
+     * Возвращает каталог, переиспользуя собранный не позднее maxAgeMs назад.
+     * Экраны нередко запрашивают каталог по несколько раз подряд.
+     */
+    fun catalog(maxAgeMs: Long = FRESH_WINDOW_MS): Catalog {
+        val cached = cachedCatalog
+        if (cached != null && System.currentTimeMillis() - catalogBuiltAt <= maxAgeMs) return cached
+        return scan()
+    }
+
     fun scan(): Catalog {
         val videos = mutableListOf<VideoItem>()
         val shorts = mutableListOf<VideoItem>()
-        val authorsSet = linkedSetOf<String>()
+        val counts = HashMap<String, Int>()
+        val seenPaths = HashSet<String>()
 
         root.listFiles()?.forEach { authorDir ->
             if (!authorDir.isDirectory) return@forEach
             authorDir.listFiles()?.forEach { vfolder ->
                 if (!vfolder.isDirectory) return@forEach
+                seenPaths += vfolder.absolutePath
                 val item = videoFromFolder(authorDir, vfolder) ?: return@forEach
                 if (item.isShort) shorts += item else videos += item
-                authorsSet += item.author
+                counts[item.author] = (counts[item.author] ?: 0) + 1
             }
+        }
+
+        // Чистим кэш от исчезнувших папок, иначе он растёт бесконечно.
+        synchronized(cacheLock) {
+            (scanCache.keys - seenPaths).forEach { scanCache.remove(it) }
         }
 
         val userVideos = userRoot.listFiles()
@@ -139,15 +211,26 @@ class Library(context: Context) {
             ?.mapNotNull { userVideoFromFolder(it) }
             ?.sortedByDescending { it.addedAt } ?: emptyList()
 
-        val authors = authorsSet.sorted().map { Author(it, avatarFor(it)) }
+        val authors = counts.keys.sorted().map { Author(it, avatarFor(it), counts[it] ?: 0) }
 
-        return Catalog(
-            videos = videos.shuffled(),
-            shorts = shorts,
+        val catalog = Catalog(
+            // Порядок задаётся сортировкой в UI, а не случайной перестановкой.
+            videos = videos.sortedByDescending { it.sortKey },
+            shorts = shorts.sortedByDescending { it.sortKey },
             authors = authors,
             playlists = scanPlaylists(),
             userVideos = userVideos
         )
+        cachedCatalog = catalog
+        catalogBuiltAt = System.currentTimeMillis()
+        return catalog
+    }
+
+    /** Сбрасывает кэш: вызывается после загрузки, удаления или правки видео. */
+    fun invalidate() {
+        synchronized(cacheLock) { scanCache.clear() }
+        cachedCatalog = null
+        catalogBuiltAt = 0
     }
 
     fun scanPlaylists(): List<Playlist> {
@@ -187,39 +270,22 @@ class Library(context: Context) {
     fun search(query: String): List<VideoItem> {
         val q = query.trim().lowercase()
         if (q.isEmpty()) return emptyList()
-        val result = mutableListOf<VideoItem>()
-        root.listFiles()?.forEach { authorDir ->
-            if (!authorDir.isDirectory) return@forEach
-            authorDir.listFiles()?.forEach { vfolder ->
-                if (!vfolder.isDirectory) return@forEach
-                val item = videoFromFolder(authorDir, vfolder) ?: return@forEach
-                if (item.title.lowercase().contains(q) || item.author.lowercase().contains(q)) {
-                    result += item
-                }
-            }
+        val catalog = catalog()
+        return (catalog.videos + catalog.shorts + catalog.userVideos).filter {
+            it.title.lowercase().contains(q) || it.author.lowercase().contains(q)
         }
-        userRoot.listFiles()?.forEach { folder ->
-            if (!folder.isDirectory) return@forEach
-            val item = userVideoFromFolder(folder) ?: return@forEach
-            if (item.title.lowercase().contains(q) || item.author.lowercase().contains(q)) {
-                result += item
-            }
-        }
-        return result
     }
 
     fun findVideo(id: String): VideoItem? {
-        root.listFiles()?.forEach { authorDir ->
-            if (!authorDir.isDirectory) return@forEach
-            authorDir.listFiles()?.forEach { vfolder ->
-                if (vfolder.isDirectory) {
-                    val item = videoFromFolder(authorDir, vfolder) ?: return@forEach
-                    if (item.id == id) return item
-                }
-            }
-        }
-        val user = userRoot.listFiles()?.firstOrNull { it.name == id }?.let { userVideoFromFolder(it) }
-        return user
+        val catalog = catalog()
+        return (catalog.videos + catalog.shorts + catalog.userVideos).firstOrNull { it.id == id }
+    }
+
+    fun videosOf(author: String): List<VideoItem> {
+        val catalog = catalog()
+        return (catalog.videos + catalog.shorts)
+            .filter { it.author == author }
+            .sortedByDescending { it.sortKey }
     }
 
     fun videoFile(v: VideoItem): File? =
@@ -232,14 +298,39 @@ class Library(context: Context) {
             ?.sortedBy { it.name } ?: emptyList()
     }
 
-    fun recommended(id: String, limit: Int = 15): List<VideoItem> {
-        val all = root.listFiles().orEmpty()
-            .filter { it.isDirectory }
-            .flatMap { a -> a.listFiles().orEmpty().filter { it.isDirectory }.mapNotNull { videoFromFolder(a, it) } }
-            .filter { it.id != id && !it.isShort }
+    /** Рекомендации: без текущего видео и без скрытых каналов. */
+    fun recommended(id: String, limit: Int = 15, hidden: Set<String> = emptySet()): List<VideoItem> {
+        val catalog = catalog()
+        return catalog.videos
+            .filter { it.id != id && !hidden.contains(it.author) }
             .shuffled()
-        return all.take(limit)
+            .take(limit)
     }
+
+    /** Следующее видео для автозапуска: того же автора, иначе любое. */
+    fun nextAfter(id: String, hidden: Set<String> = emptySet()): VideoItem? {
+        val catalog = catalog()
+        val current = catalog.videos.firstOrNull { it.id == id } ?: return null
+        val visible = catalog.videos.filter { !hidden.contains(it.author) }
+        val sameAuthor = visible.filter { it.author == current.author }
+        val pool = if (sameAuthor.size > 1) sameAuthor else visible
+        val index = pool.indexOfFirst { it.id == id }
+        if (index < 0) return pool.firstOrNull { it.id != id }
+        return pool.getOrNull(index + 1) ?: pool.firstOrNull { it.id != id }
+    }
+
+    fun deleteVideo(v: VideoItem): Boolean {
+        val file = videoFile(v) ?: return false
+        val folder = file.parentFile ?: return false
+        val ok = folder.deleteRecursively()
+        // Автор без видео больше не нужен в списке каналов.
+        folder.parentFile?.let { if (it.listFiles()?.isEmpty() == true) it.delete() }
+        invalidate()
+        return ok
+    }
+
+    fun storageUsedBytes(): Long = listOf(root, userRoot, playlistsRoot, avatarsRoot, tmpRoot)
+        .sumOf { dir -> dir.walkBottomUp().filter { it.isFile }.sumOf { it.length() } }
 
     fun addUserVideo(src: File, title: String, description: String, author: String): String {
         val id = UUID.randomUUID().toString().substring(0, 8)
@@ -254,6 +345,7 @@ class Library(context: Context) {
         meta.put("video_ext", ext)
         meta.put("added_at", SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date()))
         writeJson(File(folder, "meta.json"), meta)
+        invalidate()
         return id
     }
 
@@ -264,6 +356,7 @@ class Library(context: Context) {
         meta.put("description", description)
         meta.put("author", author.ifBlank { "Гость" })
         writeJson(File(folder, "meta.json"), meta)
+        invalidate()
         return true
     }
 
@@ -271,21 +364,18 @@ class Library(context: Context) {
         val folder = File(userRoot, id)
         if (!folder.isDirectory) return false
         folder.deleteRecursively()
+        invalidate()
         return true
     }
 
-    private fun readJson(f: File): JSONObject? {
-        return try {
-            if (f.isFile) JSONObject(f.readText(Charsets.UTF_8)) else null
-        } catch (_: Exception) {
-            null
-        }
-    }
+    private fun readJson(f: File): JSONObject? = JsonStore.read(f)
 
     private fun writeJson(f: File, o: JSONObject) {
-        try {
-            f.writeText(o.toString(2), Charsets.UTF_8)
-        } catch (_: Exception) {
-        }
+        JsonStore.write(f, o)
+    }
+
+    companion object {
+        /** Окно свежести каталога: короткое, чтобы новые видео появлялись сразу. */
+        const val FRESH_WINDOW_MS = 2_000L
     }
 }
