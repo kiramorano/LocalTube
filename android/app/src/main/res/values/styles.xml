@@ -1,6 +1,9 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
+    <!-- Прозрачные системные панели: цвет задаёт Compose по выбранной теме,
+         иначе на светлой теме оставались чёрные полосы по краям. -->
     <style name="Theme.LocalTube" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">#000000</item>
-        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/ic_launcher_background</item>
     </style>
 </resources>

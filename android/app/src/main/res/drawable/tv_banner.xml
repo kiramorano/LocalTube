@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Баннер для лончера Android TV. Требуемое соотношение 320x180. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path
+        android:fillColor="#0F0F0F"
+        android:pathData="M0,0h320v180H0z" />
+    <path
+        android:fillColor="#FF0000"
+        android:pathData="M108,62h104a14,14 0 0 1 14,14v28a14,14 0 0 1 -14,14H108a14,14 0 0 1 -14,-14V76a14,14 0 0 1 14,-14z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M148,78l30,12l-30,12z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M96,134h128v3H96z" />
+</vector>

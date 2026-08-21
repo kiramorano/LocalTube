@@ -3,7 +3,9 @@ on:
   workflow_dispatch:
   push:
     paths: ['android/**', '.github/workflows/android.yml']
-permissions: { contents: read }
+  release:
+    types: [published]
+permissions: { contents: write }
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -12,13 +14,28 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
-      - name: Install Gradle 8.9
-        run: wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip -O /tmp/gradle.zip && unzip -q /tmp/gradle.zip -d /tmp && echo /tmp/gradle-8.9/bin >> $GITHUB_PATH
-      # Проект собирается через ABI splits, product flavors в нём нет:
-      # задач assembleMobileDebug/assembleTvDebug не существует.
-      - run: gradle --no-daemon :app:assembleDebug
+      - name: Install Gradle 8.10.2
+        run: wget -q https://services.gradle.org/distributions/gradle-8.10.2-bin.zip -O /tmp/gradle.zip && unzip -q /tmp/gradle.zip -d /tmp && echo /tmp/gradle-8.10.2/bin >> $GITHUB_PATH
+      # Проект использует ABI splits, product flavors в нём нет: задач вида
+      # assembleMobileDebug не существует.
+      - name: Unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
+      - name: Build APKs
+        run: gradle --no-daemon :app:assembleDebug :app:assembleRelease
       - uses: actions/upload-artifact@v4
         with:
           name: LocalTube-Android-debug
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalTube-Android-release
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+      # Одна и та же сборка работает на телефонах и Android TV: в манифесте есть
+      # LEANBACK_LAUNCHER и touchscreen required=false.
+      - name: Attach APKs to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.event.release.tag_name }}" app/build/outputs/apk/release/*.apk --clobber

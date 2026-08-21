@@ -10,13 +10,16 @@ android {
 
     defaultConfig {
         applicationId "io.github.kiramorano.localtube"
-        minSdk 24
+        // Android 8.0: требование задачи. Заодно снимает проблему с
+        // NotificationChannel, которого нет на API 24-25.
+        minSdk 26
         targetSdk 35
-        versionCode 3
-        versionName "3.0.0"
+        versionCode 4
+        versionName "3.1.0"
         ndk {
-            abiFilters 'arm64-v8a', 'armeabi-v7a'
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
         }
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     def releaseKeystore = file('keystore.jks')
@@ -40,12 +43,16 @@ android {
                 signingConfig signingConfigs.release
             }
         }
+        debug {
+            applicationIdSuffix ''
+        }
     }
     splits {
         abi {
             enable true
             reset()
-            include 'arm64-v8a', 'armeabi-v7a'
+            // x86_64 нужен для эмулятора: без него проверить сборку негде.
+            include 'arm64-v8a', 'armeabi-v7a', 'x86_64'
             universalApk true
         }
     }
@@ -59,6 +66,14 @@ android {
     buildFeatures {
         compose true
     }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/LICENSE.md', 'META-INF/LICENSE-notice.md']
+        }
+    }
 }
 
 dependencies {
@@ -66,17 +81,26 @@ dependencies {
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-tooling-preview'
     implementation 'androidx.compose.material3:material3'
+    // Адаптивная вёрстка: телефон, планшет и ТВ отличаются размером окна.
+    implementation 'androidx.compose.material3:material3-window-size-class'
+    implementation 'androidx.compose.material:material-icons-extended'
     debugImplementation 'androidx.compose.ui:ui-tooling'
     implementation 'androidx.activity:activity-compose:1.9.3'
     implementation 'androidx.core:core-ktx:1.15.0'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
     implementation 'androidx.navigation:navigation-compose:2.8.4'
     implementation 'androidx.media3:media3-exoplayer:1.5.1'
     implementation 'androidx.media3:media3-ui:1.5.1'
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    // MediaSession: фоновое воспроизведение и управление с системных панелей.
+    implementation 'androidx.media3:media3-session:1.5.1'
     implementation 'io.coil-kt:coil-compose:2.7.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     implementation 'io.github.junkfood02.youtubedl-android:library:0.18.1'
     implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0'
 }
