@@ -73,6 +73,11 @@ android {
         resources {
             excludes += ['META-INF/LICENSE.md', 'META-INF/LICENSE-notice.md']
         }
+        jniLibs {
+            // Обязательно вместе с extractNativeLibs="true" в манифесте:
+            // youtubedl-android распаковывает Python и FFmpeg на диск.
+            useLegacyPackaging true
+        }
     }
 }
 
