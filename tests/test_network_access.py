@@ -753,3 +753,36 @@ def test_dangerous_schemes_are_rejected(net):
                   "file:///etc/passwd", "vbscript:msgbox(1)",
                   "  javascript:alert(1)  "):
         assert net.normalize_server_url(value) is None, f"принята схема: {value}"
+
+
+# ================= Секреты не должны попадать в репозиторий =================
+
+def test_secret_files_are_ignored_by_git():
+    """PIN и секрет ключей устройств не должны уезжать в публичный репозиторий.
+
+    access.json перечислен в .gitignore, но копию тех же данных легко получить
+    под другим именем: рядом лежал localhost.bak с побайтово тем же содержимым,
+    и обычный git add -A утащил бы его в коммит. Проверяем именно .gitignore, а
+    не текущий рабочий каталог: файл создаётся заново на каждой машине.
+    """
+    import os
+    import subprocess
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Файлов может не быть на диске: --no-index проверяет только правила.
+    # Имена идут аргументами, а не через --stdin: с text=True на Windows перевод
+    # строки превращается в \r\n, и git не находит правило для «access.json\r».
+    candidates = ["access.json", "access.json.bak", "localhost.bak",
+                  "cookies.txt", "userdata.json", "userdata.json.bak",
+                  "queue.json", "config.json"]
+    try:
+        result = subprocess.run(
+            ["git", "check-ignore", "--no-index", "--"] + candidates,
+            cwd=root, text=True, capture_output=True)
+    except OSError:
+        pytest.skip("git недоступен")
+    if result.returncode == 128:
+        pytest.skip(f"git не смог проверить правила: {result.stderr.strip()}")
+    ignored = set(result.stdout.split())
+    missing = [name for name in candidates if name not in ignored]
+    assert not missing, f".gitignore не закрывает: {missing}"
