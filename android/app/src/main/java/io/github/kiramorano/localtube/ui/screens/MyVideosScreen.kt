@@ -43,6 +43,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.kiramorano.localtube.data.VideoItem
 import io.github.kiramorano.localtube.ui.components.AsyncThumb
 import io.github.kiramorano.localtube.ui.components.EmptyBox
+import io.github.kiramorano.localtube.ui.components.LoadingBox
 import io.github.kiramorano.localtube.vm.MyVideosViewModel
 
 @Composable
@@ -55,6 +56,7 @@ fun MyVideosScreen(
         uri?.let { vm.setVideo(it) }
     }
     var editing by remember { mutableStateOf<VideoItem?>(null) }
+    var deleting by remember { mutableStateOf<VideoItem?>(null) }
 
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxWidth().padding(12.dp)) {
@@ -70,11 +72,18 @@ fun MyVideosScreen(
             }
         }
         if (vm.videos.isEmpty()) {
-            EmptyBox("Вы ещё не добавили видео")
+            if (vm.loading) LoadingBox() else EmptyBox("Вы ещё не добавили видео")
         } else {
             LazyColumn(Modifier.weight(1f)) {
                 items(vm.videos, key = { it.id }) { v ->
-                    MyVideoRow(v, onOpen = { onOpenVideo(v.id) }, onDelete = { vm.delete(v.id) }, onEdit = { editing = v })
+                    MyVideoRow(
+                        v,
+                        onOpen = { onOpenVideo(v.id) },
+                        // Удаление безвозвратно, поэтому только через подтверждение:
+                        // кнопка стоит рядом с «Изменить», и пультом промахнуться легко.
+                        onDelete = { deleting = v },
+                        onEdit = { editing = v }
+                    )
                 }
             }
         }
@@ -86,8 +95,27 @@ fun MyVideosScreen(
             initialDesc = v.description,
             onDismiss = { editing = null },
             onSave = { t, d ->
-                vm.edit(v.id, t, d)
+                // Автор берётся у самого видео: раньше сюда попадало поле формы
+                // загрузки, и правка названия меняла автора на «Гость».
+                vm.edit(v.id, t, d, v.author)
                 editing = null
+            }
+        )
+    }
+
+    deleting?.let { v ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text("Удалить видео?") },
+            text = { Text("«${v.title}» будет удалено с устройства. Действие необратимо.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.delete(v.id)
+                    deleting = null
+                }) { Text("Удалить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleting = null }) { Text("Отмена") }
             }
         )
     }

@@ -1,10 +1,12 @@
 import os
 import yt_dlp
 from urllib.parse import urlparse, parse_qs
-from po_manager import get_po_args, get_po_method
+import paths
+from po_manager import get_po_args, get_po_method, apply_po_args
+from utils import cookiefile_for_ydl, is_tiktok_url
 
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-COOKIES_PATH = os.path.join(PROJECT_ROOT, "cookies.txt")
+PROJECT_ROOT = paths.data_dir()
+COOKIES_PATH = paths.data_path("cookies.txt")
 
 def is_playlist_url(url: str) -> bool:
     query = urlparse(url).query
@@ -12,15 +14,18 @@ def is_playlist_url(url: str) -> bool:
     return bool(params.get('list'))
 
 def get_format_choices(url: str, verbose=False) -> list:
-    po_args = get_po_args()
-    
+    # PO Token и player_client понимает только YouTube: TikTok такие
+    # extractor_args не принимает.
+    po_args = {} if is_tiktok_url(url) else get_po_args()
+
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'extract_flat': False,
-        'cookiefile': COOKIES_PATH if os.path.exists(COOKIES_PATH) else None,
+        # Поток, а не путь: иначе yt-dlp перезапишет cookies.txt при close().
+        'cookiefile': cookiefile_for_ydl(COOKIES_PATH),
     }
-    ydl_opts.update(po_args)
+    apply_po_args(ydl_opts, po_args)
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

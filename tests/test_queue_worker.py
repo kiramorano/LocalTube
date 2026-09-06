@@ -16,29 +16,56 @@ def worker_env(app_module, queue_file, monkeypatch):
     """Готовит окружение для запуска настоящего process_queue.
 
     build_video_map отключается: он сканирует реальную библиотеку после каждой
-    задачи и замедляет тест. Задачи получают уникальные id, поэтому оставшиеся
-    от предыдущего теста демон-потоки не мешают.
+    задачи и замедляет тест.
+
+    После теста воркеры обязательно доводятся до простоя. Раньше здесь только
+    очищались задачи, а потоки продолжали крутить `while True` до конца прогона.
+    Такой поток успевал подхватить задачу следующего теста и подменял чужие
+    заглушки yt-dlp: тесты TikTok падали примерно в одном полном прогоне из
+    трёх, хотя по отдельности файл всегда зелёный. Найти это по сообщению
+    невозможно — падал не тот тест, который ломал состояние.
     """
     monkeypatch.setattr(app_module, "build_video_map", lambda: None)
     app_module.queue_tasks.clear()
     app_module.queue_cancel_requests.clear()
     app_module.queue_paused = False
+    _worker_threads.clear()
     yield app_module
-    # Убираем задачи, чтобы «вечные» воркеры прошлых тестов ничего не подхватили.
+
+    # Сначала запрещаем брать новые задачи, потом снимаем текущие.
     app_module.queue_paused = True
+    with app_module.queue_lock:
+        for task in app_module.queue_tasks:
+            app_module.queue_cancel_requests.add(task.id)
     app_module.queue_tasks.clear()
+
+    # Ждём, пока воркеры выйдут из обработки. Присоединить их нельзя:
+    # process_queue — бесконечный цикл без флага остановки, поэтому дожидаемся
+    # простоя. Шаг сна внутри цикла — 2 секунды, отсюда и запас.
+    deadline = time.time() + 10.0
+    while time.time() < deadline:
+        with app_module.queue_lock:
+            busy = any(t.status == "downloading" for t in app_module.queue_tasks)
+        if not busy:
+            break
+        time.sleep(0.02)
     app_module.queue_cancel_requests.clear()
+
+
+# Потоки текущего теста: нужны, чтобы дождаться их простоя после проверки.
+_worker_threads = []
 
 
 def start_real_worker(app_module):
     """Запускает настоящий process_queue как демон-поток.
 
     Это важно: тест должен проверять рабочий код, а не его копию в тесте.
-    process_queue — бесконечный цикл, поэтому поток демонский и просто
-    остаётся ждать задач после проверки.
+    process_queue — бесконечный цикл, поэтому поток демонский; довести его до
+    простоя после теста берётся фикстура worker_env.
     """
     thread = threading.Thread(target=app_module.process_queue, daemon=True)
     thread.start()
+    _worker_threads.append(thread)
     return thread
 
 

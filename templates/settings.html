@@ -1,12 +1,10 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="dark">
+<html lang="{{ ui_lang }}" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Настройки — LocalTube</title>
-    <link id="theme-style" rel="stylesheet" href="">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>{{ 'Настройки — LocalTube'|t }}</title>
     <link rel="stylesheet" href="/static/css/fonts.css">
-    <link rel="stylesheet" href="/static/css/mobile.css">
     <style>
         :root[data-theme="dark"] { --bg:#0f0f0f; --text:#f1f1f1; --muted:#aaa; --border:#3f3f3f; --card:#1e1e1e; --button:#272727; }
         :root[data-theme="light"] { --bg:#fff; --text:#0f0f0f; --muted:#606060; --border:#ddd; --card:#f8f8f8; --button:#eee; }
@@ -18,106 +16,502 @@
         :root[data-theme="frutiger-aero"] input, :root[data-theme="frutiger-aero"] select, :root[data-theme="frutiger-aero"] textarea { background:rgba(255,255,255,.25); }
         :root[data-theme="frutiger-aero"] option { color:#0f0f0f; }
         * { box-sizing:border-box; } body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); } header { height:56px; display:flex; align-items:center; padding:0 20px; border-bottom:1px solid var(--border); } a { color:inherit; text-decoration:none; } main { width:min(760px, calc(100% - 32px)); margin:32px auto; } h1 { margin:0 0 24px; font-size:28px; } section { padding:20px; margin-bottom:16px; background:var(--card); border:1px solid var(--border); border-radius:12px; } h2 { margin:0 0 16px; font-size:18px; } label { display:block; margin:14px 0 6px; font-size:14px; } input, select, textarea, button { font:inherit; } input, select, textarea { width:100%; padding:10px 12px; color:var(--text); background:var(--bg); border:1px solid var(--border); border-radius:8px; } textarea { resize:vertical; } .row { display:flex; gap:10px; flex-wrap:wrap; } .row > * { flex:1; min-width:160px; } button { padding:10px 14px; color:var(--text); background:var(--button); border:1px solid var(--border); border-radius:20px; cursor:pointer; } button.primary { color:#000; background:#3ea6ff; border-color:#3ea6ff; } #status { color:var(--muted); font-size:14px; min-height:20px; }
+        /* Вкладки разделов. overflow-x на узком экране: три кнопки иначе
+           растягивали страницу и появлялась горизонтальная прокрутка. */
+        .tabs { display:flex; gap:8px; margin:0 0 20px; overflow-x:auto; }
+        .tab-btn { flex:0 0 auto; white-space:nowrap; }
+        .tab-btn.active { color:#000; background:#3ea6ff; border-color:#3ea6ff; }
+        .panel[hidden] { display:none; }
+        .hint { margin:6px 0 0; color:var(--muted); font-size:12px; word-break:break-all; }
+        code { padding:1px 5px; background:var(--button); border-radius:4px; font-size:13px; }
+        #storageStatus, #filesStatus { color:var(--muted); font-size:14px; min-height:20px; margin:12px 0 0; }
+        /* Раздел «Сеть»: адрес, кнопка копирования и найденные серверы. */
+        .net-toggle { display:flex; align-items:center; gap:10px; margin:14px 0 0; }
+        .net-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--border); }
+        .net-row:first-child { border-top:0; }
+        .net-url { flex:1; min-width:0; font-family:monospace; font-size:14px; word-break:break-all; }
+        .net-row button { flex:0 0 auto; padding:6px 12px; font-size:13px; }
+        /* Кнопки и поля на телефоне: 44px — минимальная площадь под палец. */
+        @media (max-width:600px) {
+            .tab-btn { min-height:44px; }
+            button, input[type="text"], input[type="password"], select { min-height:44px; }
+            .net-row button { min-height:40px; }
+        }
     </style>
+    <!-- Файл темы после инлайновых стилей: иначе токены шаблона перебивают
+         midnight/glass/aero. -->
+    <link id="theme-style" rel="stylesheet">
+    <!-- ui.css и mobile.css после инлайновых стилей: правила имеют равную
+         специфичность, поэтому побеждает тот, кто идёт последним. -->
+    <link rel="stylesheet" href="/static/css/ui.css">
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    <!-- Синхронно, после ссылки на файл темы и до разметки. -->
+    <!-- Перевод строк, которые собирает клиентский код. До theme.js:
+         t() должна быть готова к первому вызову. -->
+    {# Словарь идёт вместе со страницей: отдельный запрос приходил позже
+       первой отрисовки, и подписи из скриптов оставались русскими. #}
+    {% if ui_strings %}<script>
+        window.LT_I18N = {{ ui_strings|tojson }};
+    </script>{% endif %}
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/theme.js"></script>
 </head>
 <body>
     <div id="bg-layer-1" style="background-image:none; opacity:0;"></div>
     <div id="bg-layer-2" style="background-image:none; opacity:0;"></div>
     <header><a href="/">LocalTube</a></header>
     <main>
-        <h1>Настройки</h1>
+        <h1>{{ 'Настройки'|t }}</h1>
+        <nav class="tabs" role="tablist" aria-label="{{ 'Разделы настроек'|t }}">
+            <button type="button" class="tab-btn active" data-tab="profile" role="tab" aria-selected="true" aria-controls="panel-profile">{{ 'Профиль'|t }}</button>
+            <button type="button" class="tab-btn" data-tab="storage" role="tab" aria-selected="false" aria-controls="panel-storage">{{ 'Хранение'|t }}</button>
+            <button type="button" class="tab-btn" data-tab="download" role="tab" aria-selected="false" aria-controls="panel-download">{{ 'Загрузка'|t }}</button>
+            <button type="button" class="tab-btn" data-tab="language" role="tab" aria-selected="false" aria-controls="panel-language">{{ 'Язык'|t }}</button>
+            <button type="button" class="tab-btn" data-tab="network" role="tab" aria-selected="false" aria-controls="panel-network">{{ 'Сеть'|t }}</button>
+        </nav>
+
+        <div id="panel-profile" class="panel" role="tabpanel" aria-labelledby="tab-profile">
         <section>
-            <h2>Профиль и оформление</h2>
-            <label for="username">Отображаемое имя</label><input id="username" type="text" placeholder="Гость">
-            <label for="avatar">Ссылка на аватар</label><input id="avatar" type="text" placeholder="URL или data:image/...">
-            <label for="theme">Тема</label>
-            <select id="theme"><option value="dark">Тёмная</option><option value="light">Светлая</option><option value="frutiger-aero">Frutiger Aero</option></select>
+            <h2>{{ 'Профиль и оформление'|t }}</h2>
+            <label for="username">{{ 'Отображаемое имя'|t }}</label><input id="username" type="text" placeholder="{{ 'Гость'|t }}">
+            <label for="avatar">{{ 'Ссылка на аватар'|t }}</label><input id="avatar" type="text" placeholder="{{ 'URL или data:image/...'|t }}">
+            <label for="theme">{{ 'Тема'|t }}</label>
+            <select id="theme"><option value="dark">{{ 'Тёмная'|t }}</option><option value="light">{{ 'Светлая'|t }}</option><option value="midnight">{{ 'Midnight — премиальная тёмная'|t }}</option><option value="glass">{{ 'Glass — стеклянная'|t }}</option><option value="frutiger-aero">Frutiger Aero</option></select>
         </section>
         <section>
-            <h2>Загрузка с YouTube</h2>
-            <label for="client">Клиент YouTube</label>
-            <select id="client"><option value="">Авто</option><option value="tv">TV</option><option value="web">Web</option><option value="web_safari">Web Safari</option><option value="web_embedded">Web Embedded</option><option value="mweb">Mobile Web</option><option value="android">Android</option><option value="android_vr">Android VR</option><option value="ios">iOS</option></select>
-            <label for="po">PO Token</label>
-            <select id="po"><option value="off">Выключено</option><option value="bgutil:http">bgutil HTTP</option><option value="bgutil:cli">bgutil CLI</option></select>
-            <label for="cookies">Cookies (Netscape или JSON)</label><textarea id="cookies" rows="5" placeholder="# Netscape HTTP Cookie File"></textarea>
-            <div class="row"><button type="button" id="importCookies">Импортировать cookies</button><button type="button" id="deleteCookies">Удалить cookies</button></div>
-        </section>
-        <section>
-            <h2>Мои данные</h2>
-            <p id="userdataSummary" style="margin:0 0 12px; color:var(--muted); font-size:14px;">Загрузка...</p>
+            <h2>{{ 'Мои данные'|t }}</h2>
+            <p id="userdataSummary" style="margin:0 0 12px; color:var(--muted); font-size:14px;">{{ 'Загрузка...'|t }}</p>
             <div class="row">
-                <button type="button" id="clearHistory">Очистить историю</button>
-                <button type="button" id="clearFavorites">Очистить избранное</button>
-                <button type="button" id="clearHidden">Показать все каналы</button>
+                <button type="button" id="clearHistory">{{ 'Очистить историю'|t }}</button>
+                <button type="button" id="clearFavorites">{{ 'Очистить избранное'|t }}</button>
+                <button type="button" id="clearHidden">{{ 'Показать все каналы'|t }}</button>
             </div>
-            <p style="margin:12px 0 0; color:var(--muted); font-size:13px;">Избранное, история и скрытые каналы хранятся на сервере и доступны со всех устройств.</p>
+            <p style="margin:12px 0 0; color:var(--muted); font-size:13px;">{{ 'Избранное, история и скрытые каналы хранятся на сервере и доступны со всех устройств.'|t }}</p>
+        </section>
+        </div>
+
+        <div id="panel-storage" class="panel" role="tabpanel" aria-labelledby="tab-storage" hidden>
+        <section>
+            <h2>{{ 'Папки хранения'|t }}</h2>
+            {# Пример пути отделён в свою строку: иначе фраза разрезается тегом
+               <code> на три куска, и переводить пришлось бы огрызки. #}
+            <p style="margin:0 0 4px; color:var(--muted); font-size:13px;">{{ 'Можно указать путь на другом диске, например'|t }} <code>D:\LocalTube\{{ 'видео'|t }}</code></p>
+            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'Относительный путь считается от папки программы. Уже скачанные файлы остаются на месте: чтобы они снова появились в библиотеке, верните прежний путь или перенесите файлы вручную.'|t }}</p>
+            <label for="video_dir">{{ 'Видео с YouTube'|t }}</label>
+            <input id="video_dir" data-path="video_dir" type="text" placeholder="videos">
+            <p class="hint" id="hint-video_dir"></p>
+            <label for="avatars_dir">{{ 'Аватарки каналов'|t }}</label>
+            <input id="avatars_dir" data-path="avatars_dir" type="text" placeholder="avas">
+            <p class="hint" id="hint-avatars_dir"></p>
+            <label for="banners_dir">{{ 'Шапки каналов'|t }}</label>
+            <input id="banners_dir" data-path="banners_dir" type="text" placeholder="avas\banners">
+            <p class="hint" id="hint-banners_dir"></p>
+            <label for="meta_dir">{{ 'Описания каналов'|t }}</label>
+            <input id="meta_dir" data-path="meta_dir" type="text" placeholder="avas\meta">
+            <p class="hint" id="hint-meta_dir"></p>
+            <label for="playlists_dir">{{ 'Плейлисты'|t }}</label>
+            <input id="playlists_dir" data-path="playlists_dir" type="text" placeholder="playlists">
+            <p class="hint" id="hint-playlists_dir"></p>
+            <label for="subtitles_dir">{{ 'Субтитры'|t }}</label>
+            <input id="subtitles_dir" data-path="subtitles_dir" type="text" placeholder="subtitles">
+            <p class="hint" id="hint-subtitles_dir"></p>
+            <label for="uservideos_dir">{{ 'Свои видео'|t }}</label>
+            <input id="uservideos_dir" data-path="uservideos_dir" type="text" placeholder="uservideos">
+            <p class="hint" id="hint-uservideos_dir"></p>
+            <div class="row" style="margin-top:16px;">
+                <button type="button" class="primary" id="saveStorage">{{ 'Сохранить папки'|t }}</button>
+                <button type="button" id="resetStorage">{{ 'Вернуть по умолчанию'|t }}</button>
+            </div>
+            <p id="storageStatus"></p>
         </section>
         <section>
-            <h2>Обслуживание</h2>
-            <div class="row"><button type="button" id="authCheck">Проверить плагины</button><button type="button" id="authRefresh">Обновить статус</button></div>
+            <h2>{{ 'Обслуживание файлов'|t }}</h2>
+            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'Догрузка того, что отсутствует на диске. Работает в фоне, интерфейс не блокируется.'|t }}</p>
+            <div class="row">
+                <button type="button" id="downloadAvatars">{{ 'Скачать аватарки каналов'|t }}</button>
+                <button type="button" id="generateThumbs">{{ 'Создать превью'|t }}</button>
+            </div>
+            <p id="filesStatus"></p>
+        </section>
+        </div>
+
+        <div id="panel-download" class="panel" role="tabpanel" aria-labelledby="tab-download" hidden>
+        <section>
+            <h2>{{ 'Загрузка с YouTube'|t }}</h2>
+            <label for="client">{{ 'Клиент YouTube'|t }}</label>
+            <select id="client"><option value="">{{ 'Авто'|t }}</option><option value="tv">TV</option><option value="web">Web</option><option value="web_safari">Web Safari</option><option value="web_embedded">Web Embedded</option><option value="mweb">Mobile Web</option><option value="android">Android</option><option value="android_vr">Android VR</option><option value="ios">iOS</option></select>
+            <label for="po">PO Token</label>
+            <select id="po"><option value="off">{{ 'Выключено'|t }}</option><option value="bgutil:http">bgutil HTTP</option><option value="bgutil:cli">bgutil CLI</option></select>
+            <label for="cookieBrowser">{{ 'Экспорт cookies из браузера'|t }}</label>
+            <select id="cookieBrowser"><option value="">{{ 'Загрузка списка...'|t }}</option></select>
+            <p id="browserHint" style="margin:6px 0 0; color:var(--muted); font-size:13px;">{{ 'Cookies нужны для видео с ограничением по возрасту. Браузер лучше закрыть перед экспортом.'|t }}</p>
+            <div class="row"><button type="button" id="importFromBrowser">{{ 'Экспортировать из браузера'|t }}</button></div>
+            <label for="cookies">{{ 'Или вставьте cookies вручную (Netscape или JSON)'|t }}</label><textarea id="cookies" rows="5" placeholder="# Netscape HTTP Cookie File"></textarea>
+            <div class="row"><button type="button" id="importCookies">{{ 'Импортировать cookies'|t }}</button><button type="button" id="deleteCookies">{{ 'Удалить cookies'|t }}</button></div>
+        </section>
+        <section>
+            <h2>{{ 'Языковые дорожки и субтитры'|t }}</h2>
+            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'Списки языков заполняются с сервера. Порядок выбора не важен: приоритет считается сверху вниз по списку.'|t }}</p>
+            <label for="audioLangs">{{ 'Язык озвучки (можно выбрать несколько)'|t }}</label>
+            <select id="audioLangs" multiple size="6"></select>
+            <p class="hint">{{ 'Ничего не выбрано — скачивается дорожка по умолчанию. Если нужного языка у видео нет, берётся оригинальная: иначе не скачалось бы вообще ничего.'|t }}</p>
+            <div class="net-toggle">
+                <label for="subtitlesEnabled" style="margin:0;">{{ 'Скачивать субтитры вместе с видео'|t }}</label>
+                <input type="checkbox" id="subtitlesEnabled" style="width:auto; flex:0 0 auto;">
+            </div>
+            <label for="subtitleLangs">{{ 'Языки субтитров (можно выбрать несколько)'|t }}</label>
+            <select id="subtitleLangs" multiple size="6"></select>
+            <div class="net-toggle">
+                <label for="subtitlesAuto" style="margin:0;">{{ 'Брать автоматические, если авторских нет'|t }}</label>
+                <input type="checkbox" id="subtitlesAuto" style="width:auto; flex:0 0 auto;">
+            </div>
+            <p class="hint">{{ 'Автоматические субтитры распознаны машиной: в них бывают ошибки, зато они есть почти у каждого видео.'|t }}</p>
+            <p id="downloadPrefsStatus" class="hint"></p>
+        </section>
+        <section>
+            <h2>{{ 'Плагины и диагностика'|t }}</h2>
+            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'PO Token требует плагинов bgutil. Если они не найдены, YouTube чаще требует подтверждения, что вы не робот.'|t }}</p>
+            <div class="row"><button type="button" id="authCheck">{{ 'Проверить плагины'|t }}</button><button type="button" id="authRefresh">{{ 'Обновить статус'|t }}</button></div>
             <p id="status"></p>
         </section>
-        <button class="primary" id="save">Сохранить настройки</button>
+        </div>
+
+        <div id="panel-language" class="panel" role="tabpanel" aria-labelledby="tab-language" hidden>
+        <section>
+            <h2>{{ 'Язык интерфейса'|t }}</h2>
+            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'Язык запоминается для этого устройства: на телефоне может быть выбран другой, чем на компьютере.'|t }}</p>
+            <label for="uiLang">{{ 'Язык'|t }}</label>
+            {# Язык называется на самом себе: выбрать его из непонятного
+               интерфейса иначе тяжело, поэтому подписи не переводятся. #}
+            <select id="uiLang">
+                {% for lang in ui_languages %}<option value="{{ lang.code }}" {% if lang.code == ui_lang %}selected{% endif %}>{{ lang.label }}</option>{% endfor %}
+            </select>
+            <p id="langStatus" class="hint"></p>
+        </section>
+        </div>
+
+        <div id="panel-network" class="panel" role="tabpanel" aria-labelledby="tab-network" hidden>
+        <section>
+            <h2>{{ 'Мой сервер в локальной сети'|t }}</h2>
+            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'Откройте этот адрес на телефоне или другом компьютере в той же сети (тот же Wi-Fi или роутер). Гости смогут только смотреть видео: скачивание, настройки и ваши плейлисты им недоступны.'|t }}</p>
+            <div class="net-toggle">
+                <label for="netEnabled" style="margin:0;">{{ 'Пускать устройства из локальной сети'|t }}</label>
+                <input type="checkbox" id="netEnabled" style="width:auto; flex:0 0 auto;">
+            </div>
+            <p id="netEnabledHint" class="hint"></p>
+            <div id="netAddresses" style="margin-top:14px;"></div>
+            <div class="row" style="margin-top:14px;">
+                <button type="button" id="netShowQr">{{ 'Показать QR-код'|t }}</button>
+                <button type="button" id="netRegenPin">{{ 'Сменить PIN'|t }}</button>
+            </div>
+            <div id="netQrBox" style="margin-top:14px;" hidden>
+                <img id="netQrImage" alt="{{ 'QR-код с адресом сервера'|t }}" style="width:200px; height:200px; background:#fff; border-radius:8px; padding:8px;">
+                <p class="hint">{{ 'Наведите камеру телефона на код.'|t }}</p>
+            </div>
+            <p style="margin:16px 0 0; font-size:14px;">{{ 'PIN для своих устройств:'|t }} <code id="netPin">—</code></p>
+            <p class="hint">{{ 'Введите его на телефоне (кнопка с замком в шапке), чтобы получить полный доступ. Смена PIN отключает все ранее впущенные устройства.'|t }}</p>
+            <p id="netStatus" style="margin:12px 0 0; color:var(--muted); font-size:14px; min-height:20px;"></p>
+        </section>
+        <section>
+            <h2>{{ 'Другой LocalTube в сети'|t }}</h2>
+            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'Добавьте адрес чужого сервера, чтобы открывать его библиотеку. Кнопка поиска сама обойдёт вашу сеть.'|t }}</p>
+            <label for="netServerUrl">{{ 'Адрес сервера'|t }}</label>
+            <input id="netServerUrl" type="text" placeholder="192.168.0.15:5000">
+            <div class="row" style="margin-top:12px;">
+                <button type="button" id="netAddServer">{{ 'Добавить'|t }}</button>
+                <button type="button" id="netScan">{{ 'Найти в сети'|t }}</button>
+            </div>
+            <div id="netServers" style="margin-top:14px;"></div>
+            <p id="netScanStatus" style="margin:12px 0 0; color:var(--muted); font-size:14px; min-height:20px;"></p>
+        </section>
+        </div>
+
+        <button class="primary" id="save">{{ 'Сохранить настройки'|t }}</button>
     </main>
+    {# Нижняя навигация: на телефоне разделы должны быть в один тап. #}
+    {% include '_mobile_nav.html' with context %}
     <script>
         const $ = id => document.getElementById(id);
         const settings = JSON.parse(localStorage.getItem('lt_settings') || '{}');
+
+        // ===== Разделы настроек =====
+        // Выбранный раздел запоминаем: после сохранения путей страница не
+        // перезагружается, но при возврате на настройки удобно попасть туда же.
+        function showTab(name) {
+            for (const btn of document.querySelectorAll('.tab-btn')) {
+                const active = btn.dataset.tab === name;
+                btn.classList.toggle('active', active);
+                btn.setAttribute('aria-selected', active ? 'true' : 'false');
+            }
+            for (const panel of document.querySelectorAll('.panel')) {
+                panel.hidden = panel.id !== 'panel-' + name;
+            }
+            localStorage.setItem('lt_settings_tab', name);
+        }
+        for (const btn of document.querySelectorAll('.tab-btn')) {
+            btn.addEventListener('click', () => showTab(btn.dataset.tab));
+        }
+        showTab(localStorage.getItem('lt_settings_tab') || 'profile');
         $('username').value = settings.username || '';
         $('avatar').value = settings.avatar || '';
-        $('theme').value = localStorage.getItem('lt_theme') || 'dark';
-        let activeBgLayer = 2, bgTimer = null;
-        function setBackgroundImage(url) {
-            const layer1 = $('bg-layer-1'), layer2 = $('bg-layer-2');
-            const target = activeBgLayer === 2 ? layer1 : layer2;
-            const other = activeBgLayer === 2 ? layer2 : layer1;
-            target.style.backgroundImage = `url('${url}')`;
-            target.style.opacity = 0;
-            requestAnimationFrame(() => { target.style.opacity = 1; other.style.opacity = 0; });
-            setTimeout(() => { activeBgLayer = activeBgLayer === 2 ? 1 : 2; other.style.backgroundImage = 'none'; }, 1600);
-        }
-        function clearBackground() {
-            if (bgTimer) { clearInterval(bgTimer); bgTimer = null; }
-            for (const id of ['bg-layer-1', 'bg-layer-2']) { $(id).style.backgroundImage = 'none'; $(id).style.opacity = 0; }
-        }
-        async function pickBackground(theme) {
-            const response = await fetch(`/api/theme-backgrounds/${theme}`);
-            const images = await response.json();
-            if (!Array.isArray(images) || !images.length) return null;
-            const name = images[Math.floor(Math.random() * images.length)];
-            return `/static/images/themes/${theme}/${encodeURIComponent(name)}`;
-        }
-        async function loadThemeBackground(theme) {
-            if (theme !== 'frutiger-aero') return clearBackground();
-            try {
-                const url = await pickBackground(theme);
-                if (!url) return clearBackground();
-                setBackgroundImage(url);
-                if (bgTimer) clearInterval(bgTimer);
-                bgTimer = setInterval(async () => {
-                    const next = await pickBackground(theme);
-                    if (next) setBackgroundImage(next);
-                }, 30000);
-            } catch (e) { clearBackground(); }
-        }
-        function applyTheme(theme) {
-            const link = $('theme-style');
-            document.documentElement.dataset.theme = theme;
-            link.href = theme === 'frutiger-aero' ? '/static/css/themes/frutiger-aero.css' : '';
-            document.documentElement.style.fontFamily = theme === 'frutiger-aero' ? "'Aero_03', Arial, sans-serif" : "'Roboto', Arial, sans-serif";
-            localStorage.setItem('lt_theme', theme);
-            loadThemeBackground(theme);
-        }
-        applyTheme($('theme').value);
+        // Тема, стиль и обои — /static/js/theme.js. Здесь остаётся только связь
+        // с <select>: раньше на этой странице была своя копия той же логики.
+        const applyTheme = theme => window.LocalTubeTheme.apply(theme);
+        // Значение берём у модуля, а не из localStorage напрямую: там оно уже
+        // проверено по списку тем, поэтому мусор в хранилище не оставит
+        // <select> пустым.
+        $('theme').value = window.LocalTubeTheme.get();
         $('theme').addEventListener('change', e => applyTheme(e.target.value));
         async function authStatus() {
-            try { const data = await (await fetch('/api/auth/status')).json(); $('client').value = data.options?.player_client || ''; $('po').value = data.options?.po_token || 'off'; $('status').textContent = `Cookies: ${data.cookies_exists ? 'установлены' : 'нет'}; плагины: ${data.plugins_dir ? 'установлены' : 'не найдены'}; bgutil HTTP: ${data.bgutil_http_alive ? 'доступен' : 'недоступен'}.`; } catch { $('status').textContent = 'Не удалось получить статус.'; }
+            try {
+                const data = await (await fetch('/api/auth/status')).json();
+                $('client').value = data.options?.player_client || '';
+                $('po').value = data.options?.po_token || 'off';
+                // Строка собирается из частей: подписи «установлены» и «нет»
+                // переводятся порознь, а целая фраза с кодом JS ключом быть не может.
+                $('status').textContent = [
+                    'Cookies: ' + (data.cookies_exists ? t('установлены') : t('нет')),
+                    t('плагины') + ': ' + (data.plugins_dir ? t('установлены') : t('не найдены')),
+                    'bgutil HTTP: ' + (data.bgutil_http_alive ? t('доступен') : t('недоступен')),
+                ].join('; ') + '.';
+            } catch { $('status').textContent = t('Не удалось получить статус.'); }
         }
-        $('save').addEventListener('click', async () => { settings.username = $('username').value.trim(); settings.avatar = $('avatar').value.trim(); localStorage.setItem('lt_settings', JSON.stringify(settings)); applyTheme($('theme').value); await fetch('/api/auth/options', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({player_client:$('client').value, po_token:$('po').value})}); $('status').textContent = 'Настройки сохранены.'; });
-        $('importCookies').addEventListener('click', async () => { const text = $('cookies').value.trim(); if (!text) return $('status').textContent = 'Вставьте cookies.'; const res = await fetch('/api/cookies/import', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text})}); const data = await res.json(); $('status').textContent = res.ok ? `Cookies импортированы: ${data.cookies_count}.` : (data.error || 'Ошибка импорта.'); });
-        $('deleteCookies').addEventListener('click', async () => { await fetch('/api/cookies', {method:'DELETE'}); $('status').textContent = 'Cookies удалены.'; });
+        $('save').addEventListener('click', async () => { settings.username = $('username').value.trim(); settings.avatar = $('avatar').value.trim(); localStorage.setItem('lt_settings', JSON.stringify(settings)); applyTheme($('theme').value); await fetch('/api/auth/options', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({player_client:$('client').value, po_token:$('po').value})}); const langsOk = await saveDownloadPrefs(); $('status').textContent = langsOk ? t('Настройки сохранены.') : t('Настройки сохранены, кроме языков.'); });
+
+        // ===== Языки аудиодорожек и субтитров =====
+        // Список языков приходит с сервера: копия в шаблоне разъехалась бы с
+        // тем, что понимает загрузчик, и в настройках оказался бы язык, по
+        // которому ничего не скачивается.
+        function fillLangSelect(select, languages, chosen) {
+            select.innerHTML = '';
+            for (const lang of languages) {
+                const option = document.createElement('option');
+                option.value = lang.code;
+                option.textContent = `${lang.label} (${lang.code})`;
+                option.selected = chosen.includes(lang.code);
+                select.appendChild(option);
+            }
+            // Язык, заданный руками в config.json, тоже должен быть виден:
+            // иначе сохранение настроек молча его выбросит.
+            for (const code of chosen) {
+                if (languages.some(l => l.code === code)) continue;
+                const option = document.createElement('option');
+                option.value = code;
+                option.textContent = code;
+                option.selected = true;
+                select.appendChild(option);
+            }
+        }
+        function selectedLangs(select) {
+            return Array.from(select.selectedOptions).map(o => o.value);
+        }
+        async function loadDownloadPrefs() {
+            try {
+                const data = await (await fetch('/api/download/prefs')).json();
+                const languages = data.languages || [];
+                fillLangSelect($('audioLangs'), languages, data.audio_langs || []);
+                fillLangSelect($('subtitleLangs'), languages, data.subtitle_langs || []);
+                $('subtitlesEnabled').checked = !!data.subtitles_enabled;
+                $('subtitlesAuto').checked = !!data.subtitles_auto;
+            } catch (err) {
+                $('downloadPrefsStatus').textContent = t('Не удалось загрузить языки.');
+            }
+        }
+        async function saveDownloadPrefs() {
+            const payload = {
+                audio_langs: selectedLangs($('audioLangs')),
+                subtitle_langs: selectedLangs($('subtitleLangs')),
+                subtitles_enabled: $('subtitlesEnabled').checked,
+                subtitles_auto: $('subtitlesAuto').checked,
+            };
+            try {
+                const res = await fetch('/api/download/prefs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+                const data = await res.json();
+                if (!res.ok) {
+                    $('downloadPrefsStatus').textContent = data.error || t('Языки не сохранены.');
+                    return false;
+                }
+                $('downloadPrefsStatus').textContent = t('Языки сохранены.');
+                return true;
+            } catch (err) {
+                $('downloadPrefsStatus').textContent = t('Сервер не ответил, языки не сохранены.');
+                return false;
+            }
+        }
+        loadDownloadPrefs();
+
+        // ===== Язык интерфейса =====
+        // Выбор уходит на сервер и возвращается перезагрузкой: разметку собирает
+        // Jinja, поэтому подменить подписи на месте нечем — иначе пришлось бы
+        // держать вторую копию каждой строки в клиентском коде.
+        $('uiLang').addEventListener('change', async event => {
+            const lang = event.target.value;
+            $('langStatus').textContent = '';
+            try {
+                const res = await fetch('/api/language', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({lang})});
+                if (!res.ok) {
+                    const data = await res.json();
+                    $('langStatus').textContent = data.error || t('Язык не сохранён.');
+                    return;
+                }
+                location.reload();
+            } catch (err) {
+                $('langStatus').textContent = t('Сервер не ответил, язык не сохранён.');
+            }
+        });
+        $('importCookies').addEventListener('click', async () => { const text = $('cookies').value.trim(); if (!text) return $('status').textContent = t('Вставьте cookies.'); const res = await fetch('/api/cookies/import', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text})}); const data = await res.json(); $('status').textContent = res.ok ? t('Cookies импортированы: {count}.').replace('{count}', data.cookies_count) : (data.error || t('Ошибка импорта.')); });
+        $('deleteCookies').addEventListener('click', async () => { await fetch('/api/cookies', {method:'DELETE'}); $('status').textContent = t('Cookies удалены.'); });
+
+        // ===== Экспорт cookies из браузера =====
+        // Список приходит с сервера: там видно, какие браузеры реально
+        // установлены. Предлагать отсутствующий браузер — вести к ошибке.
+        async function loadBrowsers() {
+            const select = $('cookieBrowser');
+            try {
+                const res = await fetch('/api/cookies/browsers');
+                const data = await res.json();
+                const list = data.browsers || [];
+                if (!list.length) throw new Error(t('пустой список'));
+                select.innerHTML = '';
+                for (const item of list) {
+                    const option = document.createElement('option');
+                    option.value = item.name;
+                    option.textContent = item.installed ? item.label : item.label + ' ' + t('(не найден)');
+                    option.disabled = !item.installed;
+                    select.appendChild(option);
+                }
+                // Явно выбирать первый установленный не нужно: браузер сам
+                // пропускает варианты с disabled. Проверено в
+                // tests/browser/cookies-browser-ui.cjs.
+            } catch (err) {
+                select.innerHTML = '<option value="">Список браузеров недоступен</option>';
+            }
+        }
+        $('importFromBrowser').addEventListener('click', async event => {
+            const button = event.currentTarget;
+            const browser = $('cookieBrowser').value;
+            if (!browser) { $('status').textContent = t('Выберите браузер.'); return; }
+            button.disabled = true;
+            const label = button.textContent;
+            button.textContent = t('Экспортирую…');
+            $('status').textContent = t('Читаю cookies из браузера…');
+            try {
+                const res = await fetch('/api/cookies/from-browser', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({browser}),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось прочитать cookies.'));
+                // Сначала обновляем общий статус, и только потом пишем итог:
+                // authStatus() тоже пишет в #status, и запущенный после него
+                // ответ затирал сообщение об успешном экспорте.
+                await authStatus();
+                $('status').textContent = t('Cookies из браузера сохранены: {count}.').replace('{count}', data.cookies_count);
+            } catch (err) {
+                $('status').textContent = err.message;
+            } finally {
+                button.disabled = false;
+                button.textContent = label;
+            }
+        });
+        loadBrowsers();
         $('authCheck').addEventListener('click', async () => { await fetch('/api/auth/ensure', {method:'POST'}); authStatus(); });
         $('authRefresh').addEventListener('click', authStatus);
         authStatus();
+
+        // ===== Хранение (пути к папкам) =====
+        // Поля перечислены в разметке через data-path: список ключей задаётся
+        // в одном месте, дублировать его в JS не нужно.
+        const pathFields = () => Array.from(document.querySelectorAll('[data-path]'));
+        let storageDefaults = {};
+
+        async function loadStorage() {
+            try {
+                const res = await fetch('/api/storage');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                storageDefaults = data.defaults || {};
+                for (const input of pathFields()) {
+                    const key = input.dataset.path;
+                    input.value = data[key] || '';
+                    // Относительный путь ничего не говорит о том, где файлы:
+                    // показываем, во что он разворачивается.
+                    const hint = $('hint-' + key);
+                    if (hint) hint.textContent = (data.resolved || {})[key] || '';
+                }
+            } catch (err) {
+                console.error('Не удалось загрузить пути:', err);
+                $('storageStatus').textContent = t('Не удалось загрузить текущие пути.');
+            }
+        }
+
+        async function saveStorage() {
+            const button = $('saveStorage');
+            const payload = {};
+            for (const input of pathFields()) {
+                const value = input.value.trim();
+                if (!value) {
+                    $('storageStatus').textContent = t('Пути не могут быть пустыми.');
+                    input.focus();
+                    return;
+                }
+                payload[input.dataset.path] = value;
+            }
+            button.disabled = true;
+            $('storageStatus').textContent = t('Сохраняю…');
+            try {
+                const res = await fetch('/api/storage', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось сохранить пути.'));
+                for (const input of pathFields()) {
+                    const hint = $('hint-' + input.dataset.path);
+                    if (hint) hint.textContent = (data.resolved || {})[input.dataset.path] || '';
+                }
+                $('storageStatus').textContent = t('Папки сохранены и применены, перезапуск не нужен.');
+            } catch (err) {
+                $('storageStatus').textContent = err.message;
+            } finally {
+                button.disabled = false;
+            }
+        }
+        $('saveStorage').addEventListener('click', saveStorage);
+        $('resetStorage').addEventListener('click', () => {
+            for (const input of pathFields()) {
+                if (storageDefaults[input.dataset.path]) input.value = storageDefaults[input.dataset.path];
+            }
+            $('storageStatus').textContent = t('Значения по умолчанию подставлены. Нажмите «Сохранить папки».');
+        });
+        loadStorage();
+
+        // Догрузка файлов: эндпоинты существовали, но кнопок для них не было.
+        async function runFileTask(url, button, message) {
+            button.disabled = true;
+            $('filesStatus').textContent = t('Запускаю…');
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({}),
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                $('filesStatus').textContent = message;
+            } catch (err) {
+                $('filesStatus').textContent = t('Не удалось запустить') + ': ' + err.message;
+            } finally {
+                button.disabled = false;
+            }
+        }
+        $('downloadAvatars').addEventListener('click', event =>
+            runFileTask('/api/avatars/download_all', event.currentTarget,
+                t('Аватарки скачиваются в фоне. Обновите страницу канала через минуту.')));
+        $('generateThumbs').addEventListener('click', event =>
+            runFileTask('/api/thumbnails/generate', event.currentTarget,
+                t('Превью создаются в фоне.')));
 
         // ===== Мои данные (избранное, история, скрытые каналы) =====
         function pluralize(n, forms) {
@@ -132,9 +526,9 @@
             const h = (data.history || []).length;
             const c = (data.hidden_channels || []).length;
             $('userdataSummary').textContent =
-                `В избранном ${f} ${pluralize(f, ['видео', 'видео', 'видео'])}, ` +
-                `в истории ${h} ${pluralize(h, ['запись', 'записи', 'записей'])}, ` +
-                `скрыто ${c} ${pluralize(c, ['канал', 'канала', 'каналов'])}.`;
+                `В избранном ${f} ${pluralize(f, [t('видео'), t('видео'), t('видео')])}, ` +
+                `в истории ${h} ${pluralize(h, [t('запись'), t('записи'), t('записей')])}, ` +
+                `скрыто ${c} ${pluralize(c, [t('канал'), t('канала'), t('каналов')])}.`;
         }
         async function loadUserdata() {
             try {
@@ -143,7 +537,7 @@
                 renderUserdata(await res.json());
             } catch (err) {
                 console.error('Не удалось загрузить данные:', err);
-                $('userdataSummary').textContent = 'Не удалось загрузить данные.';
+                $('userdataSummary').textContent = t('Не удалось загрузить данные.');
             }
         }
         // Очистка необратима, поэтому спрашиваем подтверждение.
@@ -154,19 +548,236 @@
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
                 renderUserdata(data);
-                $('status').textContent = 'Данные очищены.';
+                $('status').textContent = t('Данные очищены.');
             } catch (err) {
                 console.error('Не удалось очистить:', err);
-                $('status').textContent = 'Не удалось очистить: ' + err.message;
+                $('status').textContent = t('Не удалось очистить') + ': ' + err.message;
             }
         }
         $('clearHistory').addEventListener('click', () =>
-            clearSection('history', 'Очистить всю историю просмотров? Это действие необратимо.'));
+            clearSection('history', t('Очистить всю историю просмотров? Это действие необратимо.')));
         $('clearFavorites').addEventListener('click', () =>
-            clearSection('favorites', 'Удалить все видео из избранного? Это действие необратимо.'));
+            clearSection('favorites', t('Удалить все видео из избранного? Это действие необратимо.')));
         $('clearHidden').addEventListener('click', () =>
-            clearSection('hidden_channels', 'Показать все скрытые каналы?'));
+            clearSection('hidden_channels', t('Показать все скрытые каналы?')));
         loadUserdata();
+
+        // ===== Локальная сеть =====
+        // Свой сервер: адреса для гостей, QR, PIN, тумблер доступа.
+        // Чужие серверы: сохранённый список, проверка связи, поиск в подсети.
+        let netFirstUrl = '';
+
+        function renderAddresses(list) {
+            const box = $('netAddresses');
+            box.textContent = '';
+            if (!list.length) {
+                box.textContent = t('Не удалось определить адрес в сети.');
+                return;
+            }
+            for (const item of list) {
+                const row = document.createElement('div');
+                row.className = 'net-row';
+                // Адрес приходит с сервера, но вставляем текстом: разметку из
+                // данных собирать незачем.
+                const url = document.createElement('span');
+                url.className = 'net-url';
+                url.textContent = item.url;
+                const copy = document.createElement('button');
+                copy.type = 'button';
+                copy.textContent = t('Копировать');
+                copy.addEventListener('click', async () => {
+                    try {
+                        await navigator.clipboard.writeText(item.url);
+                        $('netStatus').textContent = t('Адрес скопирован.');
+                    } catch {
+                        $('netStatus').textContent = t('Скопируйте адрес вручную') + ': ' + item.url;
+                    }
+                });
+                row.append(url, copy);
+                box.append(row);
+            }
+        }
+
+        function renderServers(list) {
+            const box = $('netServers');
+            box.textContent = '';
+            if (!list.length) {
+                box.textContent = t('Пока ничего не добавлено.');
+                return;
+            }
+            for (const item of list) {
+                const row = document.createElement('div');
+                row.className = 'net-row';
+                const link = document.createElement('a');
+                link.className = 'net-url';
+                link.href = item.url;
+                link.textContent = item.title && item.title !== item.url
+                    ? `${item.title} — ${item.url}` : item.url;
+                const check = document.createElement('button');
+                check.type = 'button';
+                check.textContent = t('Проверить');
+                check.addEventListener('click', async () => {
+                    check.disabled = true;
+                    check.textContent = t('Проверяю...');
+                    try {
+                        const res = await fetch('/api/network/check', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: item.url }),
+                        });
+                        const data = await res.json();
+                        $('netScanStatus').textContent = data.online
+                            ? item.url + ': ' + t('на связи, видео — {count}.').replace('{count}', data.videos)
+                            : item.url + ': ' + t('не отвечает.');
+                    } catch (err) {
+                        $('netScanStatus').textContent = t('Не удалось проверить') + ': ' + err.message;
+                    } finally {
+                        check.disabled = false;
+                        check.textContent = t('Проверить');
+                    }
+                });
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.textContent = t('Убрать');
+                remove.addEventListener('click', async () => {
+                    try {
+                        const res = await fetch('/api/network/servers', {
+                            method: 'DELETE',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: item.url }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+                        renderServers(data.servers || []);
+                    } catch (err) {
+                        $('netScanStatus').textContent = t('Не удалось убрать') + ': ' + err.message;
+                    }
+                });
+                row.append(link, check, remove);
+                box.append(row);
+            }
+        }
+
+        async function loadNetwork() {
+            try {
+                const res = await fetch('/api/network/info');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                netFirstUrl = (data.addresses && data.addresses[0]) ? data.addresses[0].url : '';
+                renderAddresses(data.addresses || []);
+                renderServers(data.servers || []);
+                $('netPin').textContent = data.pin || '—';
+                $('netEnabled').checked = !!data.enabled;
+                updateEnabledHint(!!data.enabled);
+            } catch (err) {
+                console.error('Не удалось получить данные о сети:', err);
+                $('netStatus').textContent = t('Не удалось получить данные о сети.');
+            }
+        }
+
+        function updateEnabledHint(enabled) {
+            $('netEnabledHint').textContent = enabled
+                ? t('Устройства в сети могут смотреть видео.')
+                : t('Сервер отвечает только с этого компьютера.');
+        }
+
+        $('netEnabled').addEventListener('change', async event => {
+            const enabled = event.target.checked;
+            try {
+                const res = await fetch('/api/network/enabled', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+                updateEnabledHint(data.enabled);
+                $('netStatus').textContent = data.enabled
+                    ? t('Доступ из сети включён.') : t('Доступ из сети выключен.');
+            } catch (err) {
+                // Возвращаем галочку: иначе интерфейс показывал бы состояние,
+                // которого на сервере нет.
+                event.target.checked = !enabled;
+                $('netStatus').textContent = t('Не удалось изменить') + ': ' + err.message;
+            }
+        });
+
+        $('netShowQr').addEventListener('click', () => {
+            const box = $('netQrBox');
+            if (!box.hidden) { box.hidden = true; return; }
+            // Кэш-брейкер: адрес меняется при переходе в другую сеть.
+            $('netQrImage').src = '/api/network/qr?t=' + Date.now();
+            box.hidden = false;
+            if (netFirstUrl) $('netStatus').textContent = t('QR ведёт на {url}').replace('{url}', netFirstUrl);
+        });
+
+        $('netRegenPin').addEventListener('click', async () => {
+            if (!confirm(t('Сменить PIN? Все устройства, впущенные по старому PIN, потеряют доступ.'))) return;
+            try {
+                const res = await fetch('/api/network/pin/regenerate', { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+                $('netPin').textContent = data.pin;
+                $('netStatus').textContent = t('PIN изменён.');
+            } catch (err) {
+                $('netStatus').textContent = t('Не удалось сменить PIN') + ': ' + err.message;
+            }
+        });
+
+        $('netAddServer').addEventListener('click', async () => {
+            const url = $('netServerUrl').value.trim();
+            if (!url) { $('netScanStatus').textContent = t('Введите адрес.'); return; }
+            try {
+                const res = await fetch('/api/network/servers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+                renderServers(data.servers || []);
+                $('netServerUrl').value = '';
+                $('netScanStatus').textContent = t('Сервер добавлен.');
+            } catch (err) {
+                $('netScanStatus').textContent = t('Не удалось добавить') + ': ' + err.message;
+            }
+        });
+
+        $('netScan').addEventListener('click', async () => {
+            const btn = $('netScan');
+            btn.disabled = true;
+            btn.textContent = t('Ищу...');
+            $('netScanStatus').textContent = t('Просматриваю сеть, это занимает несколько секунд.');
+            try {
+                const res = await fetch('/api/network/scan', { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+                const found = data.servers || [];
+                if (!found.length) {
+                    $('netScanStatus').textContent = t('Других LocalTube в сети не нашлось.');
+                    return;
+                }
+                // Найденные сразу сохраняем: иначе список пропадёт при
+                // перезагрузке страницы.
+                for (const item of found) {
+                    await fetch('/api/network/servers', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: item.url, title: item.title }),
+                    });
+                }
+                const info = await (await fetch('/api/network/info')).json();
+                renderServers(info.servers || []);
+                $('netScanStatus').textContent = t('Найдено серверов: {count}.').replace('{count}', found.length);
+            } catch (err) {
+                $('netScanStatus').textContent = t('Поиск не удался') + ': ' + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = t('Найти в сети');
+            }
+        });
+
+        loadNetwork();
     </script>
 </body>
 </html>

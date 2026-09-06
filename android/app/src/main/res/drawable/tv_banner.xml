@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Баннер для лончера Android TV. Требуемое соотношение 320x180. -->
+<!--
+  Баннер для лончера Android TV. Требуемое соотношение 320 × 180.
+
+  Знак — тот же контур, что в шапке, иконке и веб-версии. Задан в системе
+  координат 24 × 24 и переносится группой: scale 5 при pivot 0,0 даёт
+  newX = 5·x + 100, newY = 5·y + 30. Контур занимает x 2..22, y 5..19, то есть
+  на баннере x 110..210, y 55..125 — по центру канвы (160, 90).
+
+  Прежняя версия рисовала самодельную плашку с треугольником и белую полосу
+  128 × 3 под ней. Полоса была заглушкой вместо надписи «LocalTube» и на экране
+  читалась просто как случайная черта, поэтому убрана: текст в VectorDrawable
+  нарисовать нечем, а рисовать буквы контурами вручную — только портить знак.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="320dp"
     android:height="180dp"
@@ -8,13 +20,14 @@
     <path
         android:fillColor="#0F0F0F"
         android:pathData="M0,0h320v180H0z" />
-    <path
-        android:fillColor="#FF0000"
-        android:pathData="M108,62h104a14,14 0 0 1 14,14v28a14,14 0 0 1 -14,14H108a14,14 0 0 1 -14,-14V76a14,14 0 0 1 14,-14z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M148,78l30,12l-30,12z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M96,134h128v3H96z" />
+    <group
+        android:scaleX="5"
+        android:scaleY="5"
+        android:translateX="100"
+        android:translateY="30">
+        <path
+            android:fillColor="#FF0000"
+            android:fillType="evenOdd"
+            android:pathData="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5S5.75,5,4.19,5.42C3.31,5.65,2.65,6.31,2.42,7.19C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19zM10,15V9l5.2,3L10,15z" />
+    </group>
 </vector>

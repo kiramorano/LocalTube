@@ -2,9 +2,14 @@
 
 html, body, button, input, select, textarea { font-family: var(--yt-font-family, 'Roboto', Arial, sans-serif); }
 
-[data-theme="frutiger-aero"] html,
-[data-theme="frutiger-aero"] body,
-[data-theme="frutiger-aero"] button,
-[data-theme="frutiger-aero"] input,
-[data-theme="frutiger-aero"] select,
-[data-theme="frutiger-aero"] textarea { font-family: 'Aero_03', Arial, sans-serif; }
+/* html[data-theme], а не [data-theme] html: атрибут стоит на самом <html>,
+   поэтому селектор-потомок `[data-theme="..."] html` не совпадал никогда — html
+   не может быть вложен ни во что. Из-за этого шрифт темы не применялся к
+   корневому элементу, и в шаблонах приходилось дублировать его вручную через
+   documentElement.style.fontFamily. */
+html[data-theme="frutiger-aero"],
+html[data-theme="frutiger-aero"] body,
+html[data-theme="frutiger-aero"] button,
+html[data-theme="frutiger-aero"] input,
+html[data-theme="frutiger-aero"] select,
+html[data-theme="frutiger-aero"] textarea { font-family: 'Aero_03', Arial, sans-serif; }

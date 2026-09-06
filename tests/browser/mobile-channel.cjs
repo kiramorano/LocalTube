@@ -1,6 +1,9 @@
 const path = require('path');
 const SHOTS = path.join(__dirname, 'shots');
 const { chromium, devices } = require('playwright');
+// Порт берём из LT_BASE: рабочий сервер на 5000 держит старый код, поэтому
+// проверять правки на нём бессмысленно.
+const BASE = process.env.LT_BASE || 'http://127.0.0.1:5000';
 (async () => {
   const b = await chromium.launch();
   const out = [];
@@ -11,7 +14,7 @@ const { chromium, devices } = require('playwright');
     p.on('pageerror', e => errs.push('pageerror: ' + e.message));
     p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
     await p.addInitScript(t => localStorage.setItem('lt_theme', t), theme);
-    await p.goto('http://127.0.0.1:5000/channel/' + encodeURIComponent('ANATA CARS'), { waitUntil: 'networkidle' });
+    await p.goto(BASE + '/channel/' + encodeURIComponent('ANATA CARS'), { waitUntil: 'networkidle' });
     await p.waitForTimeout(1500);
     const before = await p.evaluate(() => {
       const n = document.querySelector('.tabs');

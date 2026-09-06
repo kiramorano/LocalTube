@@ -6,16 +6,17 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.os.Build
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -58,6 +59,10 @@ class DownloadManager(
     @Volatile
     private var activeId: String? = null
 
+    /** Признак запущенного foreground-сервиса, чтобы не дёргать его на каждую задачу. */
+    @Volatile
+    private var serviceRunning = false
+
     private val notifications by lazy {
         app.getSystemService(NotificationManager::class.java)
     }
@@ -79,7 +84,8 @@ class DownloadManager(
         formatId: String,
         title: String,
         subLangs: String? = null,
-        priority: TaskPriority = TaskPriority.NORMAL
+        priority: TaskPriority = TaskPriority.NORMAL,
+        mergeFormat: String = Engine.DEFAULT_MERGE_FORMAT
     ): String {
         val id = UUID.randomUUID().toString().substring(0, 8)
         val task = DownloadTask(
@@ -92,9 +98,10 @@ class DownloadManager(
             addedAt = System.currentTimeMillis(),
             error = null,
             subLangs = subLangs,
-            priority = priority
+            priority = priority,
+            mergeFormat = Engine.normalizeMergeFormat(mergeFormat)
         )
-        _tasks.value = _tasks.value + task
+        _tasks.update { it + task }
         persist()
         ensureWorker()
         return id
@@ -104,10 +111,13 @@ class DownloadManager(
         val task = _tasks.value.firstOrNull { it.id == id } ?: return
         if (task.isFinished) return
         cancelRequests.add(id)
-        if (task.status == TaskStatus.DOWNLOADING) {
+        if (task.status == TaskStatus.DOWNLOADING || id == activeId) {
+            // Процесс могли ещё не зарегистрировать: пробуем всё равно, а
+            // cancelRequests подстрахует, если убить оказалось нечего.
             runCatching { Engine.cancel(id) }
         } else {
             // Ожидающую задачу помечаем сразу: она даже не начнётся.
+            cancelRequests.remove(id)
             update(id, TaskStatus.CANCELED, 0f)
         }
         persist()
@@ -118,36 +128,54 @@ class DownloadManager(
         if (_tasks.value.firstOrNull { it.id == id }?.status == TaskStatus.DOWNLOADING) {
             cancelRequests.add(id)
             runCatching { Engine.cancel(id) }
+        } else {
+            cancelRequests.remove(id)
         }
-        _tasks.value = _tasks.value.filterNot { it.id == id }
+        _tasks.update { list -> list.filterNot { it.id == id } }
+        runCatching { notifications?.cancel(id.hashCode()) }
         persist()
     }
 
+    /** Повтор начинается с чистого счётчика попыток, иначе он растёт вечно. */
     fun retry(id: String) {
         cancelRequests.remove(id)
-        _tasks.value = _tasks.value.map {
-            if (it.id == id && it.isFinished) {
-                it.copy(status = TaskStatus.WAITING, progress = 0f, error = null, speed = "", etaSeconds = 0)
-            } else it
+        _tasks.update { list ->
+            list.map {
+                if (it.id == id && it.isFinished) {
+                    it.copy(
+                        status = TaskStatus.WAITING,
+                        progress = 0f,
+                        error = null,
+                        speed = "",
+                        etaSeconds = 0,
+                        attempts = 0
+                    )
+                } else it
+            }
         }
         persist()
         ensureWorker()
     }
 
     fun retryAllFailed() {
-        _tasks.value = _tasks.value.map {
-            if (it.status == TaskStatus.ERROR) {
-                it.copy(status = TaskStatus.WAITING, progress = 0f, error = null)
-            } else it
+        _tasks.update { list ->
+            list.map {
+                if (it.status == TaskStatus.ERROR) {
+                    cancelRequests.remove(it.id)
+                    it.copy(status = TaskStatus.WAITING, progress = 0f, error = null, attempts = 0)
+                } else it
+            }
         }
         persist()
         ensureWorker()
     }
 
     fun setPriority(id: String, priority: TaskPriority) {
-        _tasks.value = _tasks.value.map {
-            // Менять приоритет уже качающейся задачи бессмысленно.
-            if (it.id == id && it.status == TaskStatus.WAITING) it.copy(priority = priority) else it
+        _tasks.update { list ->
+            list.map {
+                // Менять приоритет уже качающейся задачи бессмысленно.
+                if (it.id == id && it.status == TaskStatus.WAITING) it.copy(priority = priority) else it
+            }
         }
         persist()
     }
@@ -160,7 +188,12 @@ class DownloadManager(
     }
 
     fun clearFinished() {
-        _tasks.value = _tasks.value.filterNot { it.isFinished }
+        val finished = _tasks.value.filter { it.isFinished }
+        finished.forEach {
+            cancelRequests.remove(it.id)
+            runCatching { notifications?.cancel(it.id.hashCode()) }
+        }
+        _tasks.update { list -> list.filterNot { it.isFinished } }
         persist()
     }
 
@@ -169,23 +202,71 @@ class DownloadManager(
     private fun ensureWorker() {
         scope.launch {
             // Мьютекс гарантирует единственного воркера без гонки на флаге.
-            if (!workerMutex.tryLock()) return@launch
-            try {
-                while (true) {
-                    if (_paused.value) {
-                        if (_tasks.value.none { it.status == TaskStatus.WAITING }) break
-                        delay(1000)
-                        continue
-                    }
-                    val next = nextWaiting() ?: break
-                    activeId = next.id
-                    runTask(next)
-                    activeId = null
+            // Проверять приходится в цикле: уходящий воркер держит замок до
+            // самого конца, и без повторной попытки задача, добавленная в этот
+            // момент, оставалась бы в очереди навсегда.
+            while (true) {
+                if (!workerMutex.tryLock()) return@launch
+                try {
+                    drain()
+                } finally {
+                    workerMutex.unlock()
                 }
-            } finally {
-                workerMutex.unlock()
+                if (_paused.value) return@launch
+                if (_tasks.value.none { it.status == TaskStatus.WAITING }) return@launch
             }
         }
+    }
+
+    private suspend fun drain() {
+        try {
+            while (true) {
+                if (_paused.value) {
+                    // Ждём снятия паузы событием, а не опросом раз в секунду:
+                    // прежний цикл жил всё время работы процесса.
+                    if (_tasks.value.none { it.status == TaskStatus.WAITING }) return
+                    _paused.first { !it }
+                    continue
+                }
+                val next = nextWaiting() ?: return
+                activeId = next.id
+                startService(next.title)
+                try {
+                    runTask(next)
+                } finally {
+                    activeId = null
+                }
+            }
+        } finally {
+            stopService()
+        }
+    }
+
+    /**
+     * Пока идёт загрузка, живёт foreground-сервис: без него система вправе
+     * убить процесс, и длинная загрузка не доживала до конца, стоило свернуть
+     * приложение.
+     */
+    private fun startService(title: String) {
+        if (serviceRunning) return
+        val intent = Intent(app, DownloadService::class.java)
+            .putExtra(DownloadService.EXTRA_TEXT, title.take(80))
+        val ok = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                app.startForegroundService(intent)
+            } else {
+                app.startService(intent)
+            }
+        }.isSuccess
+        // На Android 12+ запуск из фона запрещён: тогда просто качаем без
+        // сервиса, вместо того чтобы уронить процесс необработанным исключением.
+        serviceRunning = ok
+    }
+
+    private fun stopService() {
+        if (!serviceRunning) return
+        serviceRunning = false
+        runCatching { app.stopService(Intent(app, DownloadService::class.java)) }
     }
 
     /**
@@ -203,15 +284,28 @@ class DownloadManager(
         }
         update(task.id, TaskStatus.DOWNLOADING, 0f, attempts = task.attempts + 1)
         val outDir = File(library.tmpRoot, task.id).apply { mkdirs() }
+        // Частичную загрузку сохраняем: yt-dlp запускается с -c и при повторе
+        // продолжает с того же места вместо скачивания заново.
+        var keepPartial = false
         try {
-            val langs = task.subLangs?.takeIf { it.isNotBlank() } ?: settings.subLangs
+            // Чистим языки от висячих запятых и пробелов: поле в настройках
+            // пишется на каждый символ, поэтому «ru,» — обычное состояние, а
+            // задачи из синхронизации канала идут сюда без фильтра chooseSubLangs.
+            val langs = Settings.normalizeLangs(
+                task.subLangs?.takeIf { it.isNotBlank() } ?: settings.subLangs
+            )
             val request = Engine.buildRequest(
                 url = task.url,
                 formatId = task.formatId,
                 outDir = outDir,
                 downloadSubs = settings.downloadSubs,
                 subLangs = langs,
-                cookiesPath = library.cookiesPath()
+                cookiesPath = library.cookiesPath(),
+                playerClient = settings.playerClient,
+                mergeFormat = task.mergeFormat,
+                audioLangs = Settings.normalizeLangs(settings.audioLangs)
+                    .split(',')
+                    .filter { it.isNotEmpty() }
             )
             var lastNotify = 0L
             Engine.download(request, task.id) { progress, eta, line ->
@@ -233,6 +327,7 @@ class DownloadManager(
             }
             val placed = postProcess(outDir, task.id)
             if (placed == 0) {
+                keepPartial = true
                 update(task.id, TaskStatus.ERROR, 0f, error = "yt-dlp не вернул файлы")
                 notifyDone(task, "Ошибка загрузки")
                 return
@@ -246,11 +341,12 @@ class DownloadManager(
                 update(task.id, TaskStatus.CANCELED, 0f)
                 notifyDone(task, "Загрузка отменена")
             } else {
+                keepPartial = true
                 update(task.id, TaskStatus.ERROR, 0f, error = (e.message ?: "ошибка").take(300))
                 notifyDone(task, "Ошибка загрузки")
             }
         } finally {
-            outDir.deleteRecursively()
+            if (!keepPartial) outDir.deleteRecursively()
             persist()
         }
     }
@@ -264,55 +360,79 @@ class DownloadManager(
         error: String? = null,
         attempts: Int? = null
     ) {
-        _tasks.value = _tasks.value.map {
-            if (it.id != id) it else it.copy(
-                status = status,
-                progress = if (status == TaskStatus.COMPLETED) 100f else progress,
-                error = error,
-                attempts = attempts ?: it.attempts,
-                speed = if (status == TaskStatus.DOWNLOADING) it.speed else "",
-                etaSeconds = if (status == TaskStatus.DOWNLOADING) it.etaSeconds else 0
-            )
+        // update() вместо value = value.map{}: прогресс приходит из потока
+        // yt-dlp, а отмена и удаление — с главного, и одно перетирало другое.
+        _tasks.update { list ->
+            list.map {
+                if (it.id != id) it else it.copy(
+                    status = status,
+                    progress = if (status == TaskStatus.COMPLETED) 100f else progress,
+                    error = error,
+                    attempts = attempts ?: it.attempts,
+                    speed = if (status == TaskStatus.DOWNLOADING) it.speed else "",
+                    etaSeconds = if (status == TaskStatus.DOWNLOADING) it.etaSeconds else 0
+                )
+            }
         }
         persist()
     }
 
     private fun updateProgress(id: String, progress: Float, eta: Long, speed: String) {
-        _tasks.value = _tasks.value.map {
-            if (it.id != id) it
-            else it.copy(progress = progress, etaSeconds = eta.coerceAtLeast(0), speed = speed)
+        _tasks.update { list ->
+            list.map {
+                if (it.id != id) it
+                else it.copy(progress = progress, etaSeconds = eta.coerceAtLeast(0), speed = speed)
+            }
         }
     }
 
+    /**
+     * Запись очереди на диск. Идёт в отдельной корутине: вызовы приходят из
+     * обработчиков нажатий, а JsonStore.write копирует бэкап и переписывает
+     * файл целиком — на главном потоке это заметный фриз.
+     */
     private fun persist() {
-        runCatching {
-            val arr = JSONArray()
-            _tasks.value.forEach { t ->
-                arr.put(JSONObject().apply {
-                    put("id", t.id)
-                    put("title", t.title)
-                    put("url", t.url)
-                    put("format_id", t.formatId)
-                    put("status", t.status.name)
-                    put("progress", t.progress.toDouble())
-                    put("added_at", t.addedAt)
-                    put("error", t.error ?: "")
-                    put("sub_langs", t.subLangs ?: "")
-                    put("priority", t.priority.name)
-                    put("attempts", t.attempts)
+        val snapshot = _tasks.value
+        val paused = _paused.value
+        scope.launch {
+            runCatching {
+                val arr = JSONArray()
+                snapshot.forEach { t ->
+                    arr.put(JSONObject().apply {
+                        put("id", t.id)
+                        put("title", t.title)
+                        put("url", t.url)
+                        put("format_id", t.formatId)
+                        put("status", t.status.name)
+                        put("progress", t.progress.toDouble())
+                        put("added_at", t.addedAt)
+                        put("error", t.error ?: "")
+                        put("sub_langs", t.subLangs ?: "")
+                        put("priority", t.priority.name)
+                        put("attempts", t.attempts)
+                        put("merge_format", t.mergeFormat)
+                    })
+                }
+                JsonStore.write(stateFile, JSONObject().apply {
+                    put("paused", paused)
+                    put("tasks", arr)
                 })
             }
-            JsonStore.write(stateFile, JSONObject().apply {
-                put("paused", _paused.value)
-                put("tasks", arr)
-            })
         }
     }
 
     private fun restore() {
-        val json = JsonStore.read(stateFile) ?: return
+        val json = JsonStore.read(stateFile)
+        if (json == null) {
+            cleanupTmp(emptySet())
+            return
+        }
         _paused.value = json.optBoolean("paused", false)
-        val arr = json.optJSONArray("tasks") ?: return
+        val arr = json.optJSONArray("tasks")
+        if (arr == null) {
+            cleanupTmp(emptySet())
+            return
+        }
         val restored = mutableListOf<DownloadTask>()
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
@@ -331,11 +451,29 @@ class DownloadManager(
                 subLangs = o.optString("sub_langs").ifBlank { null },
                 priority = runCatching { TaskPriority.valueOf(o.optString("priority")) }
                     .getOrDefault(TaskPriority.NORMAL),
-                attempts = o.optInt("attempts", 0)
+                attempts = o.optInt("attempts", 0),
+                // Очередь с прошлой версии контейнера не знает: normalize вернёт mp4.
+                mergeFormat = Engine.normalizeMergeFormat(o.optString("merge_format"))
             )
         }
         _tasks.value = restored
+        cleanupTmp(restored.map { it.id }.toSet())
         if (restored.any { it.status == TaskStatus.WAITING }) ensureWorker()
+    }
+
+    /**
+     * Убирает мусор из tmp: процесс могли убить во время загрузки, и тогда
+     * фрагменты оставались навсегда, занимая место, которое пользователь не мог
+     * освободить из приложения.
+     */
+    private fun cleanupTmp(knownIds: Set<String>) {
+        scope.launch {
+            runCatching {
+                library.tmpRoot.listFiles()?.forEach { f ->
+                    if (f.name !in knownIds) f.deleteRecursively()
+                }
+            }
+        }
     }
 
     // ---------- раскладка результата ----------
@@ -356,16 +494,19 @@ class DownloadManager(
             val author = library.safeName(meta.optString("uploader").ifEmpty { "Unknown" })
             // Вертикальные видео помечаем в имени папки, как на сервере.
             val destDir = File(File(library.root, author), id).apply { mkdirs() }
-            val videoSrc = outDir.listFiles()
-                ?.firstOrNull {
-                    it.isFile && it.name.startsWith("$id.") &&
-                        it.extension.lowercase() in setOf("mp4", "mkv", "webm", "avi", "mov")
-                }
-            if (videoSrc == null) continue
-            val dest = File(destDir, "video.${videoSrc.extension}")
-            if (videoSrc.absolutePath != dest.absolutePath) {
+            val candidates = outDir.listFiles()
+                ?.filter { it.isFile && it.name.startsWith("$id.") }
+                .orEmpty()
+            val videoSrc = candidates.firstOrNull { it.extension.lowercase() in VIDEO_EXTS }
+            // Аудиодорожка тоже результат: раньше загрузка «только звука»
+            // всегда падала с «yt-dlp не вернул файлы», а файл удалялся.
+            val audioSrc = candidates.firstOrNull { it.extension.lowercase() in AUDIO_EXTS }
+            val src = videoSrc ?: audioSrc ?: continue
+            val baseName = if (videoSrc != null) "video" else "audio"
+            val dest = File(destDir, "$baseName.${src.extension}")
+            if (src.absolutePath != dest.absolutePath) {
                 // renameTo вместо copyTo: копирование удваивало расход диска.
-                if (!videoSrc.renameTo(dest)) videoSrc.copyTo(dest, overwrite = true)
+                if (!src.renameTo(dest)) src.copyTo(dest, overwrite = true)
             }
             infoFile.copyTo(File(destDir, "info.json"), overwrite = true)
             outDir.listFiles()?.forEach { f ->
@@ -375,7 +516,8 @@ class DownloadManager(
                 when {
                     name == "$id.$thumbExt" && thumbExt != null ->
                         f.copyTo(File(destDir, "thumbnail.$thumbExt"), overwrite = true)
-                    name.startsWith("$id.") && name.endsWith(".vtt") ->
+                    // Кроме vtt берём и srt: --sub-format может отдать любой из них.
+                    name.startsWith("$id.") && (name.endsWith(".vtt") || name.endsWith(".srt")) ->
                         f.copyTo(File(destDir, name.removePrefix("$id.")), overwrite = true)
                 }
             }
@@ -392,7 +534,9 @@ class DownloadManager(
                 arr.put(JSONObject().apply {
                     put("id", id)
                     put("title", meta.optString("title", "Без названия"))
-                    put("author", meta.optString("uploader", "Unknown"))
+                    // Имя автора пишем уже нормализованным: плейлист ищет папку
+                    // по этому полю, а на диске она названа через safeName.
+                    put("author", author)
                 })
                 playlistJson = pl
             }
@@ -451,5 +595,10 @@ class DownloadManager(
             )
         }
         return PendingIntent.getActivity(app, 0, Intent(), PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    companion object {
+        internal val VIDEO_EXTS = setOf("mp4", "mkv", "webm", "avi", "mov")
+        internal val AUDIO_EXTS = setOf("m4a", "mp3", "opus", "aac", "ogg", "flac", "wav")
     }
 }

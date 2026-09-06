@@ -17,11 +17,26 @@ def get_extractor():
 
 def get_po_args() -> Dict:
     # Возвращает extractor_args по настройкам (player_client + po_token)
+    # и remote_components (решатель JS-челленджа).
     try:
         from auth_options import build_ydl_args
         return build_ydl_args()
     except Exception:
         return {}
+
+def apply_po_args(opts: Dict, args: Dict = None) -> Dict:
+    """Вливает аргументы авторизации в опции yt-dlp, не затирая уже заданные.
+
+    Нужен вместо opts.update(get_po_args()): update затирал extractor_args
+    целиком вместе с youtubetab:skip=authcheck.
+    """
+    try:
+        from auth_options import apply_ydl_args
+        return apply_ydl_args(opts, args)
+    except Exception:
+        if args:
+            opts.update(args)
+        return opts
 
 def get_po_method() -> str:
     return "yt-dlp Default (Cookies Mode)"

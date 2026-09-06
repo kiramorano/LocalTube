@@ -1,7 +1,7 @@
 const path = require('path');
 const SHOTS = path.join(__dirname, 'shots');
 const { chromium } = require('playwright');
-const BASE = 'http://127.0.0.1:5000';
+const BASE = process.env.LT_BASE || 'http://127.0.0.1:5000';
 const CHANNEL = '/channel/' + encodeURIComponent('ANATA CARS');
 
 // Verifies the sync diagnostics panel without hitting YouTube: network calls to the
@@ -105,7 +105,8 @@ async function main() {
     await ctx.close();
   }
 
-  // 6. bulk download refuses to run while sync failed / in progress
+  // 6. bulk download works even when the asset sync failed: the two are unrelated,
+  // sync only fetches the banner and description.
   {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
@@ -113,43 +114,64 @@ async function main() {
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
     page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
     let remainingCalled = 0;
-    await page.route('**/remaining', route => { remainingCalled += 1; route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ videos: [], count: 0 }) }); });
+    let queueBody = null;
+    await page.route('**/remaining', route => { remainingCalled += 1; route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ title: 'Chan', videos: [{ id: 'a', url: 'https://www.youtube.com/watch?v=a', title: 'A' }], count: 1 }) }); });
+    await page.route('**/api/queue/add', route => { queueBody = route.request().postDataJSON(); route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', task_id: 'deadbeef' }) }); });
     await page.route('**/sync-status', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'error', in_progress: false, error: 'Connection reset' }) }));
     await page.goto(BASE + CHANNEL, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(300);
     await page.evaluate(() => renderSyncStatus({ status: 'error', error: 'Connection reset', in_progress: false }));
     const hasButton = await page.evaluate(() => !!document.getElementById('downloadRemaining'));
+    // The button now opens the picker; the queue call happens on confirm.
     let toastText = '';
+    let pickerShown = false;
     if (hasButton) {
       await page.click('#downloadRemaining');
+      await page.waitForTimeout(700);
+      pickerShown = await page.evaluate(() => !document.getElementById('dlOverlay').hidden);
+      await page.click('#dlConfirm');
       await page.waitForTimeout(700);
       toastText = await page.evaluate(() => document.getElementById('toast').textContent.trim());
     }
     results.push({
-      test: 'bulk download blocked after sync error',
-      pass: hasButton && remainingCalled === 0 && toastText.includes('Обновить канал') && errors.length === 0,
-      detail: { hasButton, remainingCalled, toastText }, errors,
+      test: 'bulk download works despite sync error',
+      pass: hasButton && pickerShown && remainingCalled === 1 && toastText.includes('Добавлено в очередь')
+            && !!queueBody && queueBody.urls.length === 1 && errors.length === 0,
+      detail: { hasButton, pickerShown, remainingCalled, toastText, queueBody }, errors,
     });
     await ctx.close();
   }
 
-  // 7. in-progress sync also blocks bulk download
+  // 7. queue errors returned with HTTP 200 must still surface to the user
   {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
     page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
-    let remainingCalled = 0;
-    await page.route('**/remaining', route => { remainingCalled += 1; route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ videos: [], count: 0 }) }); });
-    await page.route('**/sync-status', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'checking', in_progress: true, error: '' }) }));
+    await page.route('**/remaining', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ title: 'Chan', videos: [{ id: 'a', url: 'https://www.youtube.com/watch?v=a', title: 'A' }], count: 1 }) }));
+    await page.route('**/api/queue/add', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ error: 'Нет ссылок' }) }));
+    await page.route('**/sync-status', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'success', in_progress: false, error: '' }) }));
     await page.goto(BASE + CHANNEL, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(300);
-    await page.evaluate(() => renderSyncStatus({ status: 'checking', error: '', in_progress: true }));
     await page.click('#downloadRemaining');
     await page.waitForTimeout(700);
-    const toastText = await page.evaluate(() => document.getElementById('toast').textContent.trim());
-    results.push({ test: 'bulk download blocked while checking', pass: remainingCalled === 0 && toastText.includes('выполняется') && errors.length === 0, detail: { remainingCalled, toastText }, errors });
+    await page.click('#dlConfirm');
+    await page.waitForTimeout(700);
+    const state = await page.evaluate(() => ({
+      toast: document.getElementById('toast').textContent.trim(),
+      disabled: document.getElementById('downloadRemaining').disabled,
+      label: document.getElementById('downloadRemaining').textContent.trim(),
+      // On failure the picker must stay open so the choice is not lost.
+      pickerOpen: !document.getElementById('dlOverlay').hidden,
+      confirmEnabled: !document.getElementById('dlConfirm').disabled,
+    }));
+    results.push({
+      test: 'queue error with HTTP 200 is reported',
+      pass: state.toast.includes('Нет ссылок') && !state.disabled && state.label.includes('Скачать остальные')
+            && state.pickerOpen && state.confirmEnabled && errors.length === 0,
+      detail: state, errors,
+    });
     await ctx.close();
   }
 

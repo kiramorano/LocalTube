@@ -1,60 +1,813 @@
-/* LocalTube 1.6 mobile layout */
-html { -webkit-text-size-adjust: 100%; }
-button, input, select, textarea { font: inherit; }
-.modal-overlay { overflow-y: auto; padding: 16px 0; }
-.modal-content { max-height: calc(100dvh - 32px); overflow-y: auto; }
-@media (max-width: 600px) {
-  /* Очередь — отдельный контейнер вне #mainContent, ему тоже надо снять отступ
-     под сайдбар, иначе страница уезжает вправо и появляется горизонтальный скролл. */
-  #mainContent, #queueContainer { margin-left: 0 !important; padding: calc(var(--yt-header-height) + 12px) 12px 24px !important; }
-  .queue-toolbar { flex-direction: column; align-items: stretch; }
-  .queue-toolbar-actions { display: grid; grid-template-columns: 1fr 1fr; }
-  .queue-toolbar-actions button { width: 100%; }
-  .queue-item { flex-wrap: wrap; }
-  .queue-item-info { min-width: 0; flex: 1 1 100%; }
-  .queue-item-title { overflow-wrap: anywhere; }
-  .queue-item-actions { flex-wrap: wrap; }
-  header { padding: 0 10px; }
-  .header-left { gap: 8px; min-width: 0; }
-  .logo { font-size: 17px; white-space: nowrap; }
-  .logo svg { width: 26px; }
-  .page-content { padding-top: calc(var(--yt-header-height) + 12px); padding-bottom: 24px; }
-  .watch-layout { padding: 0; gap: 12px; }
-  .primary-column, .content-wrapper { width: 100%; }
-  .yt-player-container { margin-bottom: 12px; aspect-ratio: 16 / 9; }
-  .player-controls { padding: 0 6px; }
-  .controls-row { padding-bottom: 4px; }
-  .controls-left, .controls-right { gap: 0; }
-  .control-btn { width: 38px; height: 34px; }
-  .control-btn svg { width: 21px; height: 21px; }
-  .controls-right .control-btn:nth-child(1), .controls-right .control-btn:nth-child(2), .controls-right .control-btn:nth-child(3) { display: none; }
-  .time-display { font-size: 11px; margin-left: 2px; }
-  .volume-container:hover .volume-slider { width: 42px; }
-  .video-grid { grid-template-columns: minmax(0, 1fr) !important; gap: 16px; }
-  .toolbar { width: 100%; }
-  .toolbar input, .toolbar select, .toolbar button { width: 100%; }
-  .short-card { width: min(210px, 72vw); }
-  .meta-row { align-items: flex-start; gap: 8px; margin-bottom: 10px; }
-  .channel-info { gap: 8px; }
-  .channel-avatar { width: 34px; height: 34px; font-size: 15px; }
-  .channel-name { font-size: 14px; }
-  .hide-channel-btn { padding: 5px 8px; font-size: 12px; }
-  .hide-channel-btn span { display: none; }
-  .edit-buttons { width: 100%; margin-left: 42px; }
-  .edit-btn { flex: 1; }
-  .description-box, .subtitles-section { border-radius: 8px; padding: 10px; font-size: 13px; }
-  .subtitle-actions { display: grid; grid-template-columns: 1fr 1fr; }
-  .subtitle-actions input, .subtitle-actions button { width: 100%; min-height: 40px; }
-  .download-file-btn { width: 100%; text-align: center; margin: 4px 0 12px; }
-  .secondary-column { padding: 0 12px; }
-  .related-thumb { width: 132px; height: 74px; }
-  .related-title { font-size: 13px; }
-  #toast-container { left: 12px; right: 12px; bottom: 12px; }
-  .toast { font-size: 13px; }
-  .modal-content { width: calc(100% - 24px); padding: 16px; }
+/* LocalTube mobile layout.
+ *
+ * ВАЖНО: этот файл должен подключаться ПОСЛЕ инлайновых <style> шаблона.
+ * Правила здесь имеют ту же специфичность, что и правила шаблонов, поэтому
+ * побеждает тот, кто идёт последним. Когда mobile.css стоял перед <style>,
+ * его медиазапросы молча проигрывали: кнопки плеера оставались 38x34 вместо
+ * увеличенных, а поле языка субтитров — 80px вместо всей ширины.
+ *
+ * По той же причине здесь почти нет !important: порядок подключения решает
+ * конфликт сам. Исключение — правила, которые шаблон задаёт инлайном
+ * (margin-left у #mainContent) или через !important (шорты).
+ *
+ * Размеры, радиусы и отступы берутся из токенов ui.css (--lt-*). Раньше это
+ * были числа по месту, и в одном файле соседствовали радиусы 8, 10, 12, 16,
+ * 18, 22 и 50%, а минимальная площадь под палец — то 40px, то 44px.
+ */
+html {
+  -webkit-text-size-adjust: 100%;
 }
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+/* === Мобильные компоненты ===
+   Разметка нижней навигации приходит из templates/_mobile_nav.html и лежит на
+   каждой странице, но показывается только на телефоне: на широком экране её
+   роль выполняет закреплённый сайдбар. */
+.lt-bottom-nav {
+  display: none;
+}
+
+.modal-overlay {
+  overflow-y: auto;
+  padding: var(--lt-space-4) 0;
+}
+
+.modal-content {
+  max-height: calc(100dvh - 2 * var(--lt-space-4));
+  overflow-y: auto;
+}
+
+@media (max-width: 600px) {
+  /* === Основные контейнеры ===
+     margin-left задан инлайном в разметке, поэтому только здесь !important.
+     Отступ снизу — под нижнюю навигацию: без него панель накрывала последнюю
+     карточку списка и до неё нельзя было дотянуться. */
+  #mainContent, #queueContainer {
+    margin-left: 0 !important;
+    padding: calc(var(--yt-header-height) + var(--lt-safe-top) + var(--lt-space-4))
+             var(--lt-space-4) var(--lt-nav-gap) !important;
+  }
+
+  /* Прокрутка к элементу (scrollIntoView у вкладок канала, переход по #якорю)
+     не знает про закреплённую панель и оставляла цель под ней. */
+  html {
+    scroll-padding-bottom: var(--lt-nav-gap);
+    scroll-padding-top: calc(var(--yt-header-height) + var(--lt-safe-top));
+  }
+
+  /* Подсветка касания у Safari/Chrome — серый прямоугольник поверх скруглений,
+     она портит и карточки, и круглые кнопки. Отклик рисуем сами через :active. */
+  a, button, .menu-icon, .chip, .tab, .tab-btn, .sidebar-item, .video-card, .short-card {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Убирает задержку 300ms перед click на тач-экранах. */
+  button, .menu-icon, .chip, .tab, .tab-btn, a.sidebar-item, .lt-nav-item {
+    touch-action: manipulation;
+  }
+
+  /* === Очередь === */
+  .queue-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--lt-space-3);
+    padding: var(--lt-space-3);
+    border-radius: var(--lt-radius-md);
+    /* Фон карточки совпадает с фоном страницы в светлой теме, поэтому рамка
+       обязательна: без неё панель кнопок сливается со страницей. */
+    background: var(--yt-card-bg);
+    border: 1px solid var(--lt-hairline);
+  }
+
+  .queue-toolbar-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--lt-space-2);
+  }
+
+  .queue-toolbar-actions button {
+    width: 100%;
+    min-height: var(--lt-tap);
+    padding: 10px var(--lt-space-3);
+    border-radius: var(--lt-radius-sm);
+    font-size: var(--lt-text-sm);
+  }
+
+  .queue-item {
+    flex-wrap: wrap;
+    padding: var(--lt-space-3);
+    gap: var(--lt-space-3);
+  }
+
+  .queue-item-info {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .queue-item-title {
+    overflow-wrap: anywhere;
+    font-size: var(--lt-text-md);
+    line-height: var(--lt-leading);
+  }
+
+  .queue-item-actions {
+    flex-wrap: wrap;
+    gap: var(--lt-space-2);
+  }
+
+  .queue-item-actions button, .cancel-btn, .retry-btn, .remove-btn {
+    min-height: var(--lt-tap);
+  }
+
+  /* === Хедер ===
+     safe-area-inset-top: на телефонах с вырезом строка состояния накладывалась
+     на гамбургер и поле ссылки. */
+  header {
+    height: calc(var(--yt-header-height) + var(--lt-safe-top));
+    padding: var(--lt-safe-top) max(var(--lt-space-3), var(--lt-safe-left))
+             0 max(var(--lt-space-3), var(--lt-safe-right));
+  }
+
+  .header-left {
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  /* Гамбургер: сам рисунок остаётся 24x24, но область нажатия — во всю цель.
+     Ширину и высоту задаём явно; при box-sizing: border-box одного padding
+     не хватает — он съедает рисунок, и от иконки остаётся 8x8. */
+  .menu-icon {
+    width: var(--lt-tap);
+    height: var(--lt-tap);
+    padding: 10px;
+    margin: -10px;
+    box-sizing: border-box;
+    border-radius: var(--lt-radius-pill);
+  }
+
+  .menu-icon:active {
+    background-color: var(--lt-pressed);
+  }
+
+  /* Подпись логотипа на телефоне убираем: место нужно полю ввода ссылки.
+     Иконка остаётся ссылкой на главную. Текст лежит голым узлом внутри <a>,
+     отдельного элемента под него нет — поэтому гасим размером шрифта. */
+  .logo {
+    font-size: 0;
+    white-space: nowrap;
+    gap: 0;
+    /* Сам рисунок 28x20, но ссылка должна оставаться нажимаемой целью. */
+    min-width: var(--lt-tap);
+    min-height: var(--lt-tap);
+    justify-content: center;
+  }
+
+  .logo svg {
+    width: 28px;
+    flex-shrink: 0;
+  }
+
+  /* 16px обязательны для любого поля ввода. При меньшем размере Safari на iOS
+     принудительно приближает страницу при фокусе, и после ввода пользователь
+     остаётся на увеличенном, съехавшем в сторону экране; обратно он сам не
+     возвращается. Ползунки, флажки и переключатели текст не содержат.
+     .url-quality исключён: селект качества на телефоне скрыт, а 16px растянули
+     бы склейку поиска за край экрана. */
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+  select:not(.url-quality),
+  textarea {
+    font-size: var(--lt-text-xl);
+  }
+
+  .url-input {
+    height: var(--lt-tap);
+  }
+
+  .url-quality, .download-btn {
+    height: var(--lt-tap);
+  }
+
+  .icon-btn, .user-profile-btn {
+    min-width: var(--lt-tap);
+    min-height: var(--lt-tap);
+  }
+
+  /* === Контент страницы === */
+  .page-content {
+    padding-top: calc(var(--yt-header-height) + var(--lt-safe-top) + var(--lt-space-3));
+    padding-bottom: var(--lt-nav-gap);
+  }
+
+  .watch-layout {
+    padding: 0;
+    gap: var(--lt-space-4);
+  }
+
+  .primary-column, .content-wrapper {
+    width: 100%;
+  }
+
+  /* === Видеоплеер ===
+     Селектор с .primary-column, чтобы не задеть плеер в режиме шортов. */
+  .primary-column > .yt-player-container {
+    margin-bottom: var(--lt-space-4);
+    aspect-ratio: 16 / 9;
+    border-radius: 0;
+  }
+
+  .player-controls {
+    padding: 0 var(--lt-space-2);
+  }
+
+  .controls-row {
+    padding-bottom: 6px;
+  }
+
+  .controls-left, .controls-right {
+    gap: 2px;
+    min-width: 0;
+  }
+
+  /* 46x36 исходно, палец промахивался. Комментарий рядом раньше утверждал, что
+     больше 40px ряд не влезает в 360px — это неверно: при 44px и пяти видимых
+     кнопках (скорость и субтитры скрыты ниже) на 320px остаётся ещё 15px
+     запаса. Замерено на 320/360/380/393/412px, обрезки нет ни на одной ширине. */
+  .control-btn {
+    width: var(--lt-tap);
+    height: var(--lt-tap);
+    padding: 0;
+    border-radius: var(--lt-radius-pill);
+  }
+
+  .control-btn:active {
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .control-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* Прячем только скорость и субтитры: они дублируются жестами и меню.
+     Настройки (там выбор качества), театр и полный экран обязаны остаться —
+     иначе качество на телефоне не переключить. */
+  .controls-right .control-btn:nth-child(1),
+  .controls-right .control-btn:nth-child(2) {
+    display: none;
+  }
+
+  .time-display {
+    font-size: var(--lt-text-xs);
+    margin-left: var(--lt-space-1);
+    white-space: nowrap;
+  }
+
+  /* === Видео-сетка === */
+  .video-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: var(--lt-space-4);
+  }
+
+  .video-thumb {
+    border-radius: var(--lt-radius-md);
+  }
+
+  .video-details {
+    padding: 10px 2px 0;
+    gap: 10px;
+  }
+
+  .video-title {
+    font-size: var(--lt-text-lg);
+    line-height: var(--lt-leading);
+    margin-bottom: var(--lt-space-1);
+  }
+
+  .video-meta {
+    font-size: var(--lt-text-sm);
+  }
+
+  /* Карточка нажимается целиком, поэтому отклик рисуем на ней, а не на
+     превью: иначе подсветка не совпадала с областью нажатия. */
+  .video-card:active {
+    transform: scale(.985);
+  }
+
+  /* === Фильтры ===
+     Перенос на вторую строку съедал экран под шапкой. Лента с прокруткой
+     ведёт себя как полоса вкладок канала — привычнее на телефоне. */
+  .chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Отступы по краям должны прокручиваться вместе с содержимым, иначе
+       последний фильтр прилипает к краю экрана. */
+    padding: 0 var(--lt-space-4);
+    margin-inline: calc(-1 * var(--lt-space-4));
+    scroll-padding-inline: var(--lt-space-4);
+  }
+
+  .chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chip {
+    flex: 0 0 auto;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--lt-radius-pill);
+  }
+
+  /* === Тулбар === */
+  .toolbar {
+    width: 100%;
+    padding: var(--lt-space-3);
+    gap: 10px;
+    border-radius: var(--lt-radius-md);
+  }
+
+  .toolbar input,
+  .toolbar select,
+  .toolbar button {
+    width: 100%;
+    min-height: var(--lt-tap);
+    padding: 10px var(--lt-space-4);
+    border-radius: var(--lt-radius-sm);
+    /* 16px: см. комментарий у .url-input про приближение в Safari. */
+    font-size: var(--lt-text-xl);
+  }
+
+  /* === Shorts-полка на главной ===
+     Прилипание к краю карточки: без него полка останавливалась на середине
+     ролика и выглядела как обрезанная. */
+  .shorts-shelf {
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--lt-space-4);
+    scrollbar-width: none;
+  }
+
+  .shorts-shelf::-webkit-scrollbar {
+    display: none;
+  }
+
+  .short-card {
+    width: min(150px, 42vw);
+    scroll-snap-align: start;
+  }
+
+  .short-thumb {
+    border-radius: var(--lt-radius-md);
+  }
+
+  .short-title {
+    margin-top: var(--lt-space-2);
+    font-size: var(--lt-text-md);
+    line-height: var(--lt-leading-tight);
+  }
+
+  .shorts-shelf-container {
+    margin: var(--lt-space-6) 0;
+    padding: var(--lt-space-5) 0;
+  }
+
+  .shorts-title h2 {
+    font-size: var(--lt-text-2xl);
+  }
+
+  /* === Информация о канале ===
+     Горизонтальные отступы задаёт .content-wrapper. Своё padding/margin здесь
+     складывалось с ним, и описание уезжало на 28px, пока заголовок стоял на 12. */
+  .meta-row {
+    align-items: flex-start;
+    gap: var(--lt-space-3);
+    margin-bottom: var(--lt-space-3);
+  }
+
+  .channel-info {
+    gap: 10px;
+  }
+
+  .channel-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: var(--lt-text-xl);
+  }
+
+  .channel-name {
+    font-size: var(--lt-text-lg);
+  }
+
+  /* Подпись убрана, остаётся один значок — кнопка должна остаться квадратной
+     целью, а не сжаться до ширины значка. */
+  .hide-channel-btn {
+    min-width: var(--lt-tap);
+    justify-content: center;
+    padding: 10px var(--lt-space-3);
+    font-size: var(--lt-text-sm);
+    border-radius: var(--lt-radius-pill);
+  }
+
+  .hide-channel-btn span {
+    display: none;
+  }
+
+  /* Текстовые ссылки внутри строк («Показать все →», «Настройки» и логотип в
+     шапке канала и настроек) остаются низкими: у них нет отступов, только
+     строка текста. Высоту добираем без изменения вида. */
+  .shorts-title a,
+  .header-link,
+  header > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--lt-tap);
+  }
+
+  .edit-btn, .save-btn, .hide-channel-btn {
+    min-height: var(--lt-tap);
+  }
+
+  /* === Описание и субтитры ===
+     Фон задан в шаблоне через переменную темы. Своего фона здесь быть не должно:
+     хардкод #1f1f1f делал блок тёмным в светлой теме. */
+  .description-box,
+  .subtitles-section {
+    border-radius: var(--lt-radius-md);
+    padding: var(--lt-space-4);
+    font-size: var(--lt-text-md);
+  }
+
+  .subtitle-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--lt-space-2);
+  }
+
+  .subtitle-actions input,
+  .subtitle-actions button {
+    width: 100%;
+    min-height: var(--lt-tap);
+    border-radius: var(--lt-radius-sm);
+  }
+
+  /* Поле кода языка — единственное текстовое поле в этом блоке, ему тоже
+     нужны 16px против приближения в Safari. */
+  .subtitle-actions input {
+    font-size: var(--lt-text-xl);
+  }
+
+  .download-file-btn {
+    display: block;
+    width: 100%;
+    text-align: center;
+    margin: 6px 0 var(--lt-space-4);
+    padding: var(--lt-space-3) 10px;
+    border-radius: var(--lt-radius-pill);
+  }
+
+  .related-title {
+    font-size: var(--lt-text-md);
+    line-height: var(--lt-leading-tight);
+  }
+
+  .related-tabs {
+    scrollbar-width: none;
+  }
+
+  .related-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .related-tab {
+    min-height: var(--lt-tap);
+    border-radius: var(--lt-radius-pill);
+  }
+
+  /* === Уведомления ===
+     Над нижней навигацией: при bottom: 12px уведомление всплывало прямо под
+     панелью и читалась только его верхняя половина. */
+  #toast-container {
+    left: max(var(--lt-space-3), var(--lt-safe-left));
+    right: max(var(--lt-space-3), var(--lt-safe-right));
+    bottom: var(--lt-nav-gap);
+  }
+
+  .toast {
+    font-size: var(--lt-text-md);
+    padding: var(--lt-space-4) 18px;
+    border-radius: var(--lt-radius-md);
+    box-shadow: var(--lt-shadow-2);
+  }
+
+  /* Уведомление выезжало сбоку (translateX): на всю ширину экрана это читалось
+     как рывок за край. Снизу движение совпадает с направлением появления. */
+  @keyframes slideIn {
+    from { transform: translateY(12px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  /* === Модальные окна ===
+     Окно по центру экрана на телефоне неудобно: оно далеко от большого пальца,
+     а его кнопки оказываются в середине экрана. Показываем панель снизу —
+     привычный для телефона шаблон. */
+  .modal-overlay,
+  .collection-modal,
+  .dl-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-content,
+  .collection-modal-box,
+  .dl-modal {
+    width: 100%;
+    max-width: 100%;
+    /* Скругляем только верхние углы: панель прижата к нижнему краю. */
+    border-radius: var(--lt-radius-lg) var(--lt-radius-lg) 0 0;
+    /* Жестовая полоса телефона перекрывала нижнюю кнопку окна. */
+    padding-bottom: calc(var(--lt-space-5) + var(--lt-safe-bottom));
+    max-height: 88dvh;
+    box-shadow: var(--lt-shadow-2);
+    overscroll-behavior: contain;
+  }
+
+  .modal-content,
+  .dl-modal {
+    padding-left: var(--lt-space-5);
+    padding-right: var(--lt-space-5);
+    padding-top: var(--lt-space-5);
+  }
+
+  /* Полоска-ухватка сверху: показывает, что панель относится к нижнему краю,
+     а не обрезана. */
+  .modal-content::before,
+  .collection-modal-box::before,
+  .dl-modal::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 0 auto var(--lt-space-4);
+    border-radius: var(--lt-radius-pill);
+    background: var(--lt-hairline);
+  }
+
+  /* Выезд снизу вместо появления по центру. Класс .active ставит разметка
+     страницы, поэтому переход навешиваем на само содержимое. */
+  .modal-overlay .modal-content,
+  .collection-modal .collection-modal-box {
+    transform: translateY(16px);
+    transition: transform var(--lt-transition-sheet);
+  }
+
+  .modal-overlay.active .modal-content,
+  .collection-modal.active .collection-modal-box {
+    transform: translateY(0);
+  }
+
+  .modal-content h2 {
+    font-size: var(--lt-text-2xl);
+    margin-bottom: var(--lt-space-4);
+  }
+
+  .modal-buttons {
+    gap: 10px;
+  }
+
+  /* Кнопки окна на всю ширину: в два столбца подписи «Очистить завершённые» и
+     «Возобновить» переносились по слогам. */
+  .modal-buttons button,
+  .collection-modal-actions button,
+  .collection-new button {
+    min-height: var(--lt-tap);
+    border-radius: var(--lt-radius-pill);
+  }
+
+  .modal-buttons button {
+    flex: 1 1 100%;
+  }
+
+  .collection-option {
+    min-height: var(--lt-tap);
+  }
+
+  .collection-new input,
+  .setting-group input[type="text"],
+  .setting-group select,
+  .setting-group textarea {
+    min-height: var(--lt-tap);
+    /* 16px: см. комментарий у .url-input. */
+    font-size: var(--lt-text-xl);
+  }
+
+  /* === Выдвижное меню ===
+     Остаётся ради списка каналов и скрытых каналов: в нижнюю панель они не
+     помещаются. Основные разделы теперь дублированы там. */
+  .sidebar-drawer {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    width: min(300px, 86vw);
+    left: calc(-1 * min(300px, 86vw));
+    top: calc(var(--yt-header-height) + var(--lt-safe-top));
+    height: calc(100dvh - var(--yt-header-height) - var(--lt-safe-top));
+    padding: var(--lt-space-3) var(--lt-space-3) var(--lt-nav-gap);
+    border-radius: 0 var(--lt-radius-lg) var(--lt-radius-lg) 0;
+    box-shadow: var(--lt-shadow-2);
+  }
+
+  .sidebar-overlay {
+    top: calc(var(--yt-header-height) + var(--lt-safe-top));
+  }
+
+  .sidebar-item {
+    min-height: var(--lt-tap);
+    border-radius: var(--lt-radius-pill);
+    padding-inline: var(--lt-space-4);
+  }
+
+  .sidebar-item:active {
+    background-color: var(--lt-pressed);
+  }
+
+  /* === Кнопки на карточках ===
+     На тач-экране нет наведения: при opacity: 0 «в избранное» и «копировать
+     ссылку» были недостижимы с телефона вовсе. Показываем их постоянно. */
+  .video-card .card-actions,
+  .short-card .card-actions {
+    opacity: 1;
+  }
+
+  .card-actions {
+    gap: 6px;
+  }
+
+  /* Кнопки лежат поверх превью, поэтому видимый кружок держим небольшим —
+     иначе они закрывают кадр. Площадь нажатия добираем прозрачной рамкой:
+     background-clip не красит её, поэтому цель равна 44px, а видимый кружок
+     остаётся 36px. */
+  .action-btn {
+    width: var(--lt-tap);
+    height: var(--lt-tap);
+    border: 4px solid transparent;
+    padding: 6px;
+    box-sizing: border-box;
+    /* Кнопки лежат на превью, поэтому фон свой, а не из темы: на светлом кадре
+       белая иконка без подложки не читается. */
+    background: rgba(0, 0, 0, 0.6);
+    background-clip: padding-box;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-radius: var(--lt-radius-pill);
+  }
+
+  .action-btn:active {
+    background: rgba(0, 0, 0, 0.85);
+    background-clip: padding-box;
+  }
+
+  .action-btn svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* === Нижняя навигация ===
+     Разметка — templates/_mobile_nav.html. */
+  .lt-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 210;
+    display: flex;
+    align-items: stretch;
+    height: calc(var(--lt-nav-height) + var(--lt-safe-bottom));
+    padding-bottom: var(--lt-safe-bottom);
+    padding-inline: max(var(--lt-space-1), var(--lt-safe-left));
+    /* Полупрозрачная подложка с размытием: под панелью продолжается каталог,
+       и сплошной фон обрезал бы прокрутку по живому. Цвет — через токен темы:
+       у Frutiger Aero панель светлая, и текст там должен быть тёмным. */
+    background: var(--lt-nav-bg);
+    border-top: 1px solid var(--lt-hairline);
+    backdrop-filter: var(--lt-blur);
+    -webkit-backdrop-filter: var(--lt-blur);
+  }
+
+  .lt-nav-item {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 2px;
+    text-decoration: none;
+    color: var(--lt-nav-fg);
+    font-size: 11px;
+    line-height: 1.1;
+  }
+
+  /* Иконка живёт в собственной плашке: подсветка активного пункта прямоугольником
+     во всю ячейку выглядела как нажатая кнопка, а не как отметка раздела. */
+  .lt-nav-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 26px;
+    border-radius: var(--lt-radius-pill);
+    transition: background-color var(--lt-transition);
+  }
+
+  .lt-nav-icon svg {
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
+  }
+
+  .lt-nav-label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lt-nav-item.active {
+    color: var(--lt-nav-fg-active);
+    font-weight: 500;
+  }
+
+  .lt-nav-item.active .lt-nav-icon {
+    background: var(--lt-nav-chip);
+  }
+
+  .lt-nav-item:active .lt-nav-icon {
+    background: var(--lt-nav-chip);
+  }
+
+  /* === Страницы на втором семействе токенов (настройки, канал, плейлист) === */
+  main {
+    padding-bottom: var(--lt-nav-gap);
+  }
+
+  .tabs {
+    scrollbar-width: none;
+    scroll-padding-inline: var(--lt-space-3);
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab-btn {
+    min-height: var(--lt-tap);
+    border-radius: var(--lt-radius-pill);
+  }
+
+  /* Поля настроек: 16px против приближения при фокусе в Safari. */
+  section input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+  section select,
+  section textarea {
+    min-height: var(--lt-tap);
+    font-size: var(--lt-text-xl);
+  }
+}
+
 @media (max-width: 380px) {
-  .related-thumb { width: 112px; height: 63px; }
-  .controls-right .control-btn:nth-last-child(2) { display: none; }
-  .subtitle-actions { grid-template-columns: 1fr; }
+  /* На самых узких экранах ряд кнопок плеера не влезает: убираем ещё и
+     «картинка в картинке». Настройки и полный экран остаются на месте. */
+  .controls-right .control-btn:nth-child(3) {
+    display: none;
+  }
+
+  .subtitle-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .queue-toolbar-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .video-title {
+    font-size: var(--lt-text-md);
+  }
+
+  #mainContent, #queueContainer {
+    padding-left: var(--lt-space-3) !important;
+    padding-right: var(--lt-space-3) !important;
+  }
+
+  /* Пять подписей в панели по 11px на 320px начинали переноситься. Оставляем
+     иконки: они уже различимы, а подпись активного раздела дублируется
+     заголовком страницы. */
+  .lt-nav-label {
+    display: none;
+  }
+
+  .lt-nav-icon {
+    height: 30px;
+  }
 }

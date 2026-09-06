@@ -5,13 +5,14 @@ import hashlib
 import time
 import subprocess
 
+import paths
 from utils import write_json_atomic, read_json
 from logger import logger
 
 USER_VIDEOS_ROOT = "uservideos"
 
 def get_user_videos_dir():
-    base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), USER_VIDEOS_ROOT)
+    base_dir = paths.user_path(USER_VIDEOS_ROOT)
     os.makedirs(base_dir, exist_ok=True)
     return base_dir
 
@@ -29,11 +30,14 @@ def get_video_info(video_dir):
     info_path = os.path.join(video_dir, "info.json")
     if not os.path.exists(info_path):
         return None
-    try:
-        with open(info_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except:
-        return None
+        # Конкретные исключения: голый except скрывал и KeyboardInterrupt.
+        # Битый info.json трактуем как отсутствие видео.
+        try:
+            with open(info_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (OSError, ValueError) as e:
+            logger.warning(f"user_videos: не удалось прочитать {info_path}: {e}")
+            return None
 
 def get_all_user_videos():
     base_dir = get_user_videos_dir()
@@ -87,12 +91,15 @@ def ensure_unique_title(user_folder, desired_title):
 def extract_thumbnail(video_path, output_path):
     if not os.path.exists(video_path):
         return False
-    cmd = ['ffmpeg', '-i', video_path, '-ss', '00:00:01', '-vframes', '1', '-q:v', '2', output_path, '-y']
-    try:
-        subprocess.run(cmd, check=True, capture_output=True)
-        return os.path.exists(output_path)
-    except:
-        return False
+        cmd = ['ffmpeg', '-i', video_path, '-ss', '00:00:01', '-vframes', '1', '-q:v', '2', output_path, '-y']
+        # OSError — ffmpeg не найден в PATH, CalledProcessError — он вернул
+        # ошибку. Голый except мешал прервать долгую генерацию превью с Ctrl+C.
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+            return os.path.exists(output_path)
+        except (OSError, subprocess.SubprocessError) as e:
+            logger.warning(f"user_videos: ffmpeg не создал превью для {video_path}: {e}")
+            return False
 
 def add_user_video(source_path, title, description, username, custom_thumbnail_path=None):
     if not os.path.isfile(source_path):

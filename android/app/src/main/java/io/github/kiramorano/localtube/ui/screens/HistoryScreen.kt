@@ -24,7 +24,6 @@ import io.github.kiramorano.localtube.data.CatalogSort
 import io.github.kiramorano.localtube.ui.components.LoadingBox
 import io.github.kiramorano.localtube.ui.components.VideoGrid
 import io.github.kiramorano.localtube.vm.HomeViewModel
-import io.github.kiramorano.localtube.vm.SettingsViewModel
 
 /** Общий экран для избранного и истории: списки различаются только источником. */
 object HistoryScreen {
@@ -36,8 +35,9 @@ object HistoryScreen {
 fun HistoryScreen(
     mode: HistoryScreen.Mode,
     onOpenVideo: (String) -> Unit,
-    vm: HomeViewModel = viewModel(),
-    settingsVm: SettingsViewModel = viewModel()
+    // Очистку делает HomeViewModel: раньше сюда создавался SettingsViewModel,
+    // чей init обходил всю библиотеку ради размера на диске.
+    vm: HomeViewModel = viewModel()
 ) {
     val userData by vm.userData.collectAsStateWithLifecycle()
     var confirmClear by remember { mutableStateOf(false) }
@@ -84,7 +84,7 @@ fun HistoryScreen(
             confirmButton = {
                 TextButton(onClick = {
                     confirmClear = false
-                    if (isFavorites) settingsVm.clearFavorites() else settingsVm.clearHistory()
+                    if (isFavorites) vm.clearFavorites() else vm.clearHistory()
                 }) { Text("Очистить") }
             },
             dismissButton = {

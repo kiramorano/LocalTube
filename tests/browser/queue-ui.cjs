@@ -1,7 +1,7 @@
 const path = require('path');
 const SHOTS = path.join(__dirname, 'shots');
 const { chromium } = require('playwright');
-const BASE = 'http://127.0.0.1:5000';
+const BASE = process.env.LT_BASE || 'http://127.0.0.1:5000';
 
 // Renders queue states purely client-side via renderQueue(); the real queue is never modified.
 const FIXTURE = [
@@ -94,7 +94,9 @@ async function main() {
       && render.downloadingText.includes('Видео 1/2') && render.downloadingText.includes('Попытка 2')
       && render.currentUrl.includes('example.invalid/two?x=1&y=2')
       && render.titleHasBoldElement === false && render.titleText.includes('<b>test</b>')
-      && render.downloadingHasRemove === false && render.errorHasRetry === true
+      // «Удалить» теперь есть и у активной задачи: это аварийный выход из
+      // зависшей загрузки, когда кооперативная отмена не срабатывает.
+      && render.downloadingHasRemove === true && render.errorHasRetry === true
       && render.errorText.includes('Видео недоступно')
       && render.summary.includes('Всего: 4') && render.summary.includes('приостановлена')
       && filters.all.count === 4 && filters.active.count === 2 && filters.waiting.count === 1

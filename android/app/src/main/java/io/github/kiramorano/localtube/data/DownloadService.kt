@@ -3,13 +3,16 @@ package io.github.kiramorano.localtube.data
 import android.app.Notification
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 
 /**
  * Foreground-сервис на время загрузок.
  *
  * Без него система вправе убить процесс во время долгого скачивания: раньше
- * загрузка шла в обычной корутине приложения.
+ * загрузка шла в обычной корутине приложения, и стоило свернуть приложение,
+ * как длинная загрузка не доживала до конца.
  */
 class DownloadService : Service() {
 
@@ -23,7 +26,26 @@ class DownloadService : Service() {
             .setContentText(text)
             .setOngoing(true)
             .build()
-        runCatching { startForeground(NOTIFICATION_ID, notification) }
+        // На Android 10+ тип обязателен и должен совпадать с манифестом, иначе
+        // на 14+ система бросает MissingForegroundServiceTypeException.
+        val started = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        }.isSuccess
+        // Если перейти в foreground не дали (запуск из фона на Android 12+),
+        // сервис нужно немедленно погасить: иначе система убьёт всё приложение
+        // с ошибкой «did not then call Service.startForeground()».
+        if (!started) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         return START_NOT_STICKY
     }
 

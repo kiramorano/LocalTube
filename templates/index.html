@@ -1,12 +1,15 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="dark">
+<html lang="{{ ui_lang }}" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>LocalTube</title>
     <style>
-        :root[data-theme="dark"] { --yt-bg: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa; --yt-spec-border: #3f3f3f; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: #272727; --yt-button-hover: #3f3f3f; --yt-header-height: 56px; --yt-search-bg: #121212; --yt-modal-bg: #212121; }
-        :root[data-theme="light"] { --yt-bg: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060; --yt-spec-border: #e5e5e5; --yt-spec-icon-inactive: #030303; --yt-button-bg: #f2f2f2; --yt-button-hover: #e0e0e0; --yt-header-height: 56px; --yt-search-bg: #f8f8f8; --yt-modal-bg: #ffffff; }
+        /* --yt-bg-solid — непрозрачная версия фона. Нужна там, где фон служит
+           цветом текста (инверсия на активных элементах): в frutiger-aero
+           --yt-bg равен transparent, и такой текст становился невидимым. */
+        :root[data-theme="dark"] { --yt-bg: #0f0f0f; --yt-bg-solid: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa; --yt-spec-border: #3f3f3f; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: #272727; --yt-button-hover: #3f3f3f; --yt-header-height: 56px; --yt-search-bg: #121212; --yt-modal-bg: #212121; --yt-card-bg: #1f1f1f; }
+        :root[data-theme="light"] { --yt-bg: #ffffff; --yt-bg-solid: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060; --yt-spec-border: #e5e5e5; --yt-spec-icon-inactive: #030303; --yt-button-bg: #f2f2f2; --yt-button-hover: #e0e0e0; --yt-header-height: 56px; --yt-search-bg: #f8f8f8; --yt-modal-bg: #ffffff; --yt-card-bg: #ffffff; }
         :root { --yt-sidebar-width: 240px; --video-card-min-width: 310px; --yt-font-family: 'Roboto', Arial, sans-serif; }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -23,12 +26,13 @@
         .logo svg { width: 30px; height: 20px; fill: #FF0000; }
         .header-center { display: flex; align-items: center; flex: 1; justify-content: center; padding: 0 12px; }
         .search-container { display: flex; align-items: center; width: 100%; max-width: 732px; }
-        .url-input { flex: 1; background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); border-radius: 24px 0 0 24px; padding: 0 16px; height: 40px; color: var(--yt-spec-text-primary); font-size: 16px; outline: none; }
+        .url-input { flex: 1; min-width: 0; background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); border-radius: 24px 0 0 24px; padding: 0 16px; height: 40px; color: var(--yt-spec-text-primary); font-size: 16px; outline: none; }
         .url-input:focus { border-color: #1c62b9; }
+        .url-quality { background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); border-left: none; height: 40px; padding: 0 8px; color: var(--yt-spec-text-primary); font-size: 13px; outline: none; cursor: pointer; }
         .download-btn { background-color: var(--yt-button-hover); border: 1px solid var(--yt-spec-border); border-left: none; height: 40px; width: 52px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 0 24px 24px 0; transition: background-color 0.3s ease; }
+        .download-btn:hover { background-color: var(--yt-spec-border); }
+        .download-btn[disabled] { cursor: progress; opacity: 0.6; }
         .download-btn svg { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); transition: fill 0.3s ease; }
-        .download-btn.direct-btn { background-color: #3ea6ff; border-left: 1px solid var(--yt-spec-border); font-weight: bold; font-size: 18px; color: #000; padding: 0 16px; justify-content: center; }
-        .download-btn.direct-btn:hover { background-color: #65b8ff; }
         .header-right { display: flex; align-items: center; gap: 16px; }
         .icon-btn { background: none; border: none; cursor: pointer; fill: var(--yt-spec-icon-inactive); width: 24px; height: 24px; transition: fill 0.3s ease; }
         .user-profile-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 12px; border-radius: 20px; transition: background 0.3s ease; text-decoration: none; color: var(--yt-spec-text-primary); }
@@ -40,6 +44,20 @@
 
         .sidebar-drawer { position: fixed; top: var(--yt-header-height); left: -240px; width: 240px; height: calc(100vh - var(--yt-header-height)); background: var(--yt-bg); z-index: 200; transition: left 0.3s ease; padding: 12px; overflow-y: auto; }
         .sidebar-drawer.active { left: 0; }
+        /* На широких экранах сайдбар закреплён: содержимое уже сдвинуто на
+           --yt-sidebar-width, и без этого слева оставалась пустая полоса 240px,
+           а пункт «Очередь» висел за краем экрана и не принимал клики. */
+        @media (min-width: 1000px) {
+            .sidebar-drawer { left: 0; }
+            .sidebar-overlay.active { opacity: 0; pointer-events: none; }
+        }
+        /* Уже сайдбара — сдвигать содержимое незачем: он выезжает поверх.
+           Раньше отступ 240px сбрасывался только на 600px, поэтому в диапазоне
+           601–999px слева оставалась пустая полоса. !important нужен потому,
+           что margin-left задан инлайн и иначе перебивает это правило. */
+        @media (max-width: 999px) {
+            #mainContent, #queueContainer { margin-left: 0 !important; }
+        }
         .sidebar-overlay { position: fixed; top: var(--yt-header-height); left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
         .sidebar-overlay.active { opacity: 1; pointer-events: all; }
         .sidebar-item { display: flex; align-items: center; gap: 16px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; text-decoration: none; transition: background 0.2s; }
@@ -52,8 +70,22 @@
         .toolbar input, .toolbar select, .toolbar button { background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 8px 12px; border-radius: 8px; outline: none; cursor: pointer; }
 
         .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--video-card-min-width, 310px), 1fr)); gap: 20px; }
-        .video-card { display: block; text-decoration: none; border-radius: 12px; position: relative; cursor: pointer; }
+        /* overflow:hidden — иначе прямоугольные углы превью выступают за
+           скруглённый край карточки; в теме frutiger-aero радиус карточки
+           доходит до 20px и щели по углам были особенно заметны. */
+        .video-card { display: block; text-decoration: none; border-radius: 12px; position: relative; cursor: pointer; overflow: hidden; }
         .video-thumb { width: 100%; aspect-ratio: 16/9; background: #272727; border-radius: 12px; overflow: hidden; position: relative; }
+        /* Список: toggleView() навешивал класс .list-view, но правил для него не
+           было вовсе, поэтому кнопка переключения вида ничего не делала. */
+        .video-grid.list-view { display: flex; flex-direction: column; gap: 12px; }
+        .video-grid.list-view .video-card { display: flex; gap: 14px; align-items: flex-start; }
+        .video-grid.list-view .video-thumb { width: min(360px, 42vw); flex-shrink: 0; }
+        .video-grid.list-view .video-details { flex: 1; padding: 4px 8px 4px 0; }
+        .video-grid.list-view .video-title { -webkit-line-clamp: 3; }
+        @media (max-width: 600px) {
+            .video-grid.list-view .video-card { flex-direction: column; }
+            .video-grid.list-view .video-thumb { width: 100%; }
+        }
         .video-thumb img { width: 100%; height: 100%; object-fit: cover; }
         .video-details { display: flex; gap: 12px; padding: 12px; }
         .video-author-avatar { width: 36px; height: 36px; border-radius: 50%; background-color: #5c6bc0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: 500; overflow: hidden; }
@@ -79,7 +111,10 @@
         .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
         .chip { background-color: var(--yt-button-bg); padding: 8px 14px; border-radius: 20px; font-size: 14px; cursor: pointer; }
         .chip:hover { background-color: var(--yt-button-hover); }
-        .chip.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg); }
+        /* Цвет текста берём из отдельной переменной, а не из --yt-bg: в теме
+           frutiger-aero фон прозрачный, и текст активного фильтра пропадал —
+           оставалась пустая белая плашка. */
+        .chip.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg-solid, #0f0f0f); }
 
         .empty-message { padding: 36px 16px; text-align: center; border: 1px dashed var(--yt-spec-border); border-radius: 12px; color: var(--yt-spec-text-secondary); }
 
@@ -110,7 +145,6 @@
         .quality-card { display: flex; align-items: center; padding: 12px; border-radius: 8px; background: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); margin-bottom: 8px; cursor: pointer; }
         .quality-status { color: var(--yt-spec-text-secondary); font-size: 13px; margin-bottom: 12px; }
 
-        #progressBox { position: fixed; top: var(--yt-header-height); left: 0; right: 0; background: #212121; padding: 12px 24px; z-index: 99; display: none; color: white; }
         .progress-bar-container { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; }
         .progress-fill { height: 100%; width: 0%; background: #FF0000; transition: width 0.3s; }
 
@@ -124,12 +158,21 @@
         .unhide-btn { background: none; border: none; color: var(--yt-spec-text-primary); cursor: pointer; padding: 4px 8px; border-radius: 16px; background-color: var(--yt-button-hover); font-size: 12px; }
 
         /* ===== Очередь ===== */
+         /* Пустая очередь рендерилась текстом без стилей: класс использовался в JS,
+            но правил для него не было ни в одном CSS-файле. */
+         .queue-empty { padding: 48px 16px; text-align: center; color: var(--yt-spec-text-secondary); font-size: 15px; }
          .queue-header { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
          .queue-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
          .queue-toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
          .queue-filter-label { color: var(--yt-spec-text-secondary); font-size: 13px; }
          .queue-filter { color: var(--yt-spec-text-primary); background: var(--yt-button-bg); border: 1px solid var(--yt-spec-border); border-radius: 8px; padding: 8px 10px; }
          .queue-summary { color: var(--yt-spec-text-secondary); font-size: 13px; margin-bottom: 16px; min-height: 18px; }
+        /* Пауза упоминалась только мелким серым текстом в сводке, поэтому
+           «очередь стоит» выглядело как сломанная загрузка. */
+        .queue-paused-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+            flex-wrap: wrap; margin-bottom: 16px; padding: 12px 16px; border-radius: 8px;
+            background: rgba(255, 193, 7, 0.15); border: 1px solid #ffc107; color: var(--yt-spec-text-primary);
+            font-size: 14px; }
          .queue-current-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--yt-spec-text-secondary); font-size: 12px; margin-top: 5px; }
          .queue-attempts { color: var(--yt-spec-text-secondary); font-size: 12px; }
          .queue-priority { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-top: 4px; border: 1px solid var(--yt-spec-border); }
@@ -160,15 +203,43 @@
 
          @media (max-width: 760px) {
             header { padding: 0 12px; height: 56px; }
-            .header-center { display: none; }
-            .header-right { gap: 8px; }
+            /* Раньше здесь стояло display: none, и на телефоне поле ввода
+               ссылки исчезало вместе со всей серединой хедера — скачать
+               видео было нечем. Оставляем поле, убираем только селект
+               качества: он занимает место, а по умолчанию берётся 1080p. */
+            .header-center { padding: 0 8px; min-width: 0; }
+            /* flex-shrink обязателен: без него середина хедера сжимала
+               гамбургер до нулевой ширины, и меню становилось некликабельным,
+               а логотип выезжал за край экрана. */
+            .header-left { gap: 8px; flex-shrink: 0; }
+            .menu-icon { flex-shrink: 0; }
+            .url-quality { display: none; }
+            .url-input { font-size: 14px; padding: 0 12px; }
+            .header-right { gap: 8px; flex-shrink: 0; }
             .toolbar { flex-direction: column; align-items: stretch; }
             .video-grid { grid-template-columns: repeat(2, 1fr); gap: 18px; }
+            /* Иконки в шапке — 24x24 рисунок в 40x40 области нажатия: по
+               24-пиксельной цели палец промахивался. */
+            .icon-btn { width: 40px; height: 40px; padding: 8px; }
+            .user-profile-btn { min-height: 44px; }
+            .download-btn { width: 52px; }
         }
     </style>
-    <link id="theme-style-link" rel="stylesheet" href="">
+    <link id="theme-style-link" rel="stylesheet">
     <link id="fonts-link" rel="stylesheet" href="/static/css/fonts.css">
+    <link rel="stylesheet" href="/static/css/ui.css">
     <link rel="stylesheet" href="/static/css/mobile.css">
+    <!-- theme.js без defer и до разметки: тема должна встать на <html> раньше
+         первой отрисовки, иначе виден кадр тёмной темы на светлой (FOUC). -->
+    <!-- Перевод строк, которые собирает клиентский код. До theme.js:
+         t() должна быть готова к первому вызову. -->
+    {# Словарь идёт вместе со страницей: отдельный запрос приходил позже
+       первой отрисовки, и подписи из скриптов оставались русскими. #}
+    {% if ui_strings %}<script>
+        window.LT_I18N = {{ ui_strings|tojson }};
+    </script>{% endif %}
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/theme.js"></script>
     <script src="/static/js/mobile.js" defer></script>
 </head>
 <body>
@@ -180,19 +251,53 @@
             <svg class="menu-icon" id="sidebarToggle" viewBox="0 0 24 24"><path d="M21,6H3V5h18V6z M21,11H3v1h18V11z M21,17H3v1h18V17z"></path></svg>
             <a href="/" class="logo"><svg viewBox="0 0 24 24"><path d="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5s-6.25,0-7.81,0.42c-0.88,0.23-1.54,0.89-1.77,1.77 C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42 c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19z M10,15V9l5.2,3L10,15z"/></svg>LocalTube</a>
         </div>
+        <div class="header-center">
+            <div class="search-container">
+                {# Скачивание — дело владельца: гостю поле ссылки не нужно. #}
+                {% if is_owner|default(true) %}
+                <input type="text" id="urlInput" class="url-input" placeholder="{{ 'Вставьте ссылку на YouTube или TikTok...'|t }}" autocomplete="off" aria-label="{{ 'Ссылка на видео, плейлист или профиль YouTube / TikTok'|t }}">
+                <select id="urlQuality" class="url-quality" aria-label="{{ 'Качество загрузки'|t }}">
+                    <option value="best">{{ 'Максимум'|t }}</option>
+                    <option value="2160">2160p</option>
+                    <option value="1440">1440p</option>
+                    <option value="1080" selected>1080p</option>
+                    <option value="720">720p</option>
+                    <option value="480">480p</option>
+                    <option value="360">360p</option>
+                    <option value="audio">{{ 'Только звук'|t }}</option>
+                </select>
+                <button type="button" class="download-btn" id="downloadBtn" onclick="startDownload()" title="{{ 'Скачать через очередь'|t }}" aria-label="{{ 'Добавить в очередь загрузки'|t }}"><svg viewBox="0 0 24 24"><path d="M17 18v1H6v-1h11zm-.5-6.6-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-4.9z"/></svg></button>
+                {% else %}
+                <input type="text" id="searchInput" class="url-input" placeholder="{{ 'Поиск по библиотеке...'|t }}" autocomplete="off" aria-label="{{ 'Поиск по библиотеке'|t }}">
+                {% endif %}
+            </div>
+        </div>
         <div class="header-right">
-            <a class="icon-btn" id="themeToggleHeader" href="/settings" title="Настройки"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg></a>
-            <a class="user-profile-btn" href="/settings"><span class="user-name-display" id="headerUsername">Гость</span><div class="user-avatar-placeholder" id="headerAvatar">Г</div></a>
+            {% if is_owner|default(true) %}
+            <a class="icon-btn" id="themeToggleHeader" href="/settings" title="{{ 'Настройки'|t }}"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg></a>
+            <a class="user-profile-btn" href="/settings"><span class="user-name-display" id="headerUsername">{{ 'Гость'|t }}</span><div class="user-avatar-placeholder" id="headerAvatar">{{ ('Гость'|t)[:1] }}</div></a>
+            {% else %}
+            {# Гость из локальной сети: настройки владельца ему закрыты. #}
+            <button type="button" class="icon-btn" id="guestUnlockBtn" title="{{ 'Войти как владелец по PIN'|t }}" aria-label="{{ 'Войти как владелец по PIN'|t }}"><svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm3 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></button>
+            {% endif %}
         </div>
     </header>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <aside class="sidebar-drawer" id="sidebarDrawer">
-        <a href="#" class="sidebar-item active" data-nav="all" onclick="filterNav('all'); return false;"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg><span>Главная</span></a>
+        <a href="#" class="sidebar-item active" data-nav="all" onclick="filterNav('all'); return false;"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg><span>{{ 'Главная'|t }}</span></a>
         <a href="#" class="sidebar-item" data-nav="shorts" onclick="filterNav('shorts'); return false;"><svg viewBox="0 0 24 24"><path d="M17.77,10.32l-1.2-.5L18,9.06a3.74,3.74,0 0 0-3.5-6.62L6,6.94a3.74,3.74,0 0 0,.23,6.74l1.2.49L6,14.93a3.75,3.75,0 0 0,3.5,6.63l8.5-4.5a3.74,3.74,0 0 0-.23-6.74Z"/></svg><span>Shorts</span></a>
-        <a href="#" class="sidebar-item" data-nav="favorites" onclick="filterNav('favorites'); return false;"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg><span>Избранное</span></a>
-        <a href="#" class="sidebar-item" data-nav="history" onclick="filterNav('history'); return false;"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.14-8-8s3.58-8 8-8 8 3.14 8 8-3.14 8-8 8zm.5-13H11v6h3V7h-2V4z"/></svg><span>История</span></a>
-        <a href="#" class="sidebar-item" data-nav="queue" onclick="filterNav('queue'); return false;"><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 6h8v2h-8V6zm0 4h8v2h-8v-2zm0 4h6v2h-6v-2z"/></svg><span>Очередь</span></a>
+        <a href="#" class="sidebar-item" data-nav="favorites" onclick="filterNav('favorites'); return false;"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg><span>{{ 'Избранное'|t }}</span></a>
+        <a href="#" class="sidebar-item" data-nav="history" onclick="filterNav('history'); return false;"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.14-8-8s3.58-8 8-8 8 3.14 8 8-3.14 8-8 8zm.5-13H11v6h3V7h-2V4z"/></svg><span>{{ 'История'|t }}</span></a>
+        {# Очередь, загрузка и плейлисты — только для владельца. #}
+        {% if is_owner|default(true) %}
+        <a href="#" class="sidebar-item" data-nav="queue" onclick="filterNav('queue'); return false;"><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 6h8v2h-8V6zm0 4h8v2h-8v-2zm0 4h6v2h-6v-2z"/></svg><span>{{ 'Очередь'|t }}</span></a>
+        <a href="/upload" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg><span>{{ 'Загрузить свой файл'|t }}</span></a>
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-title">{{ 'Мои плейлисты'|t }}</div>
+        <div id="sidebarCollections"></div>
+        <a href="#" class="sidebar-item" id="createCollectionBtn"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg><span>{{ 'Создать плейлист'|t }}</span></a>
+        {% endif %}
         <div class="sidebar-divider"></div>
         {% for author in authors %}
         <a href="/channel/{{ author.name }}" class="sidebar-item">
@@ -200,30 +305,32 @@
             <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ author.name }}</span>
         </a>
         {% endfor %}
+        {% if is_owner|default(true) %}
         <div class="sidebar-divider"></div>
-        <div class="sidebar-title">Скрытые каналы</div>
+        <div class="sidebar-title">{{ 'Скрытые каналы'|t }}</div>
         <div id="hiddenChannelsList"></div>
         <div class="sidebar-divider"></div>
-        <a href="/settings" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>Настройки</span></a>
+        <a href="/settings" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>{{ 'Настройки'|t }}</span></a>
+        {% endif %}
     </aside>
 
     <main id="mainContent" style="margin-left: var(--yt-sidebar-width); padding: calc(var(--yt-header-height) + 24px) 24px 40px; min-height: 100vh;">
         {% if not all_videos and not user_videos and not shorts and not playlists %}
-        <div class="empty-message"><h2>Здесь пока нет видео</h2><p>Скачанные и добавленные вручную видео появятся здесь.</p></div>
+        <div class="empty-message"><h2>{{ 'Здесь пока нет видео'|t }}</h2><p>{{ 'Скачанные и добавленные вручную видео появятся здесь.'|t }}</p></div>
         {% else %}
         {% if user_videos %}
         <div class="my-videos-section">
-            <h2>📹 Мои видео</h2>
+            <h2>{{ '📹 Мои видео'|t }}</h2>
             <div class="video-grid" id="myVideosGrid">
                 {% for v in user_videos %}
                 <a href="/watch/{{ v.id }}" class="video-card" data-id="{{ v.id }}" data-title="{{ v.title|lower|e }}" data-author="{{ v.author }}" data-size="{{ v.size_mb }}" onclick="markHistory('{{ v.id }}')">
                     <div class="video-thumb">
-                        {% if v.source == 'user' and v.thumb %}<img loading="lazy" src="/usermedia/{{ v.author }}/{{ v.folder }}/thumbnail.jpg" alt="">{% elif v.source != 'user' %}<img loading="lazy" src="/api/thumbnail/{{ v.id }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">Нет превью</div>{% endif %}
-                        <div class="card-actions"><button class="action-btn" title="Копировать ссылку" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button><button class="action-btn fav-btn" title="В избранное" onclick="event.preventDefault(); event.stopPropagation(); toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button></div>
+                        {% if v.source == 'user' and v.thumb %}<img loading="lazy" src="/usermedia/{{ v.author }}/{{ v.folder }}/thumbnail.jpg" alt="">{% elif v.source != 'user' %}<img loading="lazy" src="/api/thumbnail/{{ v.id }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет превью'|t }}</div>{% endif %}
+                        <div class="card-actions"><button class="action-btn" title="{{ 'Копировать ссылку'|t }}" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button><button class="action-btn fav-btn" title="{{ 'В избранное'|t }}" onclick="event.preventDefault(); event.stopPropagation(); toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button></div>
                     </div>
                     <div class="video-details">
                         <div class="video-author-avatar">{% if v.author_avatar %}<img src="{{ v.author_avatar }}">{% else %}{{ v.author[:1]|upper }}{% endif %}</div>
-                    <div class="video-info"><div class="video-title">{{ v.title }}</div><div class="video-meta">{{ v.author }} · {{ v.size_mb }} МБ{% if v.duration %} · {{ "%d:%02d"|format(v.duration // 60, v.duration % 60) }}{% endif %}</div></div>
+                    <div class="video-info"><div class="video-title">{{ v.title }}</div><div class="video-meta">{{ v.author }} · {{ v.size_mb }} {{ 'МБ'|t }}{% if v.duration %} · {{ "%d:%02d"|format(v.duration // 60, v.duration % 60) }}{% endif %}</div></div>
 
                     </div>
                 </a>
@@ -234,13 +341,13 @@
 
         {% if shorts %}
         <div class="shorts-shelf-container">
-            <div class="shorts-title"><h2>📱 Shorts</h2><a href="/" onclick="filterNav('shorts'); return false;" style="color: var(--yt-spec-text-secondary); font-size: 14px;">Показать все →</a></div>
+            <div class="shorts-title"><h2>📱 Shorts</h2><a href="/" onclick="filterNav('shorts'); return false;" style="color: var(--yt-spec-text-secondary); font-size: 14px;">{{ 'Показать все →'|t }}</a></div>
             <div class="shorts-shelf">
                 {% for s in shorts %}
                 <a href="/watch/{{ s.id }}" class="short-card" data-id="{{ s.id }}" data-title="{{ s.title|lower|e }}" data-author="{{ s.author }}" onclick="markHistory('{{ s.id }}')">
-                    <div class="short-thumb">{% if s.thumb %}<img loading="lazy" src="/api/thumbnail/{{ s.id }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">Нет</div>{% endif %}</div>
+                    <div class="short-thumb">{% if s.thumb %}<img loading="lazy" src="/api/thumbnail/{{ s.id }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет'|t }}</div>{% endif %}</div>
                     <div class="short-title">{{ s.title }}</div>
-                    <div class="video-meta">{{ s.author }} · {{ s.size_mb }} МБ</div>
+                    <div class="video-meta">{{ s.author }} · {{ s.size_mb }} {{ 'МБ'|t }}</div>
                 </a>
                 {% endfor %}
             </div>
@@ -251,12 +358,12 @@
 
             {% for v in all_videos %}
             <a href="{{ url_for('watch', vid_id=v.id) }}" class="video-card" data-size="{{ v.size_mb }}" data-author="{{ v.author }}" data-id="{{ v.id }}" data-title="{{ v.title|lower|e }}" onclick="markHistory('{{ v.id }}')">
-                <div class="video-thumb">{% if v.thumb %}<img loading="lazy" src="{{ url_for('media', filename=v.author ~ '/' ~ v.folder ~ '/' ~ v.thumb) }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">Нет превью</div>{% endif %}</div>
+                <div class="video-thumb">{% if v.thumb %}<img loading="lazy" src="{{ url_for('media', filename=v.author ~ '/' ~ v.folder ~ '/' ~ v.thumb) }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет превью'|t }}</div>{% endif %}</div>
                 <div class="video-details">
                     <div class="video-author-avatar">{% if v.author_avatar %}<img src="{{ v.author_avatar }}" style="width:100%;height:100%;object-fit:cover;">{% else %}{{ v.author[:1]|upper }}{% endif %}</div>
-                    <div class="video-info"><div class="video-title">{{ v.title }}</div><div class="video-meta">{{ v.author }} · {{ v.size_mb }} МБ{% if v.duration %} · {{ "%d:%02d"|format(v.duration // 60, v.duration % 60) }}{% endif %}</div></div>
+                    <div class="video-info"><div class="video-title">{{ v.title }}</div><div class="video-meta">{{ v.author }} · {{ v.size_mb }} {{ 'МБ'|t }}{% if v.duration %} · {{ "%d:%02d"|format(v.duration // 60, v.duration % 60) }}{% endif %}</div></div>
                 </div>
-                <div class="card-actions"><button class="action-btn" title="Копировать ссылку" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button><button class="action-btn fav-btn" title="В избранное" onclick="event.preventDefault(); event.stopPropagation(); toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button></div>
+                <div class="card-actions"><button class="action-btn" title="{{ 'Копировать ссылку'|t }}" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button><button class="action-btn fav-btn" title="{{ 'В избранное'|t }}" onclick="event.preventDefault(); event.stopPropagation(); toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button></div>
             </a>
             {% endfor %}
         </div>
@@ -264,7 +371,7 @@
         {% if playlists %}
         <div class="chips" id="playlistChips" style="margin-top: 24px;">
             {% for p in playlists %}
-            <span class="chip" style="cursor: default;">{{ p.title }} · {{ p.video_count }} видео</span>
+            <span class="chip" style="cursor: default;">{{ p.title }} · {{ p.video_count }} {{ 'видео'|t }}</span>
             {% endfor %}
         </div>
         {% endif %}
@@ -273,17 +380,25 @@
 
     <div id="queueContainer" style="display: none; margin-left: var(--yt-sidebar-width); padding: calc(var(--yt-header-height) + 24px) 24px 40px; min-height: 100vh;">
          <div class="queue-toolbar">
-             <div class="queue-toolbar-actions"><button onclick="pauseQueue()" class="btn-secondary">⏸ Пауза</button><button onclick="resumeQueue()" class="btn-primary">▶ Возобновить</button><button onclick="retryFailedQueueTasks()" class="btn-secondary">Повторить ошибки</button><button onclick="clearQueue()" class="btn-secondary queue-clear-btn">Очистить завершённые</button></div>
-             <label class="queue-filter-label" for="queueFilter">Показать</label><select id="queueFilter" class="queue-filter"><option value="all">Все задачи</option><option value="active">Активные</option><option value="waiting">Ожидают</option><option value="downloading">Загружаются</option><option value="completed">Завершённые</option><option value="error">С ошибками</option><option value="cancelled">Отменённые</option></select>
+             <div class="queue-toolbar-actions"><button onclick="pauseQueue()" class="btn-secondary">{{ '⏸ Пауза'|t }}</button><button onclick="resumeQueue()" class="btn-primary">{{ '▶ Возобновить'|t }}</button><button onclick="retryFailedQueueTasks()" class="btn-secondary">{{ 'Повторить ошибки'|t }}</button><button onclick="clearQueue()" class="btn-secondary queue-clear-btn">{{ 'Очистить завершённые'|t }}</button></div>
+             <label class="queue-filter-label" for="queueFilter">{{ 'Показать'|t }}</label><select id="queueFilter" class="queue-filter"><option value="all">{{ 'Все задачи'|t }}</option><option value="active">{{ 'Активные'|t }}</option><option value="waiting">{{ 'Ожидают'|t }}</option><option value="downloading">{{ 'Загружаются'|t }}</option><option value="completed">{{ 'Завершённые'|t }}</option><option value="error">{{ 'С ошибками'|t }}</option><option value="cancelled">{{ 'Отменённые'|t }}</option></select>
+         </div>
+         <div id="queuePausedBanner" class="queue-paused-banner" style="display: none;" role="status">
+             <span>{{ 'Очередь на паузе — загрузка не начнётся, пока вы её не возобновите.'|t }}</span>
+             <button type="button" onclick="resumeQueue()" class="btn-primary">{{ '▶ Возобновить'|t }}</button>
          </div>
          <div id="queueSummary" class="queue-summary"></div>
          <div id="queueList" style="display: flex; flex-direction: column; gap: 12px;"></div>
     </div>
 
-    <div id="miniplayer-container" aria-label="Мини-плеер">
+    <div id="miniplayer-container" aria-label="{{ 'Мини-плеер'|t }}">
         <div class="mp-video-wrapper" id="mp-video-wrapper"><video id="mp-video" playsinline></video></div>
-        <div class="mp-controls"><div class="mp-info"><div class="mp-title" id="mp-title"></div><div class="mp-author" id="mp-author"></div></div><div class="mp-actions"><button type="button" class="mp-btn" id="mp-playpause" title="Воспроизвести или пауза">▶</button><button type="button" class="mp-btn mp-close-btn" id="mp-close" title="Закрыть">×</button></div></div>
+        <div class="mp-controls"><div class="mp-info"><div class="mp-title" id="mp-title"></div><div class="mp-author" id="mp-author"></div></div><div class="mp-actions"><button type="button" class="mp-btn" id="mp-playpause" title="{{ 'Воспроизвести или пауза'|t }}">▶</button><button type="button" class="mp-btn mp-close-btn" id="mp-close" title="{{ 'Закрыть'|t }}">×</button></div></div>
     </div>
+
+    {# Нижняя навигация: на телефоне основные разделы должны быть в один тап.
+       Активный пункт здесь переключает filterNav() без перезагрузки. #}
+    {% include '_mobile_nav.html' with context %}
 
     <div id="toast-container"></div>
     <script>
@@ -367,11 +482,22 @@
             localStorage.removeItem('lt_miniplayer');
         }
 
+        // Максимум плашек на экране. Опрос очереди идёт каждые 3 секунды, и при
+        // недоступном сервере неисчезающие красные тосты копились без предела,
+        // закрывая всю страницу.
+        const TOAST_LIMIT = 3;
+
         function showToast(msg, type = 'info', retryCallback = null) {
             const container = document.getElementById('toast-container');
             if (!container) return;
+            // Один и тот же текст не дублируем: повторная ошибка опроса просто
+            // оставляет уже висящую плашку.
+            const existing = Array.from(container.children);
+            if (existing.some(el => el.dataset.msg === msg)) return;
+            while (existing.length >= TOAST_LIMIT) existing.shift().remove();
             const toast = document.createElement('div');
             toast.className = 'toast';
+            toast.dataset.msg = msg;
             if (type === 'error') {
                 toast.style.background = '#ff4d4d';
                 toast.style.color = 'white';
@@ -390,7 +516,7 @@
             toast.appendChild(msgSpan);
             if (type === 'error' && retryCallback) {
                 const retryBtn = document.createElement('button');
-                retryBtn.innerText = '🔄 Повторить';
+                retryBtn.innerText = t('🔄 Повторить');
                 retryBtn.style.background = 'rgba(255,255,255,0.2)';
                 retryBtn.style.border = 'none';
                 retryBtn.style.color = 'white';
@@ -409,111 +535,42 @@
 
         function showErrorToast(msg, retryCallback = null) { showToast(msg, 'error', retryCallback); }
 
-        let activeBgLayer = 2, bgTimer = null;
-        function setBackgroundImage(url) {
-            const layer1 = document.getElementById('bg-layer-1');
-            const layer2 = document.getElementById('bg-layer-2');
-            let targetLayer, otherLayer;
-            if (activeBgLayer === 2) { targetLayer = layer1; otherLayer = layer2; }
-            else { targetLayer = layer2; otherLayer = layer1; }
-            targetLayer.style.backgroundImage = `url('${url}')`;
-            targetLayer.style.opacity = 0;
-            requestAnimationFrame(() => { targetLayer.style.opacity = 1; otherLayer.style.opacity = 0; });
-            setTimeout(() => {
-                activeBgLayer = (activeBgLayer === 2) ? 1 : 2;
-                otherLayer.style.backgroundImage = 'none';
-            }, 1600);
-        }
+        // Тема, стиль и обои живут в /static/js/theme.js. Раньше эти же 90
+        // строк были скопированы в каждый из семи шаблонов: копии разошлись в
+        // поведении, ссылка на обои получала ?w=&h= и потому перекачивалась
+        // каждые 30 секунд, а применялась тема только после разметки — на
+        // каждом переходе была видна вспышка тёмного фона.
 
-        async function loadThemeBackground(theme) {
-            const layer1 = document.getElementById('bg-layer-1');
-            const layer2 = document.getElementById('bg-layer-2');
-            if (theme !== 'frutiger-aero') {
-                layer1.style.backgroundImage = 'none';
-                layer2.style.backgroundImage = 'none';
-                layer1.style.opacity = 0;
-                layer2.style.opacity = 0;
-                if (bgTimer) clearInterval(bgTimer);
-                bgTimer = null;
-                return;
-            }
-            try {
-                const response = await fetch(`/api/theme-backgrounds/${theme}`);
-                const images = await response.json();
-                if (images.length === 0) { layer1.style.backgroundImage = 'none'; layer2.style.backgroundImage = 'none'; layer1.style.opacity = 0; layer2.style.opacity = 0; return; }
-                const imageName = images[Math.floor(Math.random() * images.length)];
-                const imageUrl = `/static/images/themes/${theme}/${encodeURIComponent(imageName)}?w=${window.innerWidth}&h=${window.innerHeight}`;
-                setBackgroundImage(imageUrl);
-                if (bgTimer) clearInterval(bgTimer);
-                bgTimer = setInterval(async () => {
-                    const resp = await fetch(`/api/theme-backgrounds/${theme}`);
-                    const newImages = await resp.json();
-                    if (newImages.length === 0) return;
-                    const newName = newImages[Math.floor(Math.random() * newImages.length)];
-                    const newUrl = `/static/images/themes/${theme}/${encodeURIComponent(newName)}?w=${window.innerWidth}&h=${window.innerHeight}`;
-                    setBackgroundImage(newUrl);
-                }, 30000);
-            } catch (e) {
-                console.error('Ошибка загрузки фона:', e);
-                layer1.style.backgroundImage = 'none';
-                layer2.style.backgroundImage = 'none';
-                layer1.style.opacity = 0;
-                layer2.style.opacity = 0;
-            }
-        }
-
-        function loadTheme(theme) {
-            const link = document.getElementById('theme-style-link') || document.getElementById('theme-style');
-            const fontsLink = document.getElementById('fonts-link');
-            if (!theme || theme === 'dark' || theme === 'light') {
-                link.href = '';
-                document.documentElement.setAttribute('data-theme', theme || 'dark');
-                if (fontsLink) fontsLink.disabled = false;
-                document.documentElement.style.fontFamily = "'Roboto', Arial, sans-serif";
-                if (bgTimer) clearInterval(bgTimer);
-                bgTimer = null;
-                document.getElementById('bg-layer-1').style.backgroundImage = 'none';
-                document.getElementById('bg-layer-2').style.backgroundImage = 'none';
-                document.getElementById('bg-layer-1').style.opacity = 0;
-                document.getElementById('bg-layer-2').style.opacity = 0;
-                const bgBtn = document.getElementById('bg-btn');
-                if (bgBtn) bgBtn.style.display = 'none';
-            } else {
-                link.href = '/static/css/themes/' + theme + '.css';
-                document.documentElement.setAttribute('data-theme', theme);
-                if (fontsLink) fontsLink.disabled = false;
-                if (theme === 'frutiger-aero') {
-                    document.documentElement.style.fontFamily = "'Aero_03', Arial, sans-serif";
-                } else {
-                    document.documentElement.style.fontFamily = "'Roboto', Arial, sans-serif";
-                }
-                loadThemeBackground(theme);
-                const bgBtn = document.getElementById('bg-btn');
-                if (bgBtn) bgBtn.style.display = theme === 'frutiger-aero' ? 'inline-flex' : 'none';
-            }
-            localStorage.setItem('lt_theme', theme || 'dark');
-        }
-
-        const savedTheme = localStorage.getItem('lt_theme') || 'dark';
-        loadTheme(savedTheme);
-
-        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"username":"Гость","avatar":""}');
-        document.getElementById('headerUsername').innerText = userSettings.username || 'Гость';
+        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"avatar":""}');
+        // У гостя из локальной сети профиля в шапке нет: без проверок скрипт
+        // падал бы здесь и остальная страница осталась бы без обработчиков.
+        const usernameBox = document.getElementById('headerUsername');
+        if (usernameBox) usernameBox.innerText = userSettings.username || t('Гость');
         const avatarBox = document.getElementById('headerAvatar');
-        if(userSettings.avatar) avatarBox.innerHTML = `<img src="${userSettings.avatar}" alt="Аватар">`;
-        else avatarBox.innerHTML = (userSettings.username || 'Г').charAt(0).toUpperCase();
+        if (avatarBox) {
+            if(userSettings.avatar) avatarBox.innerHTML = `<img src="${userSettings.avatar}" alt="${t('Аватар')}">`;
+            // Берём первую букву от целого слова: ключ из одной буквы «Г» переводчику
+        // ни о чём не говорит, а «Гость» переводится и даёт нужную букву само.
+        else avatarBox.innerHTML = (userSettings.username || t('Гость')).charAt(0).toUpperCase();
+        }
 
-        const sidebarToggle = document.getElementById('sidebarToggle');
         const sidebarDrawer = document.getElementById('sidebarDrawer');
         const sidebarOverlay = document.getElementById('sidebarOverlay');
-        function toggleSidebar() { sidebarDrawer.classList.toggle('active'); sidebarOverlay.classList.toggle('active'); }
-        if (sidebarToggle && sidebarDrawer) {
-            sidebarToggle.addEventListener('click', toggleSidebar);
-            if (sidebarOverlay) sidebarOverlay.addEventListener('click', toggleSidebar);
-        }
+        // Переключение панели живёт в /static/js/mobile.js: пять шаблонов
+        // держали одинаковую копию, и CSS-часть разъехалась — на десктопе
+        // кнопка только затемняла экран, а панель не сворачивалась.
 
         let currentNav = 'all';
         let isListView = false;
+        // Владелец или гость из локальной сети. Гость только смотрит: кнопки
+        // действий скрыты, а его избранное живёт в localStorage его устройства
+        // и на сервер не уходит.
+        const IS_OWNER = {{ 'true' if is_owner|default(true) else 'false' }};
+        // Гость пишет в свои ключи. Если бы он использовал те же, что владелец,
+        // его избранное уехало бы на сервер при первом же входе по PIN: перенос
+        // старых данных читает именно lt_favorites и lt_history.
+        const GUEST_FAV_KEY = 'lt_guest_favorites';
+        const GUEST_HISTORY_KEY = 'lt_guest_history';
         // Избранное, история и скрытые каналы хранятся на сервере. Здесь только
         // локальная копия для мгновенной отрисовки; она синхронизируется в loadUserData().
         // Данные приходят вместе со страницей: не нужно ждать запроса, поэтому
@@ -553,16 +610,16 @@
                     const saved = new Set(data[key] || []);
                     return legacy[key].every(item => saved.has(item));
                 });
-                if (!complete) throw new Error('Сервер сохранил не все данные');
+                if (!complete) throw new Error(t('Сервер сохранил не все данные'));
                 localStorage.removeItem('lt_favorites');
                 localStorage.removeItem('lt_history');
                 localStorage.removeItem('lt_hidden_channels');
                 const moved = Object.values(data.added || {}).reduce((a, b) => a + b, 0);
-                if (moved) showToast(`Данные перенесены на сервер: ${moved}`);
+                if (moved) showToast(t('Данные перенесены на сервер: {what}').replace('{what}', moved));
                 return data;
             } catch (err) {
                 console.error('Не удалось перенести данные на сервер:', err);
-                showToast('Не удалось перенести данные на сервер, работаем локально');
+                showToast(t('Не удалось перенести данные на сервер, работаем локально'));
                 // Возвращаем локальные данные: пользователь не должен увидеть
                 // пустое избранное из-за проблемы с сервером.
                 return {
@@ -576,7 +633,9 @@
 
         // Если сервер недоступен, продолжаем работать через localStorage:
         // потерять отметку лучше не дать вовсе.
-        let userDataOffline = false;
+        // Гость сразу работает локально: его избранное и история не должны
+        // попадать в данные владельца сервера.
+        let userDataOffline = !IS_OWNER;
         // Промис загрузки: обработчики кликов ждут его, чтобы не действовать
         // по пустым спискам.
         let userDataReady = null;
@@ -589,6 +648,12 @@
 
         function saveUserDataLocally() {
             try {
+                if (!IS_OWNER) {
+                    // Гость: только свои ключи, чтобы данные не попали к владельцу.
+                    localStorage.setItem(GUEST_FAV_KEY, JSON.stringify(favorites));
+                    localStorage.setItem(GUEST_HISTORY_KEY, JSON.stringify(watchHistory));
+                    return;
+                }
                 localStorage.setItem('lt_favorites', JSON.stringify(favorites));
                 localStorage.setItem('lt_history', JSON.stringify(watchHistory));
                 localStorage.setItem('lt_hidden_channels', JSON.stringify(hiddenChannels));
@@ -614,12 +679,22 @@
                 console.error('Не удалось сохранить на сервере:', err);
                 userDataOffline = true;
                 saveUserDataLocally();
-                showToast('Сервер недоступен, изменения сохранены локально');
+                showToast(t('Сервер недоступен, изменения сохранены локально'));
                 return null;
             }
         }
 
         async function loadUserData() {
+            if (!IS_OWNER) {
+                // Гость: своё избранное и историю берём из его же браузера.
+                // Переносить их на сервер нельзя — там данные владельца.
+                applyUserData({
+                    favorites: JSON.parse(localStorage.getItem(GUEST_FAV_KEY) || '[]'),
+                    history: JSON.parse(localStorage.getItem(GUEST_HISTORY_KEY) || '[]'),
+                    hidden_channels: [],
+                });
+                return;
+            }
             const migrated = await migrateLocalUserData();
             if (migrated) {
                 applyUserData(migrated);
@@ -650,6 +725,57 @@
         // данные, тем короче показ карточек скрытых каналов.
         userDataReady = loadUserData();
 
+        // ===== Свои плейлисты в боковом меню =====
+        // Список приходит с сервера: он живёт в userdata.json, а не в localStorage,
+        // поэтому одинаков во всех браузерах.
+        async function loadSidebarCollections() {
+            const box = document.getElementById('sidebarCollections');
+            if (!box) return;
+            // Плейлисты принадлежат владельцу: гостю их не показываем.
+            if (!IS_OWNER) return;
+            try {
+                const res = await fetch('/api/collections');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                box.textContent = '';
+                for (const item of (data.collections || [])) {
+                    const link = document.createElement('a');
+                    link.className = 'sidebar-item';
+                    link.href = '/collection/' + encodeURIComponent(item.id);
+                    link.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM12 6v8l5-4-5-4z"/></svg>';
+                    // Название задал пользователь — только textContent, без вставки HTML.
+                    const label = document.createElement('span');
+                    label.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                    label.textContent = item.count ? `${item.title} (${item.count})` : item.title;
+                    link.append(label);
+                    box.append(link);
+                }
+            } catch (err) {
+                box.textContent = '';
+            }
+        }
+
+        document.getElementById('createCollectionBtn')?.addEventListener('click', async event => {
+            event.preventDefault();
+            const title = prompt(t('Название нового плейлиста:'));
+            if (title === null) return;
+            try {
+                const res = await fetch('/api/collections', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось создать плейлист.'));
+                showToast(t('Плейлист «{title}» создан').replace('{title}', data.collection.title));
+                loadSidebarCollections();
+            } catch (err) {
+                showToast(err.message);
+            }
+        });
+
+        loadSidebarCollections();
+
         function filterNav(nav) {
             if (nav === 'shorts') {
                 const watched = new Set(watchHistory);
@@ -657,12 +783,20 @@
                 const candidates = shorts.filter(card => !watched.has(card.dataset.id));
                 const selected = (candidates.length ? candidates : shorts)[Math.floor(Math.random() * (candidates.length ? candidates.length : shorts.length))];
                 if (selected) { window.location.href = selected.href; return; }
-                showToast('Локальных Shorts пока нет');
+                showToast(t('Локальных Shorts пока нет'));
                 return;
             }
             document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
             const target = document.querySelector(`.sidebar-item[data-nav="${nav}"]`);
             if (target) target.classList.add('active');
+            // Нижняя панель показывает те же разделы, что и меню: без этого
+            // отметка оставалась на «Главной» после перехода в очередь.
+            document.querySelectorAll('.lt-nav-item').forEach(el => {
+                const isCurrent = el.getAttribute('data-nav-target') === nav;
+                el.classList.toggle('active', isCurrent);
+                if (isCurrent) el.setAttribute('aria-current', 'page');
+                else el.removeAttribute('aria-current');
+            });
             const chips = document.querySelectorAll('.chip');
             chips.forEach(c => c.classList.remove('active'));
             if (nav === 'all') { const allChip = document.querySelector('.chip[data-nav="all"]'); if(allChip) allChip.classList.add('active'); }            currentNav = nav;
@@ -671,6 +805,11 @@
             const shortsContainer = document.querySelector('.shorts-shelf-container');
             const myVideosSection = document.querySelector('.my-videos-section');
             const queueContainer = document.getElementById('queueContainer');
+            // Сам <main> тоже надо скрывать, а не только его внутренние блоки:
+            // у него min-height 100vh, поэтому пустой <main> оставался в потоке
+            // и сдвигал очередь ровно на высоту экрана вниз. Пользователь видел
+            // пустой (в тёмной теме — чёрный) экран, хотя задачи были в DOM.
+            const mainContent = document.getElementById('mainContent');
 
             if (mainGrid) mainGrid.style.display = 'none';
             if (shortsContainer) shortsContainer.style.display = 'none';
@@ -678,10 +817,14 @@
             if (queueContainer) queueContainer.style.display = 'none';
 
             if (nav === 'queue') {
+                if (mainContent) mainContent.style.display = 'none';
                 if (queueContainer) queueContainer.style.display = 'block';
                 loadQueue();
             } else {
-                if (mainGrid) mainGrid.style.display = (isListView ? 'flex' : 'grid');
+                if (mainContent) mainContent.style.display = 'block';
+                // display снимаем, а не задаём: раскладку определяют .video-grid
+                // и .video-grid.list-view, а инлайновый стиль их перебивал.
+                if (mainGrid) mainGrid.style.removeProperty('display');
                 if (shortsContainer) shortsContainer.style.display = nav === 'all' ? 'block' : 'none';
                 if (myVideosSection) myVideosSection.style.display = ['all', 'favorites', 'history'].includes(nav) ? 'block' : 'none';
                 applyFilters();
@@ -694,7 +837,11 @@
 
         function applyFilters() {
             if (currentNav === 'queue') return;
-            const query = document.getElementById('localSearch') ? document.getElementById('localSearch').value.toLowerCase().trim() : '';
+            // searchInput — поле поиска, которое видит гость вместо поля ссылки.
+            // localSearch остаётся для совместимости: элемента с таким id в
+            // разметке нет, поэтому фильтр по тексту раньше всегда был пустым.
+            const searchBox = document.getElementById('localSearch') || document.getElementById('searchInput');
+            const query = searchBox ? searchBox.value.toLowerCase().trim() : '';
             const sort = document.getElementById('sortSelect') ? document.getElementById('sortSelect').value : 'default';
             const grid = document.getElementById('mainGrid');
             const myGrid = document.getElementById('myVideosGrid');
@@ -737,8 +884,14 @@
             isListView = !isListView;
             const grid = document.getElementById('mainGrid');
             const myGrid = document.getElementById('myVideosGrid');
-            if (isListView) { if(grid) grid.classList.add('list-view'); if(myGrid) myGrid.classList.add('list-view'); }
-            else { if(grid) grid.classList.remove('list-view'); if(myGrid) myGrid.classList.remove('list-view'); }
+            for (const el of [grid, myGrid]) {
+                if (!el) continue;
+                el.classList.toggle('list-view', isListView);
+                // Инлайновый display надо снимать: switchNav() выставляет его
+                // напрямую (grid/flex), а инлайновый стиль перебивает класс, и
+                // раскладка списка не применялась после перехода по разделам.
+                el.style.removeProperty('display');
+            }
         }
 
         async function toggleFav(id, btn) {
@@ -749,10 +902,10 @@
             // Интерфейс обновляем сразу, не дожидаясь ответа сервера.
             if (shouldBeFavorite) {
                 favorites = favorites.concat([id]);
-                showToast('Добавлено в избранное');
+                showToast(t('Добавлено в избранное'));
             } else {
                 favorites = favorites.filter(x => x !== id);
-                showToast('Удалено из избранного');
+                showToast(t('Удалено из избранного'));
             }
             if (btn) btn.classList.toggle('fav-active', shouldBeFavorite);
             if (currentNav === 'favorites') applyFilters();
@@ -774,7 +927,7 @@
             if (data && data.history) watchHistory = data.history;
         }
 
-        function copyLink(url) { navigator.clipboard.writeText(url).then(() => showToast('Ссылка скопирована!')); }
+        function copyLink(url) { navigator.clipboard.writeText(url).then(() => showToast(t('Ссылка скопирована!'))); }
 
         function isChannelHidden(channelName) { return hiddenChannels.includes(channelName); }
         async function toggleHideChannel(channelName) {
@@ -805,7 +958,7 @@
             if (hiddenChannels.length === 0) {
                 const empty = document.createElement('div');
                 empty.style.cssText = 'padding: 8px 12px; color: var(--yt-spec-text-secondary); font-size: 13px;';
-                empty.textContent = 'Нет скрытых каналов';
+                empty.textContent = t('Нет скрытых каналов');
                 container.append(empty);
                 return;
             }
@@ -818,7 +971,7 @@
                 const button = document.createElement('button');
                 button.className = 'unhide-btn';
                 button.type = 'button';
-                button.textContent = 'Показать';
+                button.textContent = t('Показать');
                 button.addEventListener('click', () => toggleHideChannel(channel));
                 item.append(label, button);
                 container.append(item);
@@ -827,7 +980,7 @@
         updateHiddenChannelsList();
 
         function applyProfileUI() {
-            const username = userSettings.username || 'Гость';
+            const username = userSettings.username || t('Гость');
             const usernameEl = document.getElementById('headerUsername');
             const avatarBox = document.getElementById('headerAvatar');
             if (usernameEl) usernameEl.textContent = username;
@@ -836,7 +989,7 @@
             if (userSettings.avatar) {
                 const image = document.createElement('img');
                 image.src = userSettings.avatar;
-                image.alt = 'Аватар';
+                image.alt = t('Аватар');
                 avatarBox.append(image);
             } else {
                 avatarBox.textContent = username.charAt(0).toUpperCase();
@@ -853,14 +1006,14 @@
         async function loadQueue() {
             try {
                 const res = await fetch('/api/queue/list');
-                if (!res.ok) throw new Error('Сервер вернул ошибку ' + res.status);
+                    if (!res.ok) throw new Error(t('Сервер вернул ошибку {code}').replace('{code}', res.status));
                 const data = await res.json();
                 lastQueueTasks = data.tasks || [];
                 lastQueuePaused = !!data.paused;
                 renderQueue(lastQueueTasks, lastQueuePaused);
             } catch(err) {
                 console.error('Ошибка загрузки очереди:', err);
-                showErrorToast('Не удалось загрузить очередь: ' + err.message, loadQueue);
+                showErrorToast(t('Не удалось загрузить очередь') + ': ' + err.message, loadQueue);
             }
         }
 
@@ -868,32 +1021,77 @@
             const container = document.getElementById('queueList');
             const summary = document.getElementById('queueSummary');
             if (!container) return;
+            // Пока пользователь выбирает приоритет, список не перерисовываем:
+            // раскрытый <select> уничтожался вместе с разметкой через 3 секунды,
+            // и выбрать значение не удавалось.
+            const active = document.activeElement;
+            if (active && active.classList.contains('queue-priority-select')
+                && container.contains(active)) return;
             const filter = document.getElementById('queueFilter')?.value || 'all';
+            // Заметное предупреждение о паузе: упоминание мелким серым текстом в
+            // сводке пользователи не замечали, и остановленная очередь выглядела
+            // как сломанная загрузка.
+            const pausedBanner = document.getElementById('queuePausedBanner');
+            if (pausedBanner) {
+                const hasPending = tasks.some(t => ['waiting', 'downloading'].includes(t.status));
+                pausedBanner.style.display = (paused && hasPending) ? 'flex' : 'none';
+            }
             const counts = tasks.reduce((acc, task) => { acc[task.status] = (acc[task.status] || 0) + 1; return acc; }, {});
-            if (summary) summary.textContent = `Всего: ${tasks.length} · В работе: ${counts.downloading || 0} · Ожидают: ${counts.waiting || 0} · Завершено: ${counts.completed || 0} · Ошибки: ${counts.error || 0}${counts.cancelled ? ` · Отменено: ${counts.cancelled}` : ''}${paused ? ' · Очередь приостановлена' : ''}`;
-            const visible = tasks.filter(task => filter === 'all' || (filter === 'active' ? ['waiting', 'downloading'].includes(task.status) : task.status === filter));
+            // Сводка собирается из отдельных подписей: одна длинная шаблонная
+            // строка ключом словаря быть не может — в неё вписан код JS.
+            if (summary) {
+                const parts = [
+                    t('Всего') + ': ' + tasks.length,
+                    t('В работе') + ': ' + (counts.downloading || 0),
+                    t('Ожидают') + ': ' + (counts.waiting || 0),
+                    t('Завершено') + ': ' + (counts.completed || 0),
+                    t('Ошибки') + ': ' + ((counts.error || 0) + (counts.partial || 0)),
+                ];
+                if (counts.cancelled) parts.push(t('Отменено') + ': ' + counts.cancelled);
+                if (paused) parts.push(t('Очередь приостановлена'));
+                summary.textContent = parts.join(' · ');
+            }
+            const visible = tasks.filter(task => {
+                if (filter === 'all') return true;
+                if (filter === 'active') return ['waiting', 'downloading'].includes(task.status);
+                // Частичный провал — тоже ошибка: иначе задача, где не скачалась
+                // часть видео, не попадала ни в один фильтр, кроме «Все».
+                if (filter === 'error') return ['error', 'partial'].includes(task.status);
+                // Отменяемая задача остаётся в статусе downloading, но по смыслу
+                // пользователь ищет её среди отменённых.
+                if (filter === 'cancelled') return task.status === 'cancelled' || task.cancelling;
+                if (filter === 'downloading') return task.status === 'downloading' && !task.cancelling;
+                return task.status === filter;
+            });
             if (!visible.length) {
-                container.innerHTML = `<div class="queue-empty">${tasks.length ? 'Нет задач, соответствующих фильтру' : 'Очередь пуста'}</div>`;
+                container.innerHTML = `<div class="queue-empty">${tasks.length ? t('Нет задач, соответствующих фильтру') : t('Очередь пуста')}</div>`;
                 return;
             }
             container.innerHTML = visible.map(task => {
                 const statuses = {
-                    waiting: ['⏳ Ожидание', 'status-waiting'], downloading: ['⬇ Загрузка', 'status-downloading'],
-                    completed: ['✓ Завершено', 'status-completed'], error: ['✕ Ошибка', 'status-error'],
-                    cancelled: ['⊘ Отменено', 'status-cancelled']
+                    waiting: [t('⏳ Ожидание'), 'status-waiting'], downloading: [t('⬇ Загрузка'), 'status-downloading'],
+                    completed: [t('✓ Завершено'), 'status-completed'], error: [t('✕ Ошибка'), 'status-error'],
+                    cancelled: [t('⊘ Отменено'), 'status-cancelled'],
+                    // Частично скачано: раньше такая задача выглядела как «Завершено».
+                    partial: [t('⚠ Частично'), 'status-error']
                 };
                 let [statusText, statusClass] = statuses[task.status] || [escapeHtml(task.status), ''];
-                if (task.cancelling) { statusText = '⊘ Отмена...'; statusClass = 'status-cancelled'; }
+                if (task.cancelling) { statusText = t('⊘ Отмена...'); statusClass = 'status-cancelled'; }
                 const progress = Math.max(0, Math.min(100, Number(task.progress) || 0));
-                const position = task.total_urls > 1 ? `Видео ${task.current_index || 0}/${task.total_urls}` : `${task.urls.length} видео`;
+                // Номер видео показываем только когда загрузка идёт: у ожидающей
+                // задачи оставалось «Видео 11/79» из прошлой попытки, и это
+                // выглядело как сохранённый прогресс.
+                const position = task.total_urls > 1 && task.status === 'downloading'
+                    ? t('Видео {current}/{total}').replace('{current}', task.current_index || 1).replace('{total}', task.total_urls)
+                    : t('{count} видео').replace('{count}', task.urls.length);
                 const metrics = task.status === 'downloading' ? [task.speed, task.eta ? `ETA ${task.eta}` : ''].filter(Boolean).join(' · ') : '';
                 const currentUrl = task.status === 'downloading' && task.current_url ? `<div class="queue-current-url" title="${escapeHtml(task.current_url)}">${escapeHtml(task.current_url)}</div>` : '';
                 const attempts = task.attempts > 1 ? `<span class="queue-attempts">Попытка ${task.attempts}</span>` : '';
-                const priorityLabels = { high: 'Высокий', normal: 'Обычный', low: 'Низкий' };
+                const priorityLabels = { high: t('Высокий'), normal: t('Обычный'), low: t('Низкий') };
                 const priority = task.priority || 'normal';
                 const priorityBadge = priority !== 'normal' ? `<span class="queue-priority priority-${escapeHtml(priority)}">${escapeHtml(priorityLabels[priority] || priority)} приоритет</span>` : '';
                 const prioritySelect = task.status === 'waiting'
-                    ? `<select class="queue-priority-select" aria-label="Приоритет задачи" onchange="setQueuePriority('${escapeHtml(task.id)}', this.value)">
+                    ? `<select class="queue-priority-select" aria-label="${t('Приоритет задачи')}" onchange="setQueuePriority('${escapeHtml(task.id)}', this.value)">
                         ${['high', 'normal', 'low'].map(p => `<option value="${p}"${p === priority ? ' selected' : ''}>${priorityLabels[p]}</option>`).join('')}
                        </select>`
                     : '';
@@ -912,12 +1110,87 @@
                     <div class="queue-item-status ${statusClass}">${statusText}</div>
                     <div class="queue-item-actions">
                         ${prioritySelect}
-                        ${['error', 'cancelled'].includes(task.status) ? `<button onclick="retryQueueTask('${escapeHtml(task.id)}')" class="retry-btn">Повторить</button>` : ''}
+                        ${['error', 'cancelled', 'partial'].includes(task.status) ? `<button onclick="retryQueueTask('${escapeHtml(task.id)}')" class="retry-btn">Повторить</button>` : ''}
                         ${cancelBtn}
-                        ${task.status !== 'downloading' ? `<button onclick="removeQueueTask('${escapeHtml(task.id)}')" class="remove-btn">Удалить</button>` : ''}
+                        <button onclick="removeQueueTask('${escapeHtml(task.id)}')" class="remove-btn">Удалить</button>
                     </div>
                 </div>`;
             }).join('');
+        }
+
+        // Селектор формата для yt-dlp по выбранному качеству. null означает
+        // «пусть загрузчик решает сам»: эндпоинт принимает format_id = null.
+        function buildFormatSelector(quality, url = '') {
+            if (!quality || quality === 'best') return null;
+            if (quality === 'audio') return 'bestaudio/best';
+            // TikTok отдаёт единый поток: селектор bestvideo+bestaudio —
+            // синтаксис YouTube и там приводит к «формат не найден».
+            if (/^https?:\/\/(?:www\.)?(?:m\.)?(?:vm\.|vt\.)?tiktok\.com\//i.test(url)) return null;
+            return `bestvideo[height<=${quality}]+bestaudio/best`;
+        }
+
+        // Ссылку проверяем на клиенте: иначе в очередь уходил любой текст, и
+        // задача падала уже в загрузчике, а пользователь видел ошибку не сразу.
+        function isSupportedVideoUrl(value) {
+            let parsed;
+            try {
+                parsed = new URL(value);
+            } catch (err) {
+                return false;
+            }
+            if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+            const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+            if (['youtube.com', 'm.youtube.com', 'music.youtube.com',
+                 'youtu.be', 'youtube-nocookie.com'].includes(host)) return true;
+            if (['vm.tiktok.com', 'vt.tiktok.com'].includes(host)) {
+                return parsed.pathname.replace(/\/+$/, '').length > 0;
+            }
+            if (host !== 'tiktok.com' && host !== 'm.tiktok.com') return false;
+            const parts = parsed.pathname.split('/').filter(Boolean);
+            if (host === 'm.tiktok.com' && parts[0] === 'v' && /^\d+/.test(parts[1] || '')) return true;
+            return (parts.length >= 3 && parts[0].startsWith('@') && parts[1] === 'video' && /^\d+$/.test(parts[2]))
+                || (parts.length === 1 && parts[0].startsWith('@') && parts[0].length > 1);
+        }
+
+        async function startDownload() {
+            const input = document.getElementById('urlInput');
+            const button = document.getElementById('downloadBtn');
+            if (!input) return;
+            const url = input.value.trim();
+            if (!url) { showToast(t('Введите ссылку на видео')); input.focus(); return; }
+            if (!isSupportedVideoUrl(url)) {
+                showErrorToast(t('Это не похоже на ссылку YouTube или TikTok'));
+                input.focus();
+                return;
+            }
+            const quality = document.getElementById('urlQuality')?.value || 'best';
+            const payload = { urls: [url], title: t('Загрузка по ссылке') };
+            const selector = buildFormatSelector(quality, url);
+            if (selector) payload.format_id = selector;
+            // Кнопку блокируем на время запроса: двойной клик добавлял в очередь
+            // две одинаковые задачи.
+            if (button) button.disabled = true;
+            try {
+                const res = await fetch('/api/queue/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json().catch(() => ({}));
+                // Проверяем и код ответа, и тело: часть ошибок очереди
+                // приходит именно в теле.
+                if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+                input.value = '';
+                showToast(t('Добавлено в очередь'));
+                // Сразу показываем очередь: иначе непонятно, что вообще
+                // произошло после нажатия кнопки.
+                filterNav('queue');
+            } catch (err) {
+                showErrorToast(t('Не удалось добавить в очередь') + ': ' + err.message,
+                               () => startDownload());
+            } finally {
+                if (button) button.disabled = false;
+            }
         }
 
         function addToQueue(urls, formatId, title, mergeFormat = 'mp4') {
@@ -928,36 +1201,54 @@
             })
             .then(res => res.json())
             .then(data => {
-                if (data.error) showErrorToast('Ошибка: ' + data.error);
-                else { showToast('Добавлено в очередь'); if (currentNav === 'queue') loadQueue(); }
+                if (data.error) showErrorToast(t('Ошибка') + ': ' + data.error);
+                else { showToast(t('Добавлено в очередь')); if (currentNav === 'queue') loadQueue(); }
             })
-            .catch(err => showErrorToast('Ошибка добавления в очередь: ' + err.message, () => addToQueue(urls, formatId, title, mergeFormat)));
+            .catch(err => showErrorToast(t('Ошибка добавления в очередь') + ': ' + err.message, () => addToQueue(urls, formatId, title, mergeFormat)));
         }
 
         function retryQueueTask(taskId) {
             fetch(`/api/queue/retry/${taskId}`, { method: 'POST' })
-                .then(async res => { const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`); loadQueue(); showToast('Повторная загрузка запущена'); })
-                .catch(err => showErrorToast('Ошибка повтора: ' + err.message, () => retryQueueTask(taskId)));
+                .then(async res => { const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`); loadQueue(); showToast(t('Повторная загрузка запущена')); })
+                .catch(err => showErrorToast(t('Ошибка повтора') + ': ' + err.message, () => retryQueueTask(taskId)));
         }
 
         function removeQueueTask(taskId) {
+            // Удаление доступно и для активной задачи, но обещать прерывание
+            // нельзя: отмена читается только из хуков прогресса, поэтому в
+            // неотменяемом участке (склейка) поток догрузит видео до конца.
+            const task = lastQueueTasks.find(t => t.id === taskId);
+            if (task && task.status === 'downloading'
+                // Фраза целиком одним ключом: по частям перевод сложить нельзя,
+                // в других языках порядок слов свой.
+                && !confirm(t('Задача ещё загружается. Убрать её из очереди?')
+                    + '\n\n'
+                    + t('Обычная загрузка прервётся. Если она зависла на склейке, файл может докачаться в фоне.'))) return;
+            // Раньше ответ не проверялся, и ошибка сервера показывалась
+            // пользователю как «Задача удалена».
             fetch(`/api/queue/remove/${taskId}`, { method: 'DELETE' })
-                .then(() => { loadQueue(); showToast('Задача удалена'); })
-                .catch(err => showErrorToast('Ошибка удаления', () => removeQueueTask(taskId)));
+                .then(async res => {
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                    loadQueue();
+                    showToast(data.cancelled_active ? t('Загрузка отменена и задача удалена') : t('Задача удалена'));
+                })
+                .catch(err => showErrorToast(t('Ошибка удаления') + ': ' + err.message, () => removeQueueTask(taskId)));
         }
 
         function cancelQueueTask(taskId) {
-            const task = lastQueueTasks.find(t => t.id === taskId);
-            const isActive = task && task.status === 'downloading';
-            if (isActive && !confirm('Прервать текущую загрузку? Уже скачанная часть видео будет удалена.')) return;
+            // Спрашиваем всегда: статус в кэше отстаёт минимум на один опрос, и
+            // задача, подписанная «Ожидание», могла уже начать качать. Раньше в
+            // этом случае предупреждение не показывалось, а скачанное удалялось.
+            if (!confirm(t('Отменить загрузку? Уже скачанная часть видео будет удалена.'))) return;
             fetch(`/api/queue/cancel/${taskId}`, { method: 'POST' })
                 .then(async res => {
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
                     loadQueue();
-                    showToast(data.was_downloading ? 'Загрузка прерывается...' : 'Задача отменена');
+                    showToast(data.was_downloading ? t('Загрузка прерывается...') : t('Задача отменена'));
                 })
-                .catch(err => showErrorToast('Не удалось отменить: ' + err.message, () => cancelQueueTask(taskId)));
+                .catch(err => showErrorToast(t('Не удалось отменить') + ': ' + err.message, () => cancelQueueTask(taskId)));
         }
 
         function setQueuePriority(taskId, priority) {
@@ -970,43 +1261,68 @@
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
                     loadQueue();
-                    showToast('Приоритет обновлён');
+                    showToast(t('Приоритет обновлён'));
                 })
-                .catch(err => showErrorToast('Не удалось изменить приоритет: ' + err.message));
+                .catch(err => showErrorToast(t('Не удалось изменить приоритет') + ': ' + err.message));
+        }
+
+        // Раньше pause/resume/clear не смотрели на код ответа: fetch отклоняется
+        // только на сетевой ошибке, поэтому 500 показывался как «Очередь
+        // возобновлена», хотя сервер ничего не сделал.
+        function queueAction(url, okMessage, retry) {
+            return fetch(url, { method: 'POST' })
+                .then(async res => {
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+                    loadQueue();
+                    showToast(okMessage);
+                })
+                .catch(err => showErrorToast(t('Ошибка') + ': ' + err.message, retry));
         }
 
         function pauseQueue() {
-            fetch('/api/queue/pause', { method: 'POST' })
-                .then(() => { loadQueue(); showToast('Пауза: текущая загрузка завершится, следующие не начнутся'); })
-                .catch(err => showErrorToast('Ошибка', () => pauseQueue()));
+            queueAction('/api/queue/pause', t('Пауза: текущая загрузка завершится, следующие не начнутся'), pauseQueue);
         }
 
         function resumeQueue() {
-            fetch('/api/queue/resume', { method: 'POST' })
-                .then(() => { loadQueue(); showToast('Очередь возобновлена'); })
-                .catch(err => showErrorToast('Ошибка', () => resumeQueue()));
+            queueAction('/api/queue/resume', t('Очередь возобновлена'), resumeQueue);
         }
 
         function clearQueue() {
-            if (!confirm('Удалить завершённые, отменённые задачи и задачи с ошибками? Активные и ожидающие останутся.')) return;
-            fetch('/api/queue/clear', { method: 'POST' })
-                .then(() => { loadQueue(); showToast('Завершённые задачи удалены'); })
-                .catch(err => showErrorToast('Ошибка', () => clearQueue()));
+            if (!confirm(t('Удалить завершённые, отменённые задачи и задачи с ошибками? Активные и ожидающие останутся.'))) return;
+            queueAction('/api/queue/clear', t('Завершённые задачи удалены'), clearQueue);
         }
 
         document.getElementById('queueFilter')?.addEventListener('change', () => renderQueue(lastQueueTasks, lastQueuePaused));
 
         function retryFailedQueueTasks() {
-            const failed = lastQueueTasks.filter(task => task.status === 'error');
-            if (!failed.length) return showToast('Задач с ошибками нет');
-            Promise.all(failed.map(task => fetch(`/api/queue/retry/${task.id}`, { method: 'POST' })))
-                .then(() => { loadQueue(); showToast(`Повтор запущен: ${failed.length}`); })
-                .catch(err => showErrorToast('Не удалось повторить задачи: ' + err.message, retryFailedQueueTasks));
+            // Частично скачанные задачи тоже надо повторять: раньше сюда
+            // попадали только error, и дозагрузить пропущенное было нечем.
+            const failed = lastQueueTasks.filter(task => ['error', 'partial'].includes(task.status));
+            if (!failed.length) return showToast(t('Задач с ошибками нет'));
+            // Результаты проверяем: задача, уже подхваченная воркером, вернёт 409,
+            // а удалённая — 404, и раньше всё это выдавалось за успешный повтор.
+            Promise.all(failed.map(task => fetch(`/api/queue/retry/${task.id}`, { method: 'POST' })
+                .then(res => res.ok).catch(() => false)))
+                .then(results => {
+                    loadQueue();
+                    const ok = results.filter(Boolean).length;
+                    if (!ok) showErrorToast(t('Ни одну задачу повторить не удалось'), retryFailedQueueTasks);
+                    else if (ok < results.length) showToast(t('Повтор запущен: {ok} из {total}').replace('{ok}', ok).replace('{total}', results.length));
+                    else showToast(t('Повтор запущен: {ok}').replace('{ok}', ok));
+                })
+                .catch(err => showErrorToast(t('Не удалось повторить задачи') + ': ' + err.message, retryFailedQueueTasks));
         }
 
         function startQueuePolling() {
             if (queuePollInterval) clearInterval(queuePollInterval);
-            queuePollInterval = setInterval(() => { loadQueue(); }, 3000);
+            queuePollInterval = setInterval(() => {
+                // Опрос только когда очередь на экране: раньше запрос уходил
+                // каждые 3 секунды всегда и перерисовывал скрытый список.
+                if (currentNav !== 'queue') return;
+                if (document.hidden) return;
+                loadQueue();
+            }, 3000);
         }
 
         startQueuePolling();
@@ -1020,12 +1336,33 @@
             });
         }
 
+        // ========== НИЖНЯЯ НАВИГАЦИЯ ==========
+        // Разделы главной переключаются на месте, без перезагрузки, поэтому
+        // ссылки панели перехватываем. Атрибут href остаётся настоящим: с
+        // других страниц панель ведёт на /?nav=..., и с отключённым JS ссылка
+        // тоже работает.
+        document.querySelectorAll('.lt-nav-item[data-nav-target]').forEach(item => {
+            item.addEventListener('click', (event) => {
+                event.preventDefault();
+                filterNav(item.getAttribute('data-nav-target'));
+                // Раздел выбран — прокрутка должна начинаться сверху, иначе
+                // после длинного каталога открывается середина списка.
+                window.scrollTo({ top: 0 });
+            });
+        });
+
+        // Переход с другой страницы: /?nav=queue должен открыть очередь сразу.
+        const requestedNav = new URLSearchParams(window.location.search).get('nav');
+
         // Данные приходят с сервера асинхронно, поэтому интерфейс, зависящий от
         // них, обновляется после загрузки. Запрос уже начат выше.
         // Данные уже пришли вместе со страницей, поэтому применяем их сразу.
         markFavoriteButtons();
         updateHiddenChannelsList();
-        applyFilters();
+        // filterNav сам вызывает applyFilters, поэтому при переходе по ?nav=
+        // второй вызов не нужен.
+        if (requestedNav) filterNav(requestedNav);
+        else applyFilters();
 
         // Синхронизация с сервером на случай, если данные изменились в другой
         // вкладке или произошла разовая миграция из localStorage.
@@ -1060,7 +1397,54 @@
             });
         }
         document.addEventListener('DOMContentLoaded', preloadAllThumbnails);
-        startQueuePolling();
+
+        // Enter в поле ссылки запускает загрузку: тянуться к кнопке после
+        // вставки ссылки неудобно.
+        document.getElementById('urlInput')?.addEventListener('keydown', event => {
+            if (event.key === 'Enter') { event.preventDefault(); startDownload(); }
+        });
+
+        // ===== Гость из локальной сети =====
+        // Своё устройство можно повысить до владельца PIN-кодом из настроек
+        // на самом компьютере.
+        document.getElementById('guestUnlockBtn')?.addEventListener('click', async () => {
+            const pin = prompt(t('PIN из настроек LocalTube на компьютере владельца:'));
+            if (!pin) return;
+            try {
+                const res = await fetch('/api/network/unlock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin: pin.trim() }),
+                });
+                if (!res.ok) {
+                    // Сервер ограничивает число попыток, и при исчерпании
+                    // отвечает 429. Показывать при этом «Неверный PIN» было бы
+                    // ложью: PIN мог быть верным, просто окно закрыто, и
+                    // пользователь не понимал, почему вход не проходит.
+                    let message = t('Неверный PIN');
+                    try {
+                        const data = await res.json();
+                        if (data.error) message = data.error;
+                        else if (typeof data.attempts_left === 'number') {
+                            message = t('Неверный PIN. Осталось попыток: {left}').replace('{left}', data.attempts_left);
+                        }
+                    } catch (parseError) {
+                        // Тело не JSON — остаётся общее сообщение.
+                    }
+                    showToast(message);
+                    return;
+                }
+                showToast(t('Готово, открываю полный доступ'));
+                location.reload();
+            } catch (err) {
+                console.error('Не удалось войти по PIN:', err);
+                showToast(t('Не удалось связаться с сервером'));
+            }
+        });
+
+        // Поиск по библиотеке для гостя: поле ссылки ему заменено на поиск.
+        // Значение читает сам applyFilters, здесь только повод перерисовать.
+        document.getElementById('searchInput')?.addEventListener('input', () => applyFilters());
     </script>
 </body>
 </html>

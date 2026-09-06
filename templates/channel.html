@@ -1,15 +1,16 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="dark">
+<html lang="{{ ui_lang }}" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{ author }} — LocalTube</title>
-    <link id="theme-style" rel="stylesheet" href="">
     <link rel="stylesheet" href="/static/css/fonts.css">
-    <link rel="stylesheet" href="/static/css/mobile.css">
     <style>
+        /* --link задан отдельно от акцента кнопок: #3ea6ff на белом фоне даёт
+           контраст 2,6:1, ниже порога WCAG AA (4,5:1) для текста ссылок. */
+        :root { --link:#3ea6ff; }
         :root[data-theme="dark"] { --bg:#0f0f0f; --text:#f1f1f1; --muted:#aaa; --border:#3f3f3f; --card:#1d1d1d; --button:#272727; }
-        :root[data-theme="light"] { --bg:#fff; --text:#0f0f0f; --muted:#606060; --border:#e5e5e5; --card:#f8f8f8; --button:#f2f2f2; }
+        :root[data-theme="light"] { --bg:#fff; --text:#0f0f0f; --muted:#606060; --border:#e5e5e5; --card:#f8f8f8; --button:#f2f2f2; --link:#0b63ce; }
         #bg-layer-1, #bg-layer-2 { position:fixed; top:0; left:0; width:100%; height:100%; background-size:cover; background-position:center center; background-repeat:no-repeat; transition:opacity 1.5s ease-in-out; pointer-events:none; z-index:-3; }
         #bg-layer-2 { z-index:-2; }
         :root[data-theme="frutiger-aero"] { --bg:transparent; --text:#fff; --muted:#e3f2fd; --border:rgba(255,255,255,.35); --card:rgba(255,255,255,.18); --button:rgba(255,255,255,.22); }
@@ -19,10 +20,34 @@
         :root[data-theme="frutiger-aero"] option { color:#0f0f0f; }
         * { box-sizing:border-box; } body { margin:0; min-height:100vh; color:var(--text); background:var(--bg); } a { color:inherit; text-decoration:none; } button, select { font:inherit; }
         header { height:56px; display:flex; align-items:center; gap:16px; padding:0 20px; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:3; background:var(--bg); } .logo { font-size:20px; font-weight:700; } .spacer { flex:1; } .header-link { color:var(--muted); font-size:14px; }
-        main { width:min(1280px, calc(100% - 40px)); margin:0 auto 48px; } .banner { height:220px; margin-top:20px; border-radius:14px; background:#303030 center/cover no-repeat; } .channel-head { display:flex; gap:22px; padding:20px 0; align-items:flex-start; } .avatar { width:110px; height:110px; border-radius:50%; flex:0 0 auto; overflow:hidden; display:grid; place-items:center; background:#6b4aa0; color:#fff; font-size:40px; } .avatar img { width:100%; height:100%; object-fit:cover; } .head-copy { min-width:0; flex:1; } h1 { margin:0 0 8px; font-size:32px; } .stats, .muted { color:var(--muted); font-size:14px; } .actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; } .button { border:0; border-radius:20px; padding:10px 16px; background:var(--button); color:var(--text); cursor:pointer; } .button.primary { color:#000; background:#3ea6ff; } .tabs { display:flex; gap:24px; border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; } .tabs::-webkit-scrollbar { display:none; } .tab { border:0; color:var(--muted); background:transparent; padding:14px 2px 12px; border-bottom:3px solid transparent; cursor:pointer; white-space:nowrap; } .tab.active { color:var(--text); border-color:var(--text); } .panel { display:none; padding-top:24px; } .panel.active { display:block; } .section-head { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:18px; } .section-head h2 { margin:0; font-size:20px; } select { padding:8px 10px; color:var(--text); background:var(--button); border:1px solid var(--border); border-radius:8px; }
+        main { width:min(1280px, calc(100% - 40px)); margin:0 auto 48px; } .banner { height:220px; margin-top:20px; border-radius:14px; border:1px solid var(--border); background:linear-gradient(120deg, #3a3a3a, #202020); } .banner.has-image { border-color:transparent; background-position:center; background-size:cover; background-repeat:no-repeat; } .channel-head { display:flex; gap:22px; padding:20px 0; align-items:flex-start; } .avatar { width:110px; height:110px; border-radius:50%; flex:0 0 auto; overflow:hidden; display:grid; place-items:center; background:#6b4aa0; color:#fff; font-size:40px; } .avatar img { width:100%; height:100%; object-fit:cover; } .head-copy { min-width:0; flex:1; } h1 { margin:0 0 8px; font-size:32px; } .stats, .muted { color:var(--muted); font-size:14px; } .actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; } .button { border:0; border-radius:20px; padding:10px 16px; background:var(--button); color:var(--text); cursor:pointer; } .button.primary { color:#000; background:#3ea6ff; } .tabs { display:flex; gap:24px; border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; } .tabs::-webkit-scrollbar { display:none; } .tab { border:0; color:var(--muted); background:transparent; padding:14px 2px 12px; border-bottom:3px solid transparent; cursor:pointer; white-space:nowrap; } .tab.active { color:var(--text); border-color:var(--text); } .panel { display:none; padding-top:24px; } .panel.active { display:block; } .section-head { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:18px; } .section-head h2 { margin:0; font-size:20px; } select { padding:8px 10px; color:var(--text); background:var(--button); border:1px solid var(--border); border-radius:8px; }
         .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:20px; } .card { position:relative; min-width:0; } .thumb { width:100%; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#303030; position:relative; display:grid; place-items:center; color:#bbb; } .thumb img { width:100%; height:100%; object-fit:cover; } .duration { position:absolute; right:6px; bottom:6px; padding:3px 5px; border-radius:4px; background:rgba(0,0,0,.85); color:#fff; font-size:12px; } .card h3 { margin:9px 0 4px; line-height:1.35; font-size:15px; } .card .meta { color:var(--muted); font-size:13px; } .short-grid .thumb { aspect-ratio:9/16; }
-        .featured { display:grid; grid-template-columns:minmax(300px, 2fr) minmax(240px, 1fr); gap:20px; } .featured-card .thumb { aspect-ratio:16/9; } .about { max-width:760px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; } .about a { color:#3ea6ff; text-decoration:underline; } .about-meta { margin-top:22px; display:grid; gap:8px; color:var(--muted); } .playlist-card { background:var(--card); border:1px solid var(--border); padding:10px; border-radius:12px; } .empty { padding:36px; text-align:center; color:var(--muted); border:1px dashed var(--border); border-radius:12px; }
+        .featured { display:grid; grid-template-columns:minmax(300px, 2fr) minmax(240px, 1fr); gap:20px; } .featured-card .thumb { aspect-ratio:16/9; } .about { max-width:760px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; } .about a { color:var(--link); text-decoration:underline; } .about-meta { margin-top:22px; display:grid; gap:8px; color:var(--muted); } .tag-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; } .tag { padding:5px 12px; border-radius:14px; font-size:13px; color:var(--muted); background:var(--button); border:1px solid var(--border); } .fact-grid { margin-top:22px; display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; max-width:760px; } .fact { display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--card); } .fact-label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); } .fact-value { font-size:18px; font-weight:600; } .about-links { display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:18px; } .about-links .handle { color:var(--muted); } .about-links a { color:var(--link); } .about-subhead { margin:24px 0 10px; font-size:15px; color:var(--muted); font-weight:600; } .link-list { display:flex; flex-wrap:wrap; gap:10px; max-width:760px; } .channel-link { display:inline-flex; align-items:center; min-height:36px; padding:8px 14px; border-radius:18px; border:1px solid var(--border); background:var(--card); color:var(--link); text-decoration:none; overflow-wrap:anywhere; } .channel-link:hover { border-color:var(--link); } .playlist-card { background:var(--card); border:1px solid var(--border); padding:10px; border-radius:12px; } .empty { padding:36px; text-align:center; color:var(--muted); border:1px dashed var(--border); border-radius:12px; }
          #toast { position:fixed; right:20px; bottom:20px; z-index:8; background:#222; color:#fff; padding:12px 16px; border-radius:8px; opacity:0; pointer-events:none; transition:opacity .2s; } #toast.visible { opacity:1; }
+         /* ===== Выбор видео и качества перед загрузкой ===== */
+         .dl-overlay { position:fixed; inset:0; z-index:30; background:rgba(0,0,0,.65); display:flex; align-items:center; justify-content:center; padding:20px; }
+         .dl-overlay[hidden] { display:none; }
+         .dl-modal { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:14px; width:min(860px,100%); max-height:min(88vh,860px); display:flex; flex-direction:column; box-shadow:0 18px 48px rgba(0,0,0,.45); }
+         :root[data-theme="frutiger-aero"] .dl-modal { background:rgba(255,255,255,.92); color:#0f0f0f; backdrop-filter:blur(16px) saturate(180%); }
+         .dl-head { padding:18px 20px 12px; border-bottom:1px solid var(--border); }
+         .dl-head h2 { margin:0 0 4px; font-size:19px; }
+         .dl-head .dl-sub { color:var(--muted); font-size:13px; }
+         .dl-controls { display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid var(--border); }
+         .dl-field { display:flex; flex-direction:column; gap:5px; }
+         .dl-field label { font-size:12px; color:var(--muted); }
+         .dl-field select { background:var(--button); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:14px; min-width:180px; }
+         .dl-pick { display:flex; gap:8px; margin-left:auto; flex-wrap:wrap; }
+         .dl-list { overflow-y:auto; padding:8px 12px; flex:1 1 auto; min-height:120px; }
+         .dl-row { display:flex; gap:12px; align-items:center; padding:9px 8px; border-radius:8px; }
+         .dl-row:hover { background:var(--card); }
+         .dl-row input[type=checkbox] { width:17px; height:17px; flex:none; cursor:pointer; }
+         .dl-row .dl-title { flex:1 1 auto; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+         .dl-row a.dl-ext { color:var(--muted); font-size:12px; text-decoration:none; flex:none; }
+         .dl-row a.dl-ext:hover { text-decoration:underline; }
+         .dl-foot { display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px 20px; border-top:1px solid var(--border); flex-wrap:wrap; }
+         .dl-count { font-size:13px; color:var(--muted); }
+         .dl-empty { padding:28px 8px; text-align:center; color:var(--muted); }
+         @media (max-width:640px) { .dl-controls { gap:10px; } .dl-field select { min-width:140px; } .dl-pick { margin-left:0; } }
          .sync-panel { margin:0 0 18px; padding:14px 16px; border:1px solid var(--border); border-radius:10px; background:var(--card); display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
          .sync-status { font-size:13px; font-weight:600; }
          .sync-status.success { color:#00b86b; } .sync-status.checking { color:#3ea6ff; } .sync-status.error { color:#e05252; } .sync-status.interrupted { color:#d99000; } .sync-status.never, .sync-status.unknown { color:var(--muted); }
@@ -32,36 +57,129 @@
          .sync-button:disabled { cursor:wait; opacity:.65; }
          :root[data-theme="frutiger-aero"] .sync-panel { backdrop-filter:blur(12px) saturate(180%); -webkit-backdrop-filter:blur(12px) saturate(180%); }
 
-        @media (max-width:700px) { main { width:min(100%, calc(100% - 24px)); } .tabs-wrap { position:relative; } .tabs-wrap::after { content:''; position:absolute; top:0; right:0; width:28px; height:100%; pointer-events:none; background:linear-gradient(to right, transparent, var(--bg)); } :root[data-theme="frutiger-aero"] .tabs-wrap::after { background:none; } .tabs { gap:18px; } .tab { padding-inline:2px; } .banner { height:130px; margin-top:12px; } .channel-head { gap:14px; } .avatar { width:72px; height:72px; font-size:28px; } h1 { font-size:24px; } .featured { grid-template-columns:1fr; } .grid { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; } .card h3 { font-size:14px; } }
+        @media (max-width:700px) { main { width:min(100%, calc(100% - 24px)); } .tabs-wrap { position:relative; } .tabs-wrap::after { content:''; position:absolute; top:0; right:0; width:28px; height:100%; pointer-events:none; background:linear-gradient(to right, transparent, var(--bg)); } :root[data-theme="frutiger-aero"] .tabs-wrap::after { background:none; } .tabs { gap:18px; }             .tab { padding:14px 2px 12px; min-height:44px; } .button { min-height:44px; } .sync-button { min-height:44px; } .header-link { display:inline-flex; align-items:center; min-height:44px; } .banner { height:130px; margin-top:12px; } .channel-head { gap:14px; } .avatar { width:72px; height:72px; font-size:28px; } h1 { font-size:24px; } .featured { grid-template-columns:1fr; } .grid { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; } .card h3 { font-size:14px; } }
     </style>
+    <!-- Файл темы после инлайновых стилей: иначе токены шаблона перебивают
+         midnight/glass/aero. -->
+    <link id="theme-style" rel="stylesheet">
+    <!-- ui.css и mobile.css после инлайновых стилей: правила имеют равную
+         специфичность, поэтому побеждает тот, кто идёт последним. -->
+    <link rel="stylesheet" href="/static/css/ui.css">
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    <!-- Синхронно, после ссылки на файл темы и до разметки. -->
+    <!-- Перевод строк, которые собирает клиентский код. До theme.js:
+         t() должна быть готова к первому вызову. -->
+    {# Словарь идёт вместе со страницей: отдельный запрос приходил позже
+       первой отрисовки, и подписи из скриптов оставались русскими. #}
+    {% if ui_strings %}<script>
+        window.LT_I18N = {{ ui_strings|tojson }};
+    </script>{% endif %}
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/theme.js"></script>
 </head>
 <body>
 <div id="bg-layer-1" style="background-image:none; opacity:0;"></div>
 <div id="bg-layer-2" style="background-image:none; opacity:0;"></div>
-<header><a class="logo" href="/">LocalTube</a><span class="spacer"></span><a class="header-link" href="/settings">Настройки</a></header>
+<header><a class="logo" href="/">LocalTube</a><span class="spacer"></span>{% if is_owner|default(true) %}<a class="header-link" href="/settings">{{ 'Настройки'|t }}</a>{% endif %}</header>
 <main>
-    {% if banner_url %}<div class="banner" style="background-image:url('{{ banner_url }}')"></div>{% else %}<div class="banner"></div>{% endif %}
+    {# Без шапки блок остаётся: иначе страница «подпрыгивает» после синхронизации. #}
+    {% if banner_url %}<div class="banner has-image" style="background-image:url('{{ banner_url }}')"></div>{% else %}<div class="banner"></div>{% endif %}
+    {# Обновление канала качает видео и пишет на диск: гостю панель не нужна. #}
+    {% if is_owner|default(true) %}
     <section class="sync-panel" aria-live="polite">
-        <span id="syncStatus" class="sync-status unknown">Статус канала: проверка ещё не выполнялась</span>
+        <span id="syncStatus" class="sync-status unknown">{{ 'Статус канала: проверка ещё не выполнялась'|t }}</span>
         <span id="syncDetails" class="sync-details"></span>
-        <button type="button" class="sync-button" id="syncButton">Обновить канал</button>
+        <button type="button" class="sync-button" id="syncButton">{{ 'Обновить канал'|t }}</button>
         <div id="syncError" class="sync-error" hidden></div>
     </section>
+    {% endif %}
     <section class="channel-head">
         <div class="avatar">{% if author_avatar %}<img src="{{ author_avatar }}" alt="{{ author }}">{% else %}{{ author[:1]|upper }}{% endif %}</div>
-        <div class="head-copy"><h1>{{ author }}</h1><div class="stats">{{ total_videos }} видео{% if subscribers %} · {{ subscribers }} подписчиков{% endif %}</div><div class="actions">{% if channel_url %}<button class="button primary" id="downloadRemaining">Скачать остальные видео</button>{% endif %}<button class="button" data-tab="about">О канале</button><button class="button" type="button" id="hideChannelBtn" aria-pressed="{{ 'true' if is_hidden else 'false' }}">{{ 'Показать канал' if is_hidden else 'Скрыть канал' }}</button></div></div>
+        <div class="head-copy"><h1>{{ author }}</h1><div class="stats">{{ total_videos }} видео{% if subscribers %} · {{ subscribers }} подписчиков{% endif %}</div><div class="actions">{% if is_owner|default(true) %}{% if channel_url %}<button class="button primary" id="downloadRemaining">{{ 'Скачать остальные видео'|t }}</button>{% endif %}{% endif %}<button class="button" data-tab="about">{{ 'О канале'|t }}</button>{% if is_owner|default(true) %}<button class="button" type="button" id="hideChannelBtn" aria-pressed="{{ 'true' if is_hidden else 'false' }}">{{ 'Показать канал' if is_hidden else 'Скрыть канал' }}</button>{% endif %}</div></div>
     </section>
-    <div class="tabs-wrap"><nav class="tabs" aria-label="Разделы канала"><button class="tab active" data-tab="home">Главная</button><button class="tab" data-tab="videos">Видео</button><button class="tab" data-tab="shorts">Shorts{% if total_shorts %} ({{ total_shorts }}){% endif %}</button><button class="tab" data-tab="playlists">Плейлисты{% if playlists %} ({{ playlists|length }}){% endif %}</button><button class="tab" data-tab="about">О канале</button></nav></div>
+    <div class="tabs-wrap"><nav class="tabs" aria-label="{{ 'Разделы канала'|t }}"><button class="tab active" data-tab="home">{{ 'Главная'|t }}</button><button class="tab" data-tab="videos">{{ 'Видео'|t }}</button><button class="tab" data-tab="shorts">Shorts{% if total_shorts %} ({{ total_shorts }}){% endif %}</button><button class="tab" data-tab="playlists">Плейлисты{% if playlists %} ({{ playlists|length }}){% endif %}</button><button class="tab" data-tab="about">{{ 'О канале'|t }}</button></nav></div>
     <section id="home" class="panel active">
         {% set regular = videos|rejectattr('is_short')|list %}
-        {% if regular %}<div class="section-head"><h2>Рекомендуемое</h2></div><div class="featured"><a class="featured-card" href="/watch/{{ regular[0].id }}"><div class="thumb">{% if regular[0].thumb %}<img src="/media/{{ regular[0].author|urlencode }}/{{ regular[0].folder|urlencode }}/{{ regular[0].thumb|urlencode }}" alt="">{% else %}Нет превью{% endif %}{% if regular[0].duration %}<span class="duration">{{ regular[0].duration|human_duration }}</span>{% endif %}</div><h3>{{ regular[0].title }}</h3><div class="meta">{{ regular[0].upload_date|human_date or 'Локальное видео' }}</div></a><div><h2>Последние видео</h2>{% for v in regular[1:5] %}<a href="/watch/{{ v.id }}" style="display:block;padding:10px 0;border-bottom:1px solid var(--border)"><strong>{{ v.title }}</strong><div class="meta">{{ v.upload_date|human_date }}</div></a>{% endfor %}</div></div>{% else %}<div class="empty">Обычных видео пока нет.</div>{% endif %}
+        {% if regular %}<div class="section-head"><h2>{{ 'Рекомендуемое'|t }}</h2></div><div class="featured"><a class="featured-card" href="/watch/{{ regular[0].id }}"><div class="thumb">{% if regular[0].thumb %}<img src="/media/{{ regular[0].author|urlencode }}/{{ regular[0].folder|urlencode }}/{{ regular[0].thumb|urlencode }}" alt="">{% else %}{{ 'Нет превью'|t }}{% endif %}{% if regular[0].duration %}<span class="duration">{{ regular[0].duration|human_duration }}</span>{% endif %}</div><h3>{{ regular[0].title }}</h3><div class="meta">{{ regular[0].upload_date|human_date or 'Локальное видео'|t }}</div></a><div><h2>{{ 'Последние видео'|t }}</h2>{% for v in regular[1:5] %}<a href="/watch/{{ v.id }}" style="display:block;padding:10px 0;border-bottom:1px solid var(--border)"><strong>{{ v.title }}</strong><div class="meta">{{ v.upload_date|human_date }}</div></a>{% endfor %}</div></div>{% else %}<div class="empty">{{ 'Обычных видео пока нет.'|t }}</div>{% endif %}
     </section>
-    <section id="videos" class="panel"><div class="section-head"><h2>Видео</h2><select data-sort="videos"><option value="new">Сначала новые</option><option value="old">Сначала старые</option></select></div><div class="grid" id="videosGrid">{% for v in videos if not v.is_short %}<a href="/watch/{{ v.id }}" class="card" data-date="{{ v.upload_date }}"><div class="thumb">{% if v.thumb %}<img loading="lazy" src="/media/{{ v.author|urlencode }}/{{ v.folder|urlencode }}/{{ v.thumb|urlencode }}" alt="">{% else %}Нет превью{% endif %}{% if v.duration %}<span class="duration">{{ v.duration|human_duration }}</span>{% endif %}</div><h3>{{ v.title }}</h3><div class="meta">{{ v.upload_date|human_date or 'Дата неизвестна' }} · {{ v.size_mb }} МБ</div></a>{% endfor %}</div></section>
-    <section id="shorts" class="panel"><div class="section-head"><h2>Shorts</h2><select data-sort="shorts"><option value="new">Сначала новые</option><option value="old">Сначала старые</option></select></div><div class="grid short-grid" id="shortsGrid">{% for v in videos if v.is_short %}<a href="/watch/{{ v.id }}" class="card" data-date="{{ v.upload_date }}"><div class="thumb">{% if v.thumb %}<img loading="lazy" src="/media/{{ v.author|urlencode }}/{{ v.folder|urlencode }}/{{ v.thumb|urlencode }}" alt="">{% else %}Нет превью{% endif %}{% if v.duration %}<span class="duration">{{ v.duration|human_duration }}</span>{% endif %}</div><h3>{{ v.title }}</h3><div class="meta">{{ v.upload_date|human_date or 'Дата неизвестна' }}</div></a>{% endfor %}</div>{% if not total_shorts %}<div class="empty">Shorts пока нет.</div>{% endif %}</section>
-    <section id="playlists" class="panel"><div class="section-head"><h2>Плейлисты</h2></div><div class="grid">{% for p in playlists %}<article class="playlist-card"><div class="thumb">{% if p.thumbnail %}<img loading="lazy" src="{{ p.thumbnail }}" alt="">{% else %}Нет превью{% endif %}</div><h3>{{ p.title }}</h3><div class="meta">{{ p.video_count }} видео</div></article>{% else %}<div class="empty">Плейлисты не найдены.</div>{% endfor %}</div></section>
-    <section id="about" class="panel"><h2>О канале</h2><div class="about" id="description">{{ description or 'Описание канала отсутствует.' }}</div><div class="about-meta"><div>Видео: {{ total_videos }}</div>{% if joined_date %}<div>Дата регистрации: {{ joined_date|human_date }}</div>{% endif %}{% if country %}<div>Страна: {{ country }}</div>{% endif %}</div></section>
+    <section id="videos" class="panel"><div class="section-head"><h2>{{ 'Видео'|t }}</h2><select data-sort="videos"><option value="new">{{ 'Сначала новые'|t }}</option><option value="old">{{ 'Сначала старые'|t }}</option></select></div><div class="grid" id="videosGrid">{% for v in videos if not v.is_short %}<a href="/watch/{{ v.id }}" class="card" data-date="{{ v.upload_date }}"><div class="thumb">{% if v.thumb %}<img loading="lazy" src="/media/{{ v.author|urlencode }}/{{ v.folder|urlencode }}/{{ v.thumb|urlencode }}" alt="">{% else %}{{ 'Нет превью'|t }}{% endif %}{% if v.duration %}<span class="duration">{{ v.duration|human_duration }}</span>{% endif %}</div><h3>{{ v.title }}</h3><div class="meta">{{ v.upload_date|human_date or 'Дата неизвестна'|t }} · {{ v.size_mb }} {{ 'МБ'|t }}</div></a>{% endfor %}</div></section>
+    <section id="shorts" class="panel"><div class="section-head"><h2>Shorts</h2><select data-sort="shorts"><option value="new">{{ 'Сначала новые'|t }}</option><option value="old">{{ 'Сначала старые'|t }}</option></select></div><div class="grid short-grid" id="shortsGrid">{% for v in videos if v.is_short %}<a href="/watch/{{ v.id }}" class="card" data-date="{{ v.upload_date }}"><div class="thumb">{% if v.thumb %}<img loading="lazy" src="/media/{{ v.author|urlencode }}/{{ v.folder|urlencode }}/{{ v.thumb|urlencode }}" alt="">{% else %}{{ 'Нет превью'|t }}{% endif %}{% if v.duration %}<span class="duration">{{ v.duration|human_duration }}</span>{% endif %}</div><h3>{{ v.title }}</h3><div class="meta">{{ v.upload_date|human_date or 'Дата неизвестна'|t }}</div></a>{% endfor %}</div>{% if not total_shorts %}<div class="empty">{{ 'Shorts пока нет.'|t }}</div>{% endif %}</section>
+    <section id="playlists" class="panel"><div class="section-head"><h2>{{ 'Плейлисты'|t }}</h2></div><div class="grid">{% for p in playlists %}<article class="playlist-card"><div class="thumb">{% if p.thumbnail %}<img loading="lazy" src="{{ p.thumbnail }}" alt="">{% else %}{{ 'Нет превью'|t }}{% endif %}</div><h3>{{ p.title }}</h3><div class="meta">{{ p.video_count }} {{ 'видео'|t }}</div></article>{% else %}<div class="empty">{{ 'Плейлисты не найдены.'|t }}</div>{% endfor %}</div></section>
+    <section id="about" class="panel">
+        <h2>{{ 'О канале'|t }}</h2>
+        <div class="about" id="description">{{ description or 'Описание канала отсутствует.' }}</div>
+        {% if channel_tags %}<div class="tag-row">{% for tag in channel_tags[:12] %}<span class="tag">{{ tag }}</span>{% endfor %}</div>{% endif %}
+        <div class="fact-grid">
+            <div class="fact"><span class="fact-label">{{ 'Скачано'|t }}</span><span class="fact-value">{{ total_videos }}</span></div>
+            {% if remote_video_count %}<div class="fact"><span class="fact-label">{{ 'Видео на канале'|t }}</span><span class="fact-value">{{ remote_video_count }}</span></div>{% endif %}
+            {% if subscribers %}<div class="fact"><span class="fact-label">{{ 'Подписчики'|t }}</span><span class="fact-value">{{ subscribers }}</span></div>{% endif %}
+            {% if channel_views %}<div class="fact"><span class="fact-label">{{ 'Просмотры'|t }}</span><span class="fact-value">{{ channel_views|compact_count }}</span></div>{% endif %}
+            {% if joined_date %}<div class="fact"><span class="fact-label">{{ 'Регистрация'|t }}</span><span class="fact-value">{{ joined_date|human_date }}</span></div>{% endif %}
+            {% if country %}<div class="fact"><span class="fact-label">{{ 'Страна'|t }}</span><span class="fact-value">{{ country }}</span></div>{% endif %}
+        </div>
+        {% if channel_links %}
+        <h3 class="about-subhead">{{ 'Ссылки'|t }}</h3>
+        {# Схему URL проверяет safe_channel_links в app.py: javascript: в href
+           выполнился бы на странице. Названия экранирует Jinja. #}
+        <div class="link-list">
+            {% for link in channel_links %}<a class="channel-link" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.title }}</a>{% endfor %}
+        </div>
+        {% endif %}
+        {% if channel_handle or remote_channel_url %}
+        <div class="about-links">
+            {% if channel_handle %}<span class="handle">{{ channel_handle }}</span>{% endif %}
+            {# rel=noopener обязателен: без него открытая вкладка получает доступ к window.opener. #}
+            {% if remote_channel_url %}<a href="{{ remote_channel_url }}" target="_blank" rel="noopener noreferrer">{{ 'Открыть канал на YouTube'|t }}</a>{% endif %}
+        </div>
+        {% endif %}
+    </section>
 </main>
+{# Нижняя навигация: на телефоне разделы должны быть в один тап. #}
+{% include '_mobile_nav.html' with context %}
 <div id="toast"></div>
+<div class="dl-overlay" id="dlOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="dlTitle">
+    <div class="dl-modal">
+        <div class="dl-head">
+            <h2 id="dlTitle">{{ 'Выбор видео для загрузки'|t }}</h2>
+            <div class="dl-sub" id="dlSub"></div>
+        </div>
+        <div class="dl-controls">
+            <div class="dl-field">
+                <label for="dlQuality">{{ 'Качество'|t }}</label>
+                <select id="dlQuality">
+                    <option value="best">{{ 'Максимальное доступное'|t }}</option>
+                    <option value="2160">{{ 'До 2160p (4K)'|t }}</option>
+                    <option value="1440">{{ 'До 1440p (2K)'|t }}</option>
+                    <option value="1080" selected>{{ 'До 1080p (Full HD)'|t }}</option>
+                    <option value="720">{{ 'До 720p (HD)'|t }}</option>
+                    <option value="480">{{ 'До 480p'|t }}</option>
+                    <option value="360">{{ 'До 360p'|t }}</option>
+                    <option value="audio">{{ 'Только звук'|t }}</option>
+                </select>
+            </div>
+            <div class="dl-field">
+                <label for="dlFormat">{{ 'Формат файла'|t }}</label>
+                <select id="dlFormat">
+                    <option value="mp4" selected>MP4</option>
+                    <option value="mkv">MKV</option>
+                    <option value="webm">WEBM</option>
+                </select>
+            </div>
+            <div class="dl-pick">
+                <button class="button" type="button" id="dlSelectAll">{{ 'Выбрать все'|t }}</button>
+                <button class="button" type="button" id="dlSelectNone">{{ 'Снять все'|t }}</button>
+            </div>
+        </div>
+        <div class="dl-list" id="dlList"></div>
+        <div class="dl-foot">
+            <span class="dl-count" id="dlCount"></span>
+            <span style="display:flex;gap:10px;flex-wrap:wrap">
+                <button class="button" type="button" id="dlCancel">{{ 'Отмена'|t }}</button>
+                <button class="button primary" type="button" id="dlConfirm">{{ 'Добавить в очередь'|t }}</button>
+            </span>
+        </div>
+    </div>
+</div>
 <script>
     const toast = text => { const el = document.getElementById('toast'); el.textContent = text; el.classList.add('visible'); setTimeout(() => el.classList.remove('visible'), 3200); };
     const channelAuthor = {{ author|tojson }};
@@ -79,7 +197,7 @@
     function updateHideChannelButton() {
         const btn = document.getElementById('hideChannelBtn');
         if (!btn) return;
-        btn.textContent = channelHidden ? 'Показать канал' : 'Скрыть канал';
+        btn.textContent = channelHidden ? t('Показать канал') : t('Скрыть канал');
         btn.setAttribute('aria-pressed', channelHidden ? 'true' : 'false');
         btn.disabled = hideRequestInFlight;
     }
@@ -107,7 +225,7 @@
                 : `Канал "${channelAuthor}" больше не скрыт`);
         } catch (err) {
             console.error('Не удалось изменить видимость канала:', err);
-            toast('Не удалось сохранить на сервере');
+            toast(t('Не удалось сохранить на сервере'));
         } finally {
             hideRequestInFlight = false;
             updateHideChannelButton();
@@ -151,31 +269,36 @@
     }
     function renderSyncStatus(data) {
         const status = data.in_progress ? 'checking' : (data.status || 'never');
-        const labels = { checking: 'Проверка канала…', success: 'Канал синхронизирован', error: 'Ошибка синхронизации', interrupted: 'Проверка прервана', never: 'Проверка ещё не выполнялась', unknown: 'Статус неизвестен' };
+        const labels = { checking: t('Проверка канала…'), success: t('Канал синхронизирован'), error: t('Ошибка синхронизации'), interrupted: t('Проверка прервана'), never: t('Проверка ещё не выполнялась'), unknown: t('Статус неизвестен') };
         const statusEl = document.getElementById('syncStatus');
         const detailsEl = document.getElementById('syncDetails');
         const errorEl = document.getElementById('syncError');
+        // У гостя панели синхронизации нет: без этой проверки скрипт падал бы
+        // на первом же обращении и ломал остальные обработчики страницы.
+        if (!statusEl || !detailsEl || !errorEl) return;
         statusEl.className = `sync-status ${status}`;
         statusEl.textContent = labels[status] || status;
         const time = data.finished_at || data.updated_at;
-        detailsEl.textContent = time ? `Последняя попытка: ${formatSyncTime(time)}` : (status === 'checking' ? 'YouTube может отвечать несколько секунд.' : '');
+        detailsEl.textContent = time ? t('Последняя попытка: {time}').replace('{time}', formatSyncTime(time)) : (status === 'checking' ? t('YouTube может отвечать несколько секунд.') : '');
         const isProblem = status === 'error' || status === 'interrupted';
         errorEl.hidden = !isProblem || !data.error;
         errorEl.textContent = isProblem ? (data.error || '') : '';
         const button = document.getElementById('syncButton');
+        if (!button) return;
         button.disabled = status === 'checking';
-        button.textContent = status === 'checking' ? 'Проверяю…' : 'Обновить канал';
+        button.textContent = status === 'checking' ? t('Проверяю…') : t('Обновить канал');
     }
     async function loadSyncStatus() {
-        try { renderSyncStatus(await (await fetch(channelSyncStatusUrl)).json()); } catch (error) { renderSyncStatus({ status:'error', error:'Не удалось получить статус канала.' }); }
+        try { renderSyncStatus(await (await fetch(channelSyncStatusUrl)).json()); } catch (error) { renderSyncStatus({ status:'error', error:t('Не удалось получить статус канала.') }); }
     }
     async function startChannelSync() {
         const button = document.getElementById('syncButton');
+        if (!button) return;
         button.disabled = true;
         try {
             const response = await fetch(channelSyncUrl, { method:'POST' });
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Не удалось запустить синхронизацию');
+            if (!response.ok) throw new Error(data.error || t('Не удалось запустить синхронизацию'));
             renderSyncStatus({ status:'checking', in_progress:true });
             const poll = setInterval(async () => {
                 try {
@@ -191,68 +314,163 @@
             renderSyncStatus({ status:'error', error:error.message });
         }
     }
-    document.getElementById('syncButton').addEventListener('click', startChannelSync);
+    document.getElementById('syncButton')?.addEventListener('click', startChannelSync);
     renderSyncStatus(initialSyncStatus);
     if (initialSyncStatus.in_progress || initialSyncStatus.status === 'checking') {
         loadSyncStatus();
         setTimeout(() => loadSyncStatus(), 1500);
     }
 
+    // ===== Выбор видео, качества и формата перед добавлением в очередь =====
+    const dlOverlay = document.getElementById('dlOverlay');
+    const dlList = document.getElementById('dlList');
+    let dlVideos = [];
+    let dlLastFocus = null;
+
+    // Селектор форматов строим по высоте, а не по format_id: числовые id
+    // (137, 248, ...) уникальны для каждого видео, и один id, взятый у первого
+    // видео, для остальных дал бы либо не то качество, либо отказ.
+    function buildFormatSelector(quality) {
+        if (quality === 'best') return null;
+        if (quality === 'audio') return 'bestaudio/best';
+        return `bestvideo[height<=${quality}]+bestaudio/best`;
+    }
+
+    function dlSelected() {
+        return Array.from(dlList.querySelectorAll('input[type=checkbox]'))
+            .filter(cb => cb.checked)
+            .map(cb => dlVideos[Number(cb.dataset.index)])
+            .filter(Boolean);
+    }
+
+    function dlUpdateCount() {
+        const n = dlSelected().length;
+        document.getElementById('dlCount').textContent = t('Выбрано {n} из {total}').replace('{n}', n).replace('{total}', dlVideos.length);
+        document.getElementById('dlConfirm').disabled = n === 0;
+    }
+
+    function dlRender(videos) {
+        dlVideos = videos;
+        dlList.textContent = '';
+        if (!videos.length) {
+            const empty = document.createElement('div');
+            empty.className = 'dl-empty';
+            empty.textContent = t('Нет видео для загрузки.');
+            dlList.appendChild(empty);
+            return;
+        }
+        videos.forEach((v, index) => {
+            const row = document.createElement('label');
+            row.className = 'dl-row';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = true;
+            cb.dataset.index = String(index);
+            cb.addEventListener('change', dlUpdateCount);
+            const title = document.createElement('span');
+            title.className = 'dl-title';
+            // textContent, а не innerHTML: заголовки приходят с YouTube.
+            title.textContent = v.title || v.url;
+            title.title = v.title || v.url;
+            row.appendChild(cb);
+            row.appendChild(title);
+            if (v.duration) {
+                const dur = document.createElement('span');
+                dur.className = 'dl-ext';
+                const total = Math.round(v.duration);
+                const mm = Math.floor(total / 60), ss = String(total % 60).padStart(2, '0');
+                dur.textContent = `${mm}:${ss}`;
+                row.appendChild(dur);
+            }
+            dlList.appendChild(row);
+        });
+        dlUpdateCount();
+    }
+
+    function dlClose() {
+        dlOverlay.hidden = true;
+        document.body.style.overflow = '';
+        if (dlLastFocus) dlLastFocus.focus();
+    }
+
+    function dlOpen(videos) {
+        dlLastFocus = document.activeElement;
+        document.getElementById('dlSub').textContent =
+            t('Канал «{channel}»: найдено {count} нескачанных видео.').replace('{channel}', channelAuthor).replace('{count}', videos.length);
+        dlRender(videos);
+        dlOverlay.hidden = false;
+        document.body.style.overflow = 'hidden';
+        document.getElementById('dlConfirm').focus();
+    }
+
+    document.getElementById('dlSelectAll')?.addEventListener('click', () => {
+        dlList.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = true; });
+        dlUpdateCount();
+    });
+    document.getElementById('dlSelectNone')?.addEventListener('click', () => {
+        dlList.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
+        dlUpdateCount();
+    });
+    document.getElementById('dlCancel')?.addEventListener('click', dlClose);
+    dlOverlay?.addEventListener('click', event => { if (event.target === dlOverlay) dlClose(); });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && dlOverlay && !dlOverlay.hidden) dlClose();
+    });
+
+    document.getElementById('dlConfirm')?.addEventListener('click', async event => {
+        const button = event.currentTarget;
+        const chosen = dlSelected();
+        if (!chosen.length) { toast(t('Ни одно видео не выбрано.')); return; }
+        const quality = document.getElementById('dlQuality').value;
+        const mergeFormat = document.getElementById('dlFormat').value;
+        const payload = {
+            urls: chosen.map(v => v.url),
+            title: t('{channel} — выбранные видео ({count})').replace('{channel}', channelAuthor).replace('{count}', chosen.length),
+            merge_format: mergeFormat,
+        };
+        const selector = buildFormatSelector(quality);
+        if (selector) payload.format_id = selector;
+        button.disabled = true;
+        button.textContent = t('Добавляю…');
+        try {
+            const add = await fetch('/api/queue/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload),
+            });
+            const result = await add.json().catch(() => ({}));
+            // Проверяем и код, и тело: часть ошибок очереди приходит в теле ответа.
+            if (!add.ok || result.error) throw new Error(result.error || t('Не удалось добавить в очередь'));
+            dlClose();
+            toast(t('Добавлено в очередь: {count} видео.').replace('{count}', chosen.length));
+        } catch (error) {
+            toast(error.message || t('Ошибка очереди.'));
+        } finally {
+            button.disabled = false;
+            button.textContent = t('Добавить в очередь');
+        }
+    });
+
     async function fetchRemainingVideos(button) {
         button.disabled = true;
-        button.textContent = 'Проверяю канал…';
+        button.textContent = t('Проверяю канал…');
         try {
-            const status = await (await fetch(channelSyncStatusUrl)).json();
-            if (status.in_progress) throw new Error('Синхронизация канала ещё выполняется.');
-            if (status.status === 'error') throw new Error('Последняя проверка канала завершилась ошибкой: нажмите «Обновить канал».');
+            // Статус синхронизации здесь не проверяем: она тянет только баннер и
+            // описание канала, а список видео эндпоинт запрашивает сам. Прежняя
+            // проверка отказывала в скачивании из-за неудачной загрузки баннера.
             const res = await fetch(channelRemainingUrl, {method:'POST'});
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Ошибка получения списка');
-            if (!data.videos.length) { toast('Все доступные видео уже скачаны.'); return; }
-            const add = await fetch('/api/queue/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({urls:data.videos.map(v => v.url), title:channelAuthor + ` — остальные видео (${data.count})`, merge_format:'mp4'})});
-            const result = await add.json();
-            if (!add.ok) throw new Error(result.error || 'Не удалось добавить в очередь');
-            toast(`Добавлено в очередь: ${data.count} видео.`);
-        } catch (error) { toast(error.message || 'Ошибка очереди.'); }
-        finally { button.disabled = false; button.textContent = 'Скачать остальные видео'; }
+            if (!res.ok) throw new Error(data.error || t('Ошибка получения списка'));
+            const videos = Array.isArray(data.videos) ? data.videos : [];
+            if (!videos.length) { toast(t('Все доступные видео уже скачаны.')); return; }
+            // Раньше вся пачка уходила в очередь сразу; теперь пользователь
+            // отмечает нужные видео и выбирает качество с форматом.
+            dlOpen(videos);
+        } catch (error) { toast(error.message || t('Ошибка очереди.')); }
+        finally { button.disabled = false; button.textContent = t('Скачать остальные видео'); }
     }
     document.getElementById('downloadRemaining')?.addEventListener('click', event => fetchRemainingVideos(event.currentTarget));
-    let activeBgLayer = 2, bgTimer = null;
-    function setBackgroundImage(url) {
-        const layer1 = document.getElementById('bg-layer-1'), layer2 = document.getElementById('bg-layer-2');
-        const target = activeBgLayer === 2 ? layer1 : layer2;
-        const other = activeBgLayer === 2 ? layer2 : layer1;
-        target.style.backgroundImage = `url('${url}')`;
-        target.style.opacity = 0;
-        requestAnimationFrame(() => { target.style.opacity = 1; other.style.opacity = 0; });
-        setTimeout(() => { activeBgLayer = activeBgLayer === 2 ? 1 : 2; other.style.backgroundImage = 'none'; }, 1600);
-    }
-    function clearBackground() {
-        if (bgTimer) { clearInterval(bgTimer); bgTimer = null; }
-        for (const id of ['bg-layer-1', 'bg-layer-2']) { const el = document.getElementById(id); el.style.backgroundImage = 'none'; el.style.opacity = 0; }
-    }
-    async function pickBackground(theme) {
-        const images = await (await fetch(`/api/theme-backgrounds/${theme}`)).json();
-        if (!Array.isArray(images) || !images.length) return null;
-        return `/static/images/themes/${theme}/${encodeURIComponent(images[Math.floor(Math.random() * images.length)])}`;
-    }
-    async function loadThemeBackground(theme) {
-        if (theme !== 'frutiger-aero') return clearBackground();
-        try {
-            const url = await pickBackground(theme);
-            if (!url) return clearBackground();
-            setBackgroundImage(url);
-            if (bgTimer) clearInterval(bgTimer);
-            bgTimer = setInterval(async () => { const next = await pickBackground(theme); if (next) setBackgroundImage(next); }, 30000);
-        } catch (e) { clearBackground(); }
-    }
-    (function loadTheme(){
-        const theme = localStorage.getItem('lt_theme') || 'dark';
-        document.documentElement.dataset.theme = theme;
-        document.getElementById('theme-style').href = theme === 'frutiger-aero' ? '/static/css/themes/frutiger-aero.css' : '';
-        document.documentElement.style.fontFamily = theme === 'frutiger-aero' ? "'Aero_03', Arial, sans-serif" : "'Roboto', Arial, sans-serif";
-        loadThemeBackground(theme);
-    })();
+    // Тема и обои — /static/js/theme.js (единая реализация для всех страниц).
 </script>
 </body>
 </html>

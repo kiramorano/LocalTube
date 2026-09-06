@@ -10,18 +10,32 @@ import os
 import shutil
 import threading
 import time
+import uuid
 
+import paths
 from logger import logger
 
 
 class UserDataSaveError(Exception):
     """Не удалось сохранить пользовательские данные на диск."""
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-USERDATA_FILE = os.path.join(SCRIPT_DIR, "userdata.json")
+SCRIPT_DIR = paths.data_dir()
+USERDATA_FILE = paths.data_path("userdata.json")
 
 # История не должна расти бесконечно.
 HISTORY_LIMIT = 500
+
+# Свои плейлисты: названия участвуют в вёрстке сайдбара, а список видео целиком
+# уходит в ответ API, поэтому оба размера ограничены.
+COLLECTION_TITLE_LIMIT = 100
+COLLECTION_VIDEOS_LIMIT = 1000
+COLLECTIONS_LIMIT = 200
+
+# «Смотреть позже» ведёт себя как встроенный список: создаётся при первом
+# обращении, не переименовывается и не удаляется. Так кнопка на странице видео
+# работает всегда, без предварительной настройки.
+WATCH_LATER_ID = "watch-later"
+WATCH_LATER_TITLE = "Смотреть позже"
 
 _lock = threading.RLock()
 _data = None
@@ -30,11 +44,16 @@ DEFAULTS = {
     "favorites": [],
     "history": [],
     "hidden_channels": [],
+    "collections": [],
 }
+
+# Списки строк: к ним применяется общая нормализация и _set_membership.
+_STRING_LISTS = ("favorites", "history", "hidden_channels")
 
 
 def _empty():
-    return {"favorites": [], "history": [], "hidden_channels": [], "updated_at": 0}
+    return {"favorites": [], "history": [], "hidden_channels": [],
+            "collections": [], "updated_at": 0}
 
 
 def _normalize(raw):
@@ -46,23 +65,70 @@ def _normalize(raw):
     result = _empty()
     if not isinstance(raw, dict):
         return result
-    for key in DEFAULTS:
+    for key in _STRING_LISTS:
         value = raw.get(key)
         if not isinstance(value, list):
             continue
-        seen = set()
-        clean = []
-        for item in value:
-            if not isinstance(item, str):
-                continue
-            item = item.strip()
-            if not item or item in seen:
-                continue
-            seen.add(item)
-            clean.append(item)
-        result[key] = clean[:HISTORY_LIMIT] if key == "history" else clean
+        result[key] = _clean_ids(value, limit=HISTORY_LIMIT if key == "history" else None)
+    result["collections"] = _normalize_collections(raw.get("collections"))
     updated = raw.get("updated_at")
     result["updated_at"] = updated if isinstance(updated, (int, float)) else 0
+    return result
+
+
+def _clean_ids(value, limit=None):
+    """Оставляет непустые строки без повторов, сохраняя порядок."""
+    seen = set()
+    clean = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        item = item.strip()
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        clean.append(item)
+    return clean[:limit] if limit else clean
+
+
+def _normalize_collections(value):
+    """Приводит свои плейлисты к ожидаемой структуре.
+
+    Файл могли поправить руками, а ключа collections в старых версиях не было
+    вовсе. Запись без id или названия восстановить нельзя, поэтому она
+    отбрасывается целиком: показать её пользователю всё равно не получится.
+    """
+    if not isinstance(value, list):
+        return []
+    result = []
+    seen_ids = set()
+    seen_titles = set()
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        coll_id = item.get("id")
+        title = item.get("title")
+        if not isinstance(coll_id, str) or not isinstance(title, str):
+            continue
+        coll_id = coll_id.strip()
+        title = title.strip()[:COLLECTION_TITLE_LIMIT]
+        if not coll_id or not title:
+            continue
+        if coll_id in seen_ids or title.casefold() in seen_titles:
+            continue
+        seen_ids.add(coll_id)
+        seen_titles.add(title.casefold())
+        videos = item.get("videos")
+        created = item.get("created_at")
+        result.append({
+            "id": coll_id,
+            "title": title,
+            "videos": _clean_ids(videos if isinstance(videos, list) else [],
+                                 limit=COLLECTION_VIDEOS_LIMIT),
+            "created_at": created if isinstance(created, (int, float)) else 0,
+        })
+        if len(result) >= COLLECTIONS_LIMIT:
+            break
     return result
 
 
@@ -142,7 +208,9 @@ def _transaction():
     """
     with _lock:
         data = _load_locked()
-        snapshot = {k: list(data[k]) for k in DEFAULTS}
+        # Плейлисты — список словарей, и плоская копия списка оставила бы общие
+        # вложенные объекты: откат не вернул бы изменения внутри плейлиста.
+        snapshot = {k: _copy_section(k, data[k]) for k in DEFAULTS}
         snapshot_updated = data["updated_at"]
         try:
             yield data
@@ -152,6 +220,13 @@ def _transaction():
                 data[key] = value
             data["updated_at"] = snapshot_updated
             raise
+
+
+def _copy_section(key, value):
+    """Глубокая копия одного раздела: для плейлистов нужны копии вложенных записей."""
+    if key == "collections":
+        return [{**item, "videos": list(item["videos"])} for item in value]
+    return list(value)
 
 
 def reload_from_disk():
@@ -168,8 +243,18 @@ def get_all():
             "favorites": list(data["favorites"]),
             "history": list(data["history"]),
             "hidden_channels": list(data["hidden_channels"]),
+            "collections": _copy_section("collections", data["collections"]),
             "updated_at": data["updated_at"],
         }
+
+
+def empty_state():
+    """Пустые личные данные того же вида, что и get_all().
+
+    Нужно для гостей из локальной сети: страница ждёт эти поля, но избранное,
+    история и плейлисты владельца — не их дело.
+    """
+    return _empty()
 
 
 def _set_membership(key, value, desired, limit=None):
@@ -179,6 +264,8 @@ def _set_membership(key, value, desired, limit=None):
     отправить запрос до того, как загрузил актуальное состояние, и слепое
     переключение сделало бы обратное задуманному.
     """
+    if key not in _STRING_LISTS:
+        raise ValueError(f"Раздел {key} не является списком строк")
     value = (value or "").strip()
     if not value:
         raise ValueError("Пустое значение")
@@ -231,6 +318,133 @@ def clear(key):
         return []
 
 
+# ================= Свои плейлисты =================
+
+def _find(data, collection_id):
+    for item in data["collections"]:
+        if item["id"] == collection_id:
+            return item
+    return None
+
+
+def _public(item):
+    """Копия записи для выдачи наружу, чтобы вызывающий не менял хранилище."""
+    return {**item, "videos": list(item["videos"])}
+
+
+def _check_title(title, data, skip_id=None):
+    """Проверяет название и возвращает его в очищенном виде."""
+    title = (title or "").strip() if isinstance(title, str) else ""
+    if not title:
+        raise ValueError("Название не может быть пустым")
+    if len(title) > COLLECTION_TITLE_LIMIT:
+        raise ValueError(f"Название длиннее {COLLECTION_TITLE_LIMIT} символов")
+    folded = title.casefold()
+    # Своё название, совпадающее со встроенным списком, пользователь не отличил
+    # бы от «Смотреть позже».
+    if folded == WATCH_LATER_TITLE.casefold() and skip_id != WATCH_LATER_ID:
+        raise ValueError(f"Название «{WATCH_LATER_TITLE}» занято встроенным списком")
+    for item in data["collections"]:
+        if item["id"] == skip_id:
+            continue
+        if item["title"].casefold() == folded:
+            raise ValueError(f"Плейлист «{item['title']}» уже есть")
+    return title
+
+
+def get_collection(collection_id):
+    """Возвращает плейлист или None."""
+    with _lock:
+        item = _find(_load_locked(), collection_id)
+        return _public(item) if item else None
+
+
+def create_collection(title, collection_id=None):
+    """Создаёт свой плейлист. Возвращает созданную запись."""
+    with _transaction() as data:
+        clean = _check_title(title, data)
+        if len(data["collections"]) >= COLLECTIONS_LIMIT:
+            raise ValueError(f"Больше {COLLECTIONS_LIMIT} плейлистов не поддерживается")
+        # uuid, а не название: переименование не должно менять ссылку на
+        # страницу плейлиста.
+        item = {
+            "id": collection_id or uuid.uuid4().hex[:12],
+            "title": clean,
+            "videos": [],
+            "created_at": time.time(),
+        }
+        data["collections"].append(item)
+        return _public(item)
+
+
+def rename_collection(collection_id, title):
+    with _transaction() as data:
+        item = _find(data, collection_id)
+        if item is None:
+            raise KeyError(collection_id)
+        if collection_id == WATCH_LATER_ID:
+            raise ValueError(f"«{WATCH_LATER_TITLE}» нельзя переименовать")
+        item["title"] = _check_title(title, data, skip_id=collection_id)
+        return _public(item)
+
+
+def delete_collection(collection_id):
+    with _transaction() as data:
+        item = _find(data, collection_id)
+        if item is None:
+            raise KeyError(collection_id)
+        if collection_id == WATCH_LATER_ID:
+            raise ValueError(f"«{WATCH_LATER_TITLE}» нельзя удалить")
+        data["collections"].remove(item)
+        return True
+
+
+def add_to_collection(collection_id, video_id):
+    """Добавляет видео в конец плейлиста. Повторное добавление ничего не меняет."""
+    video_id = (video_id or "").strip() if isinstance(video_id, str) else ""
+    if not video_id:
+        raise ValueError("Пустой id видео")
+    with _transaction() as data:
+        item = _find(data, collection_id)
+        if item is None:
+            raise KeyError(collection_id)
+        if video_id not in item["videos"]:
+            if len(item["videos"]) >= COLLECTION_VIDEOS_LIMIT:
+                raise ValueError(
+                    f"В плейлисте уже {COLLECTION_VIDEOS_LIMIT} видео")
+            item["videos"].append(video_id)
+        return _public(item)
+
+
+def remove_from_collection(collection_id, video_id):
+    """Убирает видео из плейлиста. Отсутствие видео ошибкой не считается."""
+    with _transaction() as data:
+        item = _find(data, collection_id)
+        if item is None:
+            raise KeyError(collection_id)
+        if video_id in item["videos"]:
+            item["videos"].remove(video_id)
+        return _public(item)
+
+
+def watch_later():
+    """Возвращает встроенный список «Смотреть позже», создавая его при первом обращении."""
+    with _lock:
+        existing = get_collection(WATCH_LATER_ID)
+        if existing is not None:
+            return existing
+        with _transaction() as data:
+            item = {
+                "id": WATCH_LATER_ID,
+                "title": WATCH_LATER_TITLE,
+                "videos": [],
+                "created_at": time.time(),
+            }
+            # В начало: встроенный список удобнее держать первым в сайдбаре.
+            data["collections"].insert(0, item)
+            return _public(item)
+
+
 def merge_from_client(payload):
     """Разово переносит данные из localStorage при первом заходе.
 
@@ -241,7 +455,9 @@ def merge_from_client(payload):
     added = {}
     with _lock:
         with _transaction() as data:
-            for key in DEFAULTS:
+            # Плейлисты не переносятся: они никогда не жили в localStorage, а
+            # объединять их по названию небезопасно.
+            for key in _STRING_LISTS:
                 existing = data[key]
                 known = set(existing)
                 new_items = [i for i in incoming[key] if i not in known]
@@ -259,7 +475,7 @@ def merge_from_client(payload):
         verified = _read_file()
         if verified is None:
             raise UserDataSaveError("Данные не найдены на диске после записи")
-        for key in DEFAULTS:
+        for key in _STRING_LISTS:
             missing = [i for i in incoming[key] if i not in set(verified[key])]
             if missing:
                 raise UserDataSaveError(

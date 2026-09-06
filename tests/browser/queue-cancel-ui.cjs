@@ -3,7 +3,7 @@
 const { chromium } = require('playwright');
 const path = require('path');
 
-const BASE = 'http://127.0.0.1:5000';
+const BASE = process.env.LT_BASE || 'http://127.0.0.1:5000';
 const SHOTS = path.join(__dirname, 'shots');
 const results = [];
 
@@ -73,13 +73,14 @@ async function main() {
     await openQueue(page, [task({ id: 'd1', status: 'downloading', progress: 42, speed: '1.5MiB/s', eta: '00:30', current_url: 'https://youtu.be/abc' })], calls);
     const before = await page.evaluate(() => ({
       hasCancel: !!document.querySelector('.cancel-btn'),
-      // Active downloads must not be removable without cancelling first.
+      // «Удалить» доступно и во время загрузки: кооперативная отмена не
+      // работает, если yt-dlp или ffmpeg зависли, и очередь встаёт навсегда.
       hasRemove: !!document.querySelector('.remove-btn'),
     }));
     await page.click('.cancel-btn');
     await page.waitForTimeout(500);
     record('downloading task: cancel calls API',
-      before.hasCancel && !before.hasRemove && calls.cancel.length === 1 && calls.cancel[0].includes('/d1'),
+      before.hasCancel && before.hasRemove && calls.cancel.length === 1 && calls.cancel[0].includes('/d1'),
       { before, cancelCalls: calls.cancel }, errors);
     await page.close();
   }

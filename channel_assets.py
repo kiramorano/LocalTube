@@ -13,8 +13,13 @@ import time
 import threading
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from utils import safe_name, write_json_atomic, read_json, JsonWriteError
+import paths
+from utils import (safe_name, write_json_atomic, read_json, JsonWriteError,
+                   cookiefile_for_ydl, is_tiktok_url)
 from logger import logger
+# Страна, дата регистрации и внешние ссылки берутся со страницы /about: у
+# yt-dlp этих полей для канала нет.
+import channel_about
 
 try:
     import yt_dlp
@@ -23,11 +28,40 @@ except ImportError:
     yt_dlp = None
     requests = None
 
-COOKIES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
+COOKIES_PATH = paths.data_path("cookies.txt")
 
-CHANNEL_ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "avas")
+CHANNEL_ASSETS_DIR = paths.data_path("avas")
 BANNERS_DIR = os.path.join(CHANNEL_ASSETS_DIR, "banners")
 META_DIR = os.path.join(CHANNEL_ASSETS_DIR, "meta")
+
+
+def _configured_video_dir():
+    """Каталог библиотеки из config.json.
+
+    Модуль читает конфиг сам: он работает и как часть сервера, и как отдельный
+    скрипт (download_avatars.py), где глобальных путей app.py ещё нет.
+    """
+    cfg = read_json(paths.data_path("config.json"), default=None)
+    if isinstance(cfg, dict) and cfg.get("video_dir"):
+        return cfg["video_dir"]
+    return "videos"
+
+
+def set_asset_dirs(avatars=None, banners=None, meta=None):
+    """Задаёт каталоги ассетов канала из настроек приложения.
+
+    Пути были зашиты здесь константами, поэтому раздел «Хранение» не мог ими
+    управлять: аватарки переезжали вместе с настройкой, а шапки и метаданные
+    оставались в старом avas/ и терялись из вида.
+    """
+    global CHANNEL_ASSETS_DIR, BANNERS_DIR, META_DIR
+    if avatars:
+        CHANNEL_ASSETS_DIR = avatars
+    if banners:
+        BANNERS_DIR = banners
+    if meta:
+        META_DIR = meta
+    _ensure_dirs()
 
 _fetch_lock = threading.Lock()
 # Отдельный лок на запись метаданных: read-modify-write из разных потоков
@@ -46,7 +80,7 @@ def get_channel_url(video_info):
     if not isinstance(video_info, dict):
         return None
     url = video_info.get('channel_url') or video_info.get('uploader_url')
-    if url and 'youtube.com' in url:
+    if url and ('youtube.com' in url or 'tiktok.com' in url):
         return url
     channel_id = video_info.get('channel_id') or video_info.get('uploader_id')
     if channel_id:
@@ -54,7 +88,7 @@ def get_channel_url(video_info):
     return None
 
 
-def _ydl_opts(flat):
+def _ydl_opts(flat, channel_url=None):
     opts = {
         'quiet': True,
         'no_warnings': True,
@@ -62,75 +96,195 @@ def _ydl_opts(flat):
         'extract_flat': flat,
         'socket_timeout': 20,
         'retries': 2,
-        # Без этого канал не извлекается, если cookies принадлежат другому аккаунту:
-        # "Playlists that require authentication may not extract correctly..."
-        'extractor_args': {'youtubetab': {'skip': ['authcheck']}},
     }
-    if os.path.exists(COOKIES_PATH):
-        opts['cookiefile'] = COOKIES_PATH
+    # YouTubeTab — аргумент YouTube-экстрактора, TikTok его не понимает.
+    if not is_tiktok_url(channel_url):
+        opts['extractor_args'] = {'youtubetab': {'skip': ['authcheck']}}
+    # Поток, а не путь: иначе yt-dlp перезапишет cookies.txt при close().
+    stream = cookiefile_for_ydl(COOKIES_PATH)
+    if stream is not None:
+        opts['cookiefile'] = stream
     return opts
 
 
-def _pick_largest(thumbnails):
-    """Возвращает URL самой большой картинки из списка thumbnails."""
-    if not isinstance(thumbnails, list) or not thumbnails:
-        return None
-    best, best_size = None, 0
-    for t in thumbnails:
-        if not isinstance(t, dict) or not t.get('url'):
-            continue
+def _thumbs(thumbnails):
+    """Только пригодные записи списка thumbnails."""
+    if not isinstance(thumbnails, list):
+        return []
+    return [t for t in thumbnails if isinstance(t, dict) and t.get('url')]
+
+
+def _is_banner(thumb):
+    """Отличает шапку канала от аватарки.
+
+    yt-dlp не помечает картинки типом: и аватарка, и баннер лежат в общем
+    списке `thumbnails`. Опознаём по трём признакам, которые расставляет
+    YouTube-экстрактор (`extractor/youtube/_tab.py`):
+
+    * `id` = `banner_uncropped` у оригинала шапки;
+    * `preference` = -10 у обрезанных вариантов шапки (у аватарки 1 или None);
+    * широкое соотношение сторон — баннер всегда сильно шире, чем выше, тогда
+      как аватарка квадратная.
+    """
+    thumb_id = str(thumb.get('id') or '')
+    if 'banner' in thumb_id:
+        return True
+    if 'avatar' in thumb_id:
+        return False
+    preference = thumb.get('preference')
+    if preference is not None and preference < 0:
+        return True
+    width, height = thumb.get('width') or 0, thumb.get('height') or 0
+    return bool(width and height and width >= height * 2)
+
+
+def _largest(thumbs):
+    """URL картинки с наибольшей площадью; при равных — первая по порядку."""
+    best, best_size = None, -1
+    for t in thumbs:
         size = (t.get('width') or 0) * (t.get('height') or 0)
         if size > best_size:
             best, best_size = t['url'], size
-    if best:
-        return best
-    first = thumbnails[0]
-    return first.get('url') if isinstance(first, dict) else None
+    return best
+
+
+def pick_avatar(thumbnails):
+    """Выбирает URL аватарки канала из списка thumbnails.
+
+    Раньше брали просто самую большую картинку, но баннер (2560x424) крупнее
+    любой аватарки, и на страницу канала попадала шапка вместо круглой
+    аватарки. Предпочитаем `avatar_uncropped`: это оригинал без обрезки,
+    нужный для крупного круга на странице.
+    """
+    thumbs = [t for t in _thumbs(thumbnails) if not _is_banner(t)]
+    if not thumbs:
+        return None
+    for t in thumbs:
+        if 'avatar_uncropped' in str(t.get('id') or ''):
+            return t['url']
+    return _largest(thumbs)
+
+
+def pick_banner(thumbnails):
+    """Выбирает URL шапки канала из списка thumbnails.
+
+    Полей `banner` и `banners` у yt-dlp нет: именно чтение их и приводило к
+    тому, что шапки не скачивались никогда.
+
+    Берём самый широкий *обрезанный* вариант, а не `banner_uncropped`:
+    необрезанный исходник имеет пропорции 16:9 (например 4096x2304), и в полосе
+    высотой 220px от него видна только центральная треть — лица и надписи с
+    шапки уезжают за край. Обрезанные варианты YouTube отдаёт уже в пропорциях
+    шапки (2560x424).
+    """
+    banners = [t for t in _thumbs(thumbnails) if _is_banner(t)]
+    if not banners:
+        return None
+    cropped = [t for t in banners
+               if 'uncropped' not in str(t.get('id') or '')
+               and (t.get('width') or 0) and (t.get('height') or 0)]
+    if cropped:
+        # Самый широкий: шапка растягивается на всю ширину страницы.
+        return max(cropped, key=lambda t: t['width'])['url']
+    # Обрезанных вариантов нет — исходник лучше пустой шапки.
+    for t in banners:
+        if 'banner_uncropped' in str(t.get('id') or ''):
+            return t['url']
+    return _largest(banners)
+
+
+def _count_videos(info):
+    """Число видео на канале по ответу yt-dlp.
+
+    `playlist_count` значит разное. Если yt-dlp вернул список вкладок канала
+    («Видео», «Shorts»), то `playlist_count` — это число вкладок: у канала с
+    миллионами подписчиков на странице появлялось «Видео на канале: 2».
+    В этом случае складываем счётчики вкладок.
+    """
+    entries = info.get('entries')
+    if isinstance(entries, list) and entries:
+        tab_counts = [e.get('playlist_count') for e in entries
+                      if isinstance(e, dict) and e.get('_type') == 'playlist'
+                      and isinstance(e.get('playlist_count'), int)]
+        if len(tab_counts) == len([e for e in entries if isinstance(e, dict)]):
+            return sum(tab_counts)
+    return info.get('playlist_count')
+
+
+def _extract_channel(channel_url):
+    """Один запрос метаданных канала к yt-dlp.
+
+    Выделено отдельно, чтобы разбор ответа можно было проверять без сети.
+    """
+    with yt_dlp.YoutubeDL(_ydl_opts(True, channel_url)) as ydl:
+        return ydl.extract_info(channel_url, download=False)
 
 
 def fetch_channel_info(channel_url, raise_on_error=False):
-    """Получает данные канала: аватар, баннер, описание, число подписчиков."""
+    """Получает данные канала: аватар, шапку, описание, число подписчиков.
+
+    Один запрос вместо двух: за баннером ходили повторно с
+    `extract_flat=False`, из-за чего YouTube отдавал полный список видео
+    канала — секунды ожидания и лишний трафик ради одной картинки. Аватар и
+    шапка приходят в том же ответе, в списке `thumbnails`.
+    """
     if yt_dlp is None:
         if raise_on_error:
             raise RuntimeError('yt-dlp недоступен')
         return None
 
-    result = {}
-    # Быстрый запрос: аватар, описание, подписчики
     try:
-        with yt_dlp.YoutubeDL(_ydl_opts(True)) as ydl:
-            info = ydl.extract_info(channel_url, download=False)
-            if not info:
-                raise RuntimeError('YouTube не вернул данные канала')
-            avatar = info.get('avatar')
-            result['avatar'] = _pick_largest(info.get('thumbnails')) or (avatar if isinstance(avatar, str) else None)
-            result['description'] = info.get('description') or ''
-            result['subscribers'] = info.get('channel_follower_count') or info.get('subscriber_count')
-            result['channel_id'] = info.get('channel_id') or info.get('id') or info.get('uploader_id')
-            result['country'] = info.get('channel_country') or info.get('country') or ''
-            result['joined_date'] = info.get('channel_joined') or info.get('channel_created') or info.get('upload_date') or ''
+        info = _extract_channel(channel_url)
+        if not info:
+            raise RuntimeError('YouTube не вернул данные канала')
     except Exception as e:
         logger.warning(f"channel_assets: ошибка получения данных канала: {e}")
         if raise_on_error:
             raise RuntimeError(str(e)) from e
         return None
 
-    # Баннер необязателен: метаданные считаются успешными даже если запрос баннера не удался.
-    try:
-        opts = _ydl_opts(False)
-        opts['playlist_items'] = '1'
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(channel_url, download=False)
-            if info:
-                banner = info.get('banner') or info.get('banner_image_url')
-                banners = info.get('banners')
-                if isinstance(banners, list) and banners:
-                    banner = _pick_largest(banners) or banner
-                if banner:
-                    result['banner'] = banner
-    except Exception as e:
-        logger.warning(f"channel_assets: ошибка получения баннера: {e}")
+    thumbnails = info.get('thumbnails')
+    avatar = info.get('avatar')
+    tags = info.get('tags')
+    result = {
+        'avatar': pick_avatar(thumbnails) or (avatar if isinstance(avatar, str) else None),
+        'banner': pick_banner(thumbnails),
+        'description': info.get('description') or '',
+        'subscribers': info.get('channel_follower_count') or info.get('subscriber_count'),
+        'channel_id': info.get('channel_id') or info.get('id') or info.get('uploader_id'),
+        # Ни одного из этих полей у yt-dlp нет для канала, но они появляются в
+        # метаданных видео, откуда данные тоже могут прийти.
+        'country': info.get('channel_country') or info.get('country') or '',
+        'joined_date': info.get('channel_joined') or info.get('channel_created') or '',
+        # Дополнительные данные для вкладки «О канале»: раньше там показывалось
+        # только число локальных файлов.
+        'handle': info.get('uploader_id') or '',
+        'channel_url': info.get('channel_url') or info.get('uploader_url') or channel_url,
+        'video_count': _count_videos(info),
+        'view_count': info.get('view_count'),
+        'verified': bool(info.get('channel_is_verified')),
+        'tags': [str(t) for t in tags] if isinstance(tags, list) else [],
+        'links': [],
+    }
 
+    # Страница /about дополняет то, чего у yt-dlp нет: страна, дата регистрации,
+    # просмотры канала и внешние ссылки. Данные yt-dlp приоритетнее — разбор
+    # HTML ломается при изменении вёрстки YouTube и не должен затирать то, что
+    # пришло из поддерживаемого API. Ошибка здесь не фатальна: капча или
+    # страница согласия не должны стоить нам аватара с шапкой.
+    try:
+        about = channel_about.fetch_about(result['channel_url'] or channel_url) or {}
+    except Exception as e:
+        logger.warning(f"channel_assets: страница «О канале» недоступна: {e}")
+        about = {}
+    for key in ('country', 'joined_date', 'description'):
+        if not result.get(key) and about.get(key):
+            result[key] = about[key]
+    for key in ('subscribers', 'view_count', 'video_count'):
+        if not result.get(key) and about.get(key):
+            result[key] = about[key]
+    if about.get('links'):
+        result['links'] = about['links']
     return result
 
 
@@ -161,22 +315,63 @@ def _download_image(url, base_path):
         return None
 
 
+IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.webp')
+
+# Версия схемы метаданных канала. Каналы, синхронизированные версией, которая не
+# умела извлекать шапку, лежат на диске со статусом «success» и без баннера.
+# Проверка «success — больше не трогаем» защищает от бесконечных повторов у
+# каналов без шапки, но она же навсегда оставила бы старые записи неполными.
+# Увеличение версии заставляет пересинхронизировать их один раз.
+# 3 — добавлены страна, дата регистрации, просмотры и ссылки со страницы /about.
+META_VERSION = 3
+
+
+def _drop_stale_images(directory, safe, keep):
+    """Удаляет прежние файлы картинки с другими расширениями.
+
+    Имя файла зависит от content-type, поэтому обновление шапки с .jpg на .webp
+    оставляло рядом два файла, а `get_banner_url` перебирает каталог и могла
+    вернуть устаревший.
+    """
+    for ext in IMAGE_EXTS:
+        path = os.path.join(directory, safe + ext)
+        if os.path.basename(path) == keep:
+            continue
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+            except OSError as e:
+                logger.warning(f"channel_assets: не удалось удалить {path}: {e}")
+
+
 def save_channel_assets(author, channel_info):
-    """Сохраняет аватар, баннер и описание канала в локальные файлы."""
+    """Сохраняет аватар, шапку и текстовые данные канала в локальные файлы."""
     if not channel_info:
         return
     _ensure_dirs()
     safe = safe_name(author)
     if channel_info.get('avatar'):
-        _download_image(channel_info['avatar'], os.path.join(CHANNEL_ASSETS_DIR, safe))
+        saved = _download_image(channel_info['avatar'], os.path.join(CHANNEL_ASSETS_DIR, safe))
+        if saved:
+            _drop_stale_images(CHANNEL_ASSETS_DIR, safe, saved)
     if channel_info.get('banner'):
-        _download_image(channel_info['banner'], os.path.join(BANNERS_DIR, safe))
+        saved = _download_image(channel_info['banner'], os.path.join(BANNERS_DIR, safe))
+        if saved:
+            _drop_stale_images(BANNERS_DIR, safe, saved)
     meta = {
         'description': channel_info.get('description', ''),
         'subscribers': channel_info.get('subscribers'),
         'channel_id': channel_info.get('channel_id'),
         'country': channel_info.get('country', ''),
         'joined_date': channel_info.get('joined_date', ''),
+        'handle': channel_info.get('handle', ''),
+        'channel_url': channel_info.get('channel_url', ''),
+        'video_count': channel_info.get('video_count'),
+        'view_count': channel_info.get('view_count'),
+        'verified': bool(channel_info.get('verified')),
+        'tags': channel_info.get('tags') or [],
+        'links': channel_info.get('links') or [],
+        'meta_version': META_VERSION,
         'updated_at': time.time(),
     }
     # Лок вокруг read-modify-write: синхронизация канала может идти из
@@ -260,16 +455,27 @@ def _save_sync_result(author, channel_info, started_at):
     update_sync_status(author, 'success', started_at=started_at, finished_at=time.time(), success=True)
 
 
-def sync_channel(author, channel_url=None):
-    """Синхронизирует канал и сохраняет диагностический результат."""
+def sync_channel(author, channel_url=None, already_claimed=False):
+    """Синхронизирует канал и сохраняет диагностический результат.
+
+    already_claimed=True означает, что вызывающий уже добавил author в _fetching
+    под _fetch_lock. Это нужно, чтобы проверка «не синхронизируется ли уже» и
+    захват слота были атомарными: при запуске в отдельном потоке слот иначе
+    занимается только после старта потока, и два запроса успевают пройти
+    проверку одновременно. Освобождение слота остаётся здесь в любом случае.
+    """
     if not channel_url:
         channel_url = _find_channel_url_from_videos(author)
     if not channel_url:
+        if already_claimed:
+            with _fetch_lock:
+                _fetching.discard(author)
         raise RuntimeError('URL канала не найден в локальных метаданных видео')
-    with _fetch_lock:
-        if author in _fetching:
-            return False
-        _fetching.add(author)
+    if not already_claimed:
+        with _fetch_lock:
+            if author in _fetching:
+                return False
+            _fetching.add(author)
     started_at = time.time()
     update_sync_status(author, 'checking', error='', started_at=started_at, success=None)
     try:
@@ -319,7 +525,9 @@ def format_subscribers(n):
 
 def _find_channel_url_from_videos(author):
     """Ищет channel_url в .info.json любого видео автора (папка videos/<author>/...)."""
-    video_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'videos')
+    # Каталог библиотеки настраиваемый, поэтому берётся из конфига, а не из
+    # жёсткого 'videos' рядом с кодом: при своём пути канал не находился.
+    video_dir = paths.user_path(_configured_video_dir())
     author_path = os.path.join(video_dir, safe_name(author))
     if not os.path.isdir(author_path):
         return None
@@ -360,6 +568,15 @@ def try_fetch_if_missing(author):
     try:
         meta = load_channel_meta(author)
         if meta and get_banner_url(author):
+            return
+        # У части каналов баннера нет вообще, и запрос за ним никогда не
+        # добавит файл. Без этой проверки каждое открытие страницы запускало
+        # новую синхронизацию: статус висел в checking, а кнопка «Скачать
+        # остальные видео» отвечала, что канал ещё не синхронизирован.
+        # Записи старой схемы пропускаем: они помечены «success», но собраны
+        # кодом, который не умел находить шапку.
+        if meta.get('sync_status') == 'success' \
+                and meta.get('meta_version', 0) >= META_VERSION:
             return
         # После неудачи не дёргаем YouTube на каждом открытии страницы: сетевые таймауты
         # надолго блокируют кнопку обновления. Ручная синхронизация игнорирует задержку.

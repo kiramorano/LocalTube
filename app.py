@@ -1,55 +1,182 @@
 import os
-os.environ.pop('HTTP_PROXY', None)
-os.environ.pop('HTTPS_PROXY', None)
-os.environ.pop('ALL_PROXY', None)
-os.environ.pop('http_proxy', None)
-os.environ.pop('https_proxy', None)
-os.environ.pop('all_proxy', None)
+# Пути к данным и ресурсам: в собранной версии они разные, и знать об этом нужно
+# раньше всех остальных импортов — logger сразу открывает файл лога.
+import paths
+# Прокси нельзя просто стирать: если доступ к YouTube идёт через него (xray,
+# VPN-клиенты), yt-dlp пойдёт напрямую и получит ConnectionResetError(10054)
+# на «Unable to download API page». Достаточно исключить из прокси localhost,
+# иначе запросы к bgutil-серверу на 127.0.0.1 уходили бы наружу.
+from proxy_setup import apply_proxy_environment
+
+apply_proxy_environment()
 
 import json
 import threading
-import shutil
 import hashlib
 import random
+import socket
+import uuid
 import sys
 import time
 import requests
 import subprocess
 import re
-import signal
-import traceback
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from flask import Flask, render_template, send_from_directory, request, jsonify, send_file, abort
+import jinja2
 from datetime import datetime
 
 from downloader import get_format_choices, get_playlist_info, is_playlist_url
+import download_lib
 from download_lib import download_media, download_single_sync, DownloadCancelledByUser
-from utils import safe_name, is_shorts_video, write_json_atomic, read_json, JsonWriteError
+from utils import (safe_name, is_shorts_video, write_json_atomic, read_json,
+                   JsonWriteError, cookiefile_for_ydl, write_text_atomic,
+                   sanitize_netscape_cookies as utils_sanitize_cookies)
 from user_videos import add_user_video, edit_user_video, delete_user_video, get_all_user_videos, USER_VIDEOS_ROOT
 from logger import logger
-from po_manager import get_po_method, get_video_info, get_formats, get_playlist_info as get_playlist_info_new, shutdown_extractor, get_extractor, get_po_args
+from po_manager import get_po_method, get_video_info, get_formats, get_playlist_info as get_playlist_info_new, shutdown_extractor, get_extractor, get_po_args, apply_po_args
 import yt_dlp
 
 # Импорт наших новых модулей (Blueprints)
 import custom_quality
 import audio_language
 import channel_assets
+# Нужен как модуль, а не только его функции: apply_storage_paths меняет
+# user_videos.USER_VIDEOS_ROOT, когда пользователь задаёт другую папку.
+import user_videos
 import auth_options
 import userdata
+# Языки аудиодорожек и субтитров: настройки читает и загрузчик, поэтому они
+# лежат в отдельном модуле, а не в app.py.
+import download_prefs
+# Перевод интерфейса: русский и английский.
+import i18n
+# Доступ из локальной сети: сервер слушает 0.0.0.0, поэтому его видит каждое
+# устройство в сети, а проверок прав в проекте не было ни одной.
+import access
 
-app = Flask(__name__, static_folder='static')
+# Пути к шаблонам и статике задаются явно: Flask ищет их рядом с модулем, а в
+# собранной версии модуль лежит внутри архива, откуда каталогов не видно —
+# интерфейс отдавался бы как TemplateNotFound на каждой странице.
+app = Flask(__name__,
+            static_folder=paths.resource_path('static'),
+            template_folder=paths.resource_path('templates'))
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
-COOKIES_PATH = os.path.join(SCRIPT_DIR, "cookies.txt")
+
+@app.errorhandler(404)
+@app.errorhandler(405)
+@app.errorhandler(413)
+@app.errorhandler(500)
+def handle_error_as_json(error):
+    """Ошибки на /api/... отдаём в JSON.
+
+    По умолчанию Flask возвращает HTML-страницу, и клиентский res.json() падал
+    с SyntaxError вместо показа причины: в интерфейсе это выглядело как «ничего
+    не произошло». На обычных страницах поведение оставляем прежним.
+    """
+    code = getattr(error, 'code', 500)
+    if not request.path.startswith('/api/'):
+        return error
+    message = getattr(error, 'description', None) or 'Внутренняя ошибка сервера'
+    if code == 413:
+        # Размер известен из конфига, и без него сообщение бесполезно.
+        limit_mb = app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)
+        message = f'Файл слишком большой. Максимум — {limit_mb} МБ.'
+    if code == 500:
+        logger.error(f"Необработанная ошибка на {request.path}: {error}")
+    return jsonify({'error': message}), code
+
+# Каталог данных: настройки, cookies, очередь, библиотека. В собранной версии он
+# отделён от каталога программы, поэтому SCRIPT_DIR больше не «корень проекта», а
+# именно место для записи. Шаблоны и статика берутся из paths.resource_dir().
+SCRIPT_DIR = paths.ensure_data_dir()
+CONFIG_FILE = paths.data_path("config.json")
+COOKIES_PATH = paths.data_path("cookies.txt")
+
+# ================= ДОСТУП ИЗ ЛОКАЛЬНОЙ СЕТИ =================
+# Гостю разрешён только просмотр, и разрешения перечислены явно: всё, что не
+# в списке, закрыто. Обратный порядок (перечислять запрещённое) означал бы, что
+# каждый новый маршрут открыт всей сети, пока про него не вспомнят.
+GUEST_ENDPOINTS = frozenset({
+    # Страницы просмотра.
+    'index',
+    'watch',
+    'channel',
+    'static',
+    # Файлы: видео, превью, аватарки, баннеры.
+    'media',
+    'usermedia',
+    'serve_avatars',
+    'serve_channel_banner',
+    'api_thumbnail',
+    # Данные для показа библиотеки.
+    'api_catalog',
+    'api_search',
+    'api_video',
+    'api_theme_backgrounds',
+    # Субтитры и список готовых качеств: только чтение уже скачанных файлов.
+    'audio_language.serve_subtitle',
+    'audio_language.api_get_subtitles',
+    'quality.api_get_qualities',
+    # Язык интерфейса: свойство устройства, а не библиотеки владельца. Гость
+    # тоже должен иметь возможность читать страницы на своём языке.
+    'api_i18n_dictionary',
+    'api_language_save',
+    # Раздел «Сеть»: ping нужен автопоиску, unlock — вход по PIN.
+    'api_network_ping',
+    'api_network_unlock',
+    'api_network_lock',
+})
+
+
+def request_is_owner():
+    """Владелец ли тот, кто прислал текущий запрос.
+
+    Владелец — это либо сама машина (127.0.0.1), либо устройство, впущенное по
+    PIN: у него в cookie лежит ключ. Cookie, а не заголовок, потому что права
+    нужны и обычным страницам, а не только запросам из JS.
+    """
+    if access.is_owner_address(request.remote_addr):
+        return True
+    return access.is_valid_token(request.cookies.get(access.TOKEN_COOKIE))
+
+
+@app.before_request
+def check_access():
+    """Пускает гостей только на маршруты просмотра."""
+    if request_is_owner():
+        return None
+
+    # Тумблер выключен: сервер отвечает только владельцу.
+    if not access.is_network_enabled():
+        return _access_denied('Доступ из локальной сети выключен владельцем.')
+
+    if request.endpoint in GUEST_ENDPOINTS:
+        return None
+
+    return _access_denied('Это действие доступно только владельцу. '
+                          'Введите PIN на его компьютере в настройках.')
+
+
+def _access_denied(message):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': message, 'guest': True}), 403
+    return message, 403
+
+DEFAULT_DIRS = {
+    "video_dir": "videos", "avatars_dir": "avas", "thumbnails_dir": "thumbnails",
+    "playlists_dir": "playlists", "subtitles_dir": "subtitles",
+    # Раньше эти три пути были зашиты в channel_assets.py и user_videos.py,
+    # поэтому настроить их было нельзя вовсе.
+    "banners_dir": os.path.join("avas", "banners"),
+    "meta_dir": os.path.join("avas", "meta"),
+    "uservideos_dir": "uservideos",
+}
 
 def load_config():
-    default = {
-        "video_dir": "videos", "avatars_dir": "avas", "thumbnails_dir": "thumbnails",
-        "playlists_dir": "playlists", "subtitles_dir": "subtitles"
-    }
+    default = dict(DEFAULT_DIRS)
     # read_json подхватит .bak, если config.json повреждён: иначе одна неудачная
     # запись сбросила бы пути к библиотеке на значения по умолчанию.
     cfg = read_json(CONFIG_FILE, default=None)
@@ -63,20 +190,74 @@ def save_config(cfg):
     """Сохраняет config.json атомарно, с копией предыдущей версии."""
     write_json_atomic(CONFIG_FILE, cfg)
 
+def resolve_dir(value):
+    """Абсолютный путь к папке хранения.
+
+    Относительные значения считаются от каталога данных, абсолютные (D:/видео)
+    возвращаются как есть.
+    """
+    return paths.user_path(value)
+
+def apply_storage_paths(cfg=None):
+    """Применяет пути из конфига к работающему приложению.
+
+    app.py читал config.json один раз при импорте, поэтому смена папки в
+    настройках не действовала до перезапуска, тогда как download_lib читает
+    конфиг на каждую загрузку. Новые видео уходили в новую папку, а библиотека
+    продолжала показывать старую, и это выглядело как пропажа загрузок.
+
+    Пути раздаются и в модули, которые держат собственные копии: блюпринты
+    получают их через init() при импорте, channel_assets и user_videos хранят
+    в своих константах.
+    """
+    global config, BASE_VIDEO_DIR, AVATARS_DIR, THUMBNAILS_DIR, PLAYLISTS_DIR
+    global SUBTITLES_DIR, USER_VIDEOS_ROOT
+
+    config = cfg if isinstance(cfg, dict) else load_config()
+    BASE_VIDEO_DIR = resolve_dir(config["video_dir"])
+    AVATARS_DIR = resolve_dir(config["avatars_dir"])
+    THUMBNAILS_DIR = resolve_dir(config["thumbnails_dir"])
+    PLAYLISTS_DIR = resolve_dir(config["playlists_dir"])
+    SUBTITLES_DIR = resolve_dir(config["subtitles_dir"])
+    USER_VIDEOS_ROOT = resolve_dir(config["uservideos_dir"])
+
+    channel_assets.set_asset_dirs(
+        avatars=AVATARS_DIR,
+        banners=resolve_dir(config["banners_dir"]),
+        meta=resolve_dir(config["meta_dir"]),
+    )
+    user_videos.USER_VIDEOS_ROOT = USER_VIDEOS_ROOT
+
+    for d in (BASE_VIDEO_DIR, AVATARS_DIR, THUMBNAILS_DIR, PLAYLISTS_DIR,
+              SUBTITLES_DIR, USER_VIDEOS_ROOT):
+        os.makedirs(d, exist_ok=True)
+
+    # Кэш сканирования ключуется абсолютным путём папки видео и хранит отметку
+    # свежести карты. После смены папки в настройках записи старой папки
+    # оставались валидными по своему ключу, а _map_built_at был свежим, поэтому
+    # ensure_video_map возвращал прежнюю библиотеку: пользователь менял папку и
+    # видел старый список, пока не истечёт окно свежести.
+    # invalidate_scan_cache определена ниже, но вызывается только в рантайме.
+    invalidate_scan_cache()
+
 config = load_config()
-BASE_VIDEO_DIR = os.path.join(SCRIPT_DIR, config["video_dir"])
-AVATARS_DIR = os.path.join(SCRIPT_DIR, config["avatars_dir"])
-THUMBNAILS_DIR = os.path.join(SCRIPT_DIR, config["thumbnails_dir"])
-PLAYLISTS_DIR = os.path.join(SCRIPT_DIR, config["playlists_dir"])
-SUBTITLES_DIR = os.path.join(SCRIPT_DIR, config["subtitles_dir"])
+BASE_VIDEO_DIR = resolve_dir(config["video_dir"])
+AVATARS_DIR = resolve_dir(config["avatars_dir"])
+THUMBNAILS_DIR = resolve_dir(config["thumbnails_dir"])
+PLAYLISTS_DIR = resolve_dir(config["playlists_dir"])
+SUBTITLES_DIR = resolve_dir(config["subtitles_dir"])
+USER_VIDEOS_ROOT = resolve_dir(config["uservideos_dir"])
 
 for d in [BASE_VIDEO_DIR, AVATARS_DIR, THUMBNAILS_DIR, PLAYLISTS_DIR, SUBTITLES_DIR]:
     os.makedirs(d, exist_ok=True)
 
-CACHE_DIR = os.path.join(SCRIPT_DIR, 'static', 'images', 'cache')
+# Кэш обработанных картинок раньше писался в static/images/cache, то есть внутрь
+# ресурсов. В собранной версии этот каталог только для чтения, а в onefile ещё и
+# удаляется при выходе, поэтому кэш переехал в каталог данных.
+CACHE_DIR = paths.data_path('cache', 'images')
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-QUEUE_FILE = os.path.join(SCRIPT_DIR, "queue.json")
+QUEUE_FILE = paths.data_path("queue.json")
 if not os.path.exists(QUEUE_FILE):
     try:
         # backup=False: файла ещё нет, копировать нечего.
@@ -84,7 +265,6 @@ if not os.path.exists(QUEUE_FILE):
     except JsonWriteError as e:
         logger.warning(f"Не удалось создать queue.json: {e}")
 
-progress_data = {"percent": 0, "status": "idle", "message": ""}
 VIDEO_MAP = {}
 PLAYLIST_MAP = {}
 USER_VIDEO_MAP = {}
@@ -97,6 +277,31 @@ queue_paused = False
 queue_cancel_requests = set()
 PRIORITY_HIGH, PRIORITY_NORMAL, PRIORITY_LOW = 'high', 'normal', 'low'
 PRIORITY_ORDER = {PRIORITY_HIGH: 0, PRIORITY_NORMAL: 1, PRIORITY_LOW: 2}
+
+# Задача больше не будет выполняться сама: её можно повторить, удалить, очистить.
+# «partial» — частичный успех: часть видео скачана, часть нет. Отдельный статус
+# нужен, чтобы такая задача попадала в фильтр ошибок и в массовый повтор.
+FINISHED_STATUSES = ('completed', 'error', 'cancelled', 'partial')
+# Статусы, которые можно повторить.
+RETRYABLE_STATUSES = ('error', 'cancelled', 'partial')
+
+
+def _new_task_id_locked():
+    """Уникальный id задачи. Вызывать, держа queue_lock.
+
+    Раньше id считался как md5(time.time() + url)[:8]: разрешение таймера на
+    Windows грубое, поэтому два быстрых добавления одной ссылки давали
+    одинаковый id, а он используется как ключ во всех операциях очереди.
+
+    Снимок существующих id и добавление задачи должны идти под одним локом:
+    иначе два одновременных запроса получали один и тот же свободный id, и
+    отмена одной задачи отменяла обе.
+    """
+    existing = {task.id for task in queue_tasks}
+    while True:
+        candidate = uuid.uuid4().hex[:8]
+        if candidate not in existing and candidate not in queue_cancel_requests:
+            return candidate
 
 class QueueTask:
     def __init__(self, task_id, urls, format_id, title, merge_format='mp4', priority=PRIORITY_NORMAL):
@@ -135,6 +340,10 @@ class QueueTask:
         if task.status == 'downloading':
             task.status = 'waiting'
             task.progress = 0
+            # Скорость и ETA относились к прерванной загрузке: без сброса
+            # интерфейс показывал их у задачи, которая ещё даже не началась.
+            task.speed = ''
+            task.eta = ''
             task.message = 'Восстановлено после перезапуска'
         return task
 
@@ -152,14 +361,55 @@ class QueueTask:
 
 
 def save_queue():
+    """Сохраняет очередь на диск. Возвращает текст ошибки или '' при успехе.
+
+    Раньше сбой записи (нет места, нет прав, файл занят) только писался в лог,
+    а эндпоинты всё равно отвечали {'status': 'ok'}: пользователь видел
+    подтверждение, а после перезапуска изменения исчезали.
+    """
     try:
         # Запись под тем же локом: раньше сериализация шла под локом, а сама
         # запись — вне, и два потока могли писать в файл одновременно.
         with queue_lock:
             data = {'paused': queue_paused, 'tasks': [task.to_dict() for task in queue_tasks]}
             write_json_atomic(QUEUE_FILE, data)
+            global _last_progress_save
+            _last_progress_save = time.monotonic()
+        return ''
     except Exception as e:
         logger.warning(f"Не удалось сохранить очередь: {e}")
+        return str(e) or e.__class__.__name__
+
+
+# Прогресс приходит от yt-dlp примерно раз в секунду на каждую загрузку, а
+# write_json_atomic пишет временный файл, копию .bak и делает fsync. Сохранять
+# на каждый тик — это постоянная запись на диск ради данных, которые устаревают
+# через секунду. Раз в PROGRESS_SAVE_INTERVAL достаточно: при перезапуске
+# теряется только процент, а сама задача и её статус остаются.
+PROGRESS_SAVE_INTERVAL = 5.0
+_last_progress_save = 0.0
+
+
+def save_queue_progress():
+    """Сохраняет очередь, но не чаще раза в PROGRESS_SAVE_INTERVAL секунд."""
+    if time.monotonic() - _last_progress_save < PROGRESS_SAVE_INTERVAL:
+        return ''
+    return save_queue()
+
+
+def save_queue_or_error(payload=None, status=200):
+    """Готовит ответ эндпоинта очереди с учётом результата записи на диск.
+
+    При сбое отдаёт 500 и текст причины: молчаливое «ok» приводило к тому, что
+    задача пропадала после перезапуска без каких-либо признаков проблемы.
+    """
+    error = save_queue()
+    if error:
+        return jsonify({'error': f'Очередь не сохранена на диск: {error}'}), 500
+    body = {'status': 'ok'}
+    if payload:
+        body.update(payload)
+    return jsonify(body), status
 
 
 def load_queue():
@@ -179,6 +429,19 @@ def load_queue():
         logger.warning(f"Не удалось загрузить очередь: {e}")
 
 
+def source_from_metadata(meta):
+    """Платформа ролика по данным yt-dlp, не по имени папки.
+
+    yt-dlp возвращает extractor_key=TikTok и tiktok.com в webpage_url. Поле
+    source нужно для интерфейса и субтитров; незнакомые экстракторы оставляем
+    совместимыми с прежней библиотекой как YouTube.
+    """
+    meta = meta if isinstance(meta, dict) else {}
+    extractor = str(meta.get('extractor_key') or meta.get('ie_key') or '').lower()
+    webpage = str(meta.get('webpage_url') or meta.get('original_url') or '').lower()
+    return 'tiktok' if extractor.startswith('tiktok') or 'tiktok.com' in webpage else 'youtube'
+
+
 def normalize_video_metadata(meta):
     meta = meta if isinstance(meta, dict) else {}
     return {
@@ -195,6 +458,66 @@ def normalize_video_metadata(meta):
 load_queue()
 
 
+def current_lang():
+    """Выбранный язык интерфейса.
+
+    Берётся из cookie: страницы собирает сервер, и к моменту работы клиентского
+    кода разметка уже отдана — выбор через localStorage давал бы вспышку
+    русского текста при каждом заходе.
+    """
+    return i18n.normalize_lang(request.cookies.get(i18n.LANG_COOKIE))
+
+
+@app.template_filter('t')
+@jinja2.pass_context
+def translate_filter(ctx, text):
+    """Фильтр перевода для шаблонов: {{ 'Настройки'|t }}.
+
+    Ключ — сама русская строка, поэтому пропуск в словаре оставляет строку
+    русской, а не пустой.
+
+    pass_context здесь не ради самого контекста, а чтобы Jinja не сворачивала
+    вызов при компиляции: аргумент постоянный, и без этого результат первого
+    рендера запекался в шаблон. Страница, впервые открытая на русском, потом не
+    переводилась никогда — язык менялся только после перезапуска сервера.
+    """
+    return i18n.translate(text, current_lang())
+
+
+def _t(text):
+    """Перевод строки для ответов сервера: текст ошибки виден пользователю."""
+    return i18n.translate(text, current_lang())
+
+
+@app.after_request
+def vary_by_language(response):
+    """Помечает ответы зависящими от cookie: иначе браузер отдаёт старый язык.
+
+    Страницы, открытые до переключения языка, браузер брал из кэша и показывал
+    их на прежнем языке до принудительного обновления. Vary: Cookie говорит, что
+    ответ зависит от cookie (в котором лежит язык), и кэш перестаёт их смешивать.
+    """
+    response.headers.add('Vary', 'Cookie')
+    return response
+
+
+@app.context_processor
+def inject_lang():
+    """Отдаёт язык каждому шаблону: он нужен атрибуту lang у <html>.
+
+    Вместе с языком отдаём и словарь для клиентского кода. Отдельным запросом
+    (/api/i18n/<lang>) он приходил позже первой отрисовки: шапка успевала
+    нарисовать русское «Гость» на английской странице. Русскому языку словарь не
+    нужен — это язык исходных строк, и в ответ он не попадает.
+    """
+    lang = current_lang()
+    return {
+        'ui_lang': lang,
+        'ui_languages': i18n.languages_for_ui(),
+        'ui_strings': i18n.load_dictionary(lang),
+    }
+
+
 @app.template_filter('human_date')
 def human_date(value):
     """20260812 -> 12.08.2026; ISO-даты и мусор возвращаем как есть."""
@@ -204,6 +527,44 @@ def human_date(value):
     if len(text) >= 10 and text[4] == '-' and text[7] == '-':
         return f"{text[8:10]}.{text[5:7]}.{text[0:4]}"
     return text
+
+
+def safe_channel_links(links):
+    """Оставляет только внешние ссылки канала с безопасной схемой.
+
+    Метаданные лежат в JSON на диске, и `javascript:` в href выполнился бы на
+    странице пользователя. Фильтруем здесь, а не в шаблоне: шаблон экранирует
+    текст, но схему URL не проверяет.
+    """
+    result = []
+    if not isinstance(links, list):
+        return result
+    for link in links:
+        if not isinstance(link, dict):
+            continue
+        url = str(link.get('url') or '').strip()
+        if not url.lower().startswith(('http://', 'https://')):
+            continue
+        result.append({'title': str(link.get('title') or url), 'url': url})
+    return result
+
+
+@app.template_filter('compact_count')
+def compact_count(value):
+    """9000000 -> 9 млн. Полное число просмотров канала нечитаемо."""
+    try:
+        number = int(float(value or 0))
+    except (TypeError, ValueError):
+        return ''
+    if number <= 0:
+        return ''
+    for limit, suffix in ((1_000_000_000, 'млрд'), (1_000_000, 'млн'), (1_000, 'тыс')):
+        if number >= limit:
+            scaled = number / limit
+            # Без дробной части у круглых значений: «9 млн» вместо «9,0 млн».
+            text = f"{scaled:.0f}" if scaled >= 10 or scaled == int(scaled) else f"{scaled:.1f}"
+            return f"{text.replace('.', ',')} {suffix}"
+    return str(number)
 
 
 @app.template_filter('human_duration')
@@ -222,21 +583,44 @@ def human_duration(value):
     return f"{minutes}:{seconds:02d}"
 
 
+# OSError вместо голого except: голый перехватывал KeyboardInterrupt, поэтому
+# Ctrl+C во время сканирования библиотеки не останавливал сервер.
 def find_main_video_file(folder):
     for ext in ['.mp4', '.mkv', '.webm', '.avi', '.mov']:
         if os.path.exists(os.path.join(folder, f"video{ext}")): return f"video{ext}"
     try:
         for f in os.listdir(folder):
             if any(f.lower().endswith(e) for e in ['.mp4', '.mkv', '.webm', '.avi']): return f
-    except: pass
+    except OSError:
+        pass
     return None
 
 def find_file(folder, exts):
     try:
         for f in os.listdir(folder):
             if any(f.lower().endswith(e) for e in exts): return f
-    except: pass
+    except OSError:
+        pass
     return None
+
+
+def read_video_info(folder_path):
+    """Читает info.json видео. Пустой dict, если файла нет или он битый.
+
+    Один helper на два маршрута (/watch и /api/video): раньше это был
+    скопированный блок, и в обеих копиях был голый except и encoding='utf-8'
+    вместо utf-8-sig — файл с BOM не читался, метаданные молча терялись.
+    """
+    info_file = find_file(folder_path, ['info.json', '.info.json'])
+    if not info_file:
+        return {}
+    try:
+        with open(os.path.join(folder_path, info_file), 'r', encoding='utf-8-sig') as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError) as e:
+        logger.warning(f"Не удалось прочитать {info_file}: {e}")
+        return {}
 
 # Кэш карты аватарок: раньше каталог листался на каждое видео в выдаче,
 # то есть 500 раз на один поиск.
@@ -327,12 +711,13 @@ def _parse_video_folder(author, vfolder, vpath, names, video_file):
     thumb_file = next((n for n in names if n.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))), None)
 
     youtube_id = meta.get('id', '') if isinstance(meta, dict) else ''
+    source = source_from_metadata(meta)
     record = {
         "author": author, "folder": vfolder,
         "is_short": is_shorts_video(meta) if meta else False,
         "filename": video_file, "title": (meta.get('title') if isinstance(meta, dict) else None) or f"Видео {vfolder}",
         "size_mb": round(size_bytes / (1024 * 1024), 1),
-        "source": "youtube", "youtube_id": youtube_id, "thumb_file": thumb_file,
+        "source": source, "youtube_id": youtube_id, "thumb_file": thumb_file,
     }
     record.update(normalize_video_metadata(meta))
     return youtube_id or vfolder, record, meta_file
@@ -458,17 +843,21 @@ def build_playlist_map():
         meta_file = os.path.join(folder_path, 'playlist.json')
         if not os.path.exists(meta_file): continue
         try:
-            with open(meta_file, 'r', encoding='utf-8') as f: data = json.load(f)
+            # utf-8-sig: файл, записанный с BOM, иначе не читается.
+            with open(meta_file, 'r', encoding='utf-8-sig') as f: data = json.load(f)
             playlist_id = hashlib.md5(playlist_folder.encode()).hexdigest()[:11]
             thumb = data.get('thumbnail', '')
             if thumb and not thumb.startswith('/'): thumb = '/' + thumb
             new_playlist_map[playlist_id] = {'id': playlist_id, 'title': data.get('title', playlist_folder), 'uploader': data.get('uploader', 'Unknown'), 'thumbnail': thumb, 'video_count': data.get('video_count', 0), 'videos': data.get('videos', []), 'folder': playlist_folder}
-        except: pass
+        except (OSError, ValueError) as e:
+            # Не голый except: он глотал KeyboardInterrupt и прятал причину, по
+            # которой плейлист не появлялся в списке.
+            logger.warning(f"Плейлист {playlist_folder} пропущен: {e}")
     global PLAYLIST_MAP
     PLAYLIST_MAP = new_playlist_map
 
 # ===== ИНИЦИАЛИЗАЦИЯ И РЕГИСТРАЦИЯ БЛЮПРИНТОВ =====
-custom_quality.init(BASE_VIDEO_DIR, logger, lambda: VIDEO_MAP, lambda: USER_VIDEO_MAP, build_video_map, build_user_video_map)
+custom_quality.init(BASE_VIDEO_DIR, logger, lambda: VIDEO_MAP, lambda: USER_VIDEO_MAP, build_video_map, build_user_video_map, USER_VIDEOS_ROOT)
 audio_language.init(BASE_VIDEO_DIR, SUBTITLES_DIR, logger, lambda: VIDEO_MAP, lambda: USER_VIDEO_MAP, build_video_map)
 
 app.register_blueprint(custom_quality.bp)
@@ -477,19 +866,56 @@ app.register_blueprint(audio_language.bp)
 
 @app.route('/usermedia/<path:filename>')
 def usermedia(filename):
-    return send_from_directory(os.path.join(SCRIPT_DIR, USER_VIDEOS_ROOT), filename)
+    # USER_VIDEOS_ROOT уже абсолютный (resolve_dir): повторный join с каталогом
+    # данных ломал бы свой путь, заданный в настройках.
+    return send_from_directory(USER_VIDEOS_ROOT, filename)
 
 @app.route('/media/<path:filename>')
 def media(filename):
+    # Первый сегмент пути — имя автора. Гостю файлы скрытого канала не отдаём:
+    # путь /media/<автор>/<папка>/<файл> угадывается по названию, и без этой
+    # проверки скрытое видео забиралось бы мимо страниц и каталога.
+    author = filename.replace('\\', '/').split('/')[0]
+    if hidden_from_guest(author):
+        abort(404)
     return send_from_directory(BASE_VIDEO_DIR, filename)
 
 @app.route('/avatars/<filename>')
 def serve_avatars(filename):
+    if _hidden_asset_for_guest(filename):
+        abort(404)
     return send_from_directory(AVATARS_DIR, filename)
 
 @app.route('/channel_banner/<filename>')
 def serve_channel_banner(filename):
+    if _hidden_asset_for_guest(filename):
+        abort(404)
     return send_from_directory(channel_assets.BANNERS_DIR, filename)
+
+
+def _hidden_asset_for_guest(filename):
+    """Аватарка или баннер скрытого канала.
+
+    Файлы называются по safe_name(автор), поэтому сравниваем имя без
+    расширения с safe_name каждого скрытого канала.
+    """
+    hidden = guest_hidden_authors()
+    if not hidden:
+        return False
+    name = os.path.splitext(os.path.basename(filename))[0]
+    return any(safe_name(author) == name for author in hidden)
+
+# Разделы главной -> отмечаемый пункт нижней навигации. Разделы «all», «shorts»
+# и прочие живут только в браузере (filterNav), поэтому таблица нужна, чтобы
+# отметка стояла верно сразу в разметке при переходе по /?nav=...
+NAV_SECTIONS = {
+    'all': 'home',
+    'shorts': 'shorts',
+    'favorites': 'favorites',
+    'history': 'history',
+    'queue': 'queue',
+}
+
 
 @app.route('/')
 def index():
@@ -508,7 +934,7 @@ def index():
         thumb = v.get("thumb_file")
         if thumb is None and "thumb_file" not in v:
             thumb = find_file(os.path.join(BASE_VIDEO_DIR, v["author"], v["folder"]), ['.jpg','.png','.webp'])
-        item = {"author": v["author"], "folder": v["folder"], "filename": v["filename"], "thumb": thumb, "title": v["title"], "is_short": v["is_short"], "size_mb": v["size_mb"], "duration": v.get("duration", 0), "upload_date": v.get("upload_date", ""), "id": vid, "author_avatar": get_avatar_url(v["author"]), "source": "youtube"}
+        item = {"author": v["author"], "folder": v["folder"], "filename": v["filename"], "thumb": thumb, "title": v["title"], "is_short": v["is_short"], "size_mb": v["size_mb"], "duration": v.get("duration", 0), "upload_date": v.get("upload_date", ""), "id": vid, "author_avatar": get_avatar_url(v["author"]), "source": v.get("source", "youtube")}
         if v["is_short"]: shorts.append(item)
         else: all_videos.append(item)
         authors_set.add(v["author"])
@@ -519,16 +945,31 @@ def index():
     
     # Отдаём пользовательские данные вместе со страницей: без этого избранное
     # и список скрытых каналов появлялись с задержкой после загрузки.
-    user_state = userdata.get_all()
+    # Гостю личные данные владельца не показываем: они приезжают прямо в
+    # разметке, поэтому фильтровать надо здесь, а не в браузере. Своё избранное
+    # гость ведёт в localStorage своего устройства.
+    is_owner = request_is_owner()
+    user_state = userdata.get_all() if is_owner else userdata.empty_state()
 
-    return render_template("index.html", all_videos=all_videos, shorts=shorts, authors=authors, playlists=list(PLAYLIST_MAP.values()), user_videos=user_videos_list, hidden_channels=sorted(hidden_authors), favorites=user_state['favorites'], watch_history=user_state['history'])
+    # Отметка раздела в нижней навигации. Разделы главной переключаются в
+    # браузере без перезагрузки, но при переходе по ссылке /?nav=queue отметка
+    # должна стоять верно уже в разметке: иначе до выполнения скрипта подсвечена
+    # «Главная». Значения совпадают с data-nav-target в _mobile_nav.html.
+    nav_active = NAV_SECTIONS.get(request.args.get('nav', 'all'), 'home')
+
+    return render_template("index.html", all_videos=all_videos, shorts=shorts, authors=authors, playlists=list(PLAYLIST_MAP.values()), user_videos=user_videos_list, hidden_channels=sorted(hidden_authors) if is_owner else [], favorites=user_state['favorites'], watch_history=user_state['history'], is_owner=is_owner, nav_active=nav_active)
 
 @app.route('/settings')
 def settings_page():
-    return render_template('settings.html')
+    return render_template('settings.html', nav_active='settings')
 
 @app.route('/channel/<author>')
 def channel(author):
+    # Гостю скрытый канал не существует: страница канала обходила фильтр,
+    # достаточно было знать имя автора.
+    if hidden_from_guest(author):
+        abort(404)
+
     ensure_video_map()
     build_playlist_map()
 
@@ -539,12 +980,20 @@ def channel(author):
             continue
         if not channel_url:
             channel_url = v.get('channel_url', '')
+        # Имя превью берём из кэша сканирования, как на главной. Здесь стоял
+        # безусловный find_file, то есть os.listdir на каждое видео канала: у
+        # автора с сотней видео страница делала сотню обходов папок, хотя
+        # build_video_map уже сохранил имя файла превью в thumb_file.
+        thumb = v.get("thumb_file")
+        if thumb is None and "thumb_file" not in v:
+            thumb = find_file(os.path.join(BASE_VIDEO_DIR, v["author"], v["folder"]),
+                              ['.jpg', '.png', '.webp'])
         author_videos.append({
             "id": vid,
             "title": v.get("title", v["folder"]),
             "author": v["author"],
             "size_mb": v.get("size_mb", 0),
-            "thumb": find_file(os.path.join(BASE_VIDEO_DIR, v["author"], v["folder"]), ['.jpg', '.png', '.webp']),
+            "thumb": thumb,
             "folder": v["folder"],
             "duration": v.get("duration", 0),
             "upload_date": v.get("upload_date", ""),
@@ -564,11 +1013,17 @@ def channel(author):
                 "video_count": playlist.get("video_count", 0)
             })
 
-    authors_list = [{"name": name, "avatar": get_avatar_url(name)} for name in sorted({video["author"] for video in VIDEO_MAP.values()})]
+    is_owner = request_is_owner()
+    hidden_authors = guest_hidden_authors()
+    authors_list = [{"name": name, "avatar": get_avatar_url(name)}
+                    for name in sorted({video["author"] for video in VIDEO_MAP.values()}
+                                       - hidden_authors)]
     author_avatar_url = get_avatar_url(author)
     banner_url = channel_assets.get_banner_url(author)
     channel_meta = channel_assets.load_channel_meta(author)
-    if not banner_url or not channel_meta:
+    # Догрузка идёт в YouTube и пишет файлы на диск. Запускаем её только для
+    # владельца: чужой запрос не должен приводить к записи и сетевым походам.
+    if is_owner and (not banner_url or not channel_meta):
         threading.Thread(target=channel_assets.try_fetch_if_missing, args=(author,), daemon=True).start()
 
     return render_template(
@@ -579,6 +1034,7 @@ def channel(author):
         videos=author_videos,
         playlists=author_playlists,
         authors=authors_list,
+        is_owner=is_owner,
         # Состояние кнопки «Скрыть канал» приходит сразу, иначе надпись мигает.
         is_hidden=author in hidden_channels_set(),
         total_videos=len(author_videos),
@@ -588,6 +1044,15 @@ def channel(author):
         subscribers=channel_assets.format_subscribers(channel_meta.get('subscribers')),
         country=channel_meta.get('country', ''),
         joined_date=channel_meta.get('joined_date', ''),
+        # Данные с YouTube для вкладки «О канале»: раньше там было только число
+        # скачанных файлов, и понять размер самого канала было невозможно.
+        channel_handle=channel_meta.get('handle', ''),
+        remote_channel_url=channel_meta.get('channel_url', '') or channel_url,
+        remote_video_count=channel_meta.get('video_count'),
+        channel_views=channel_meta.get('view_count'),
+        channel_verified=bool(channel_meta.get('verified')),
+        channel_tags=channel_meta.get('tags') or [],
+        channel_links=safe_channel_links(channel_meta.get('links')),
         sync_status=channel_assets.get_sync_status(author)
     )
 
@@ -609,27 +1074,92 @@ def api_channel_sync(author):
         channel_url = channel_assets._find_channel_url_from_videos(author)
     if not channel_url:
         return jsonify({'error': 'URL канала не найден в локальных метаданных видео'}), 404
+    # Проверка «уже синхронизируется» и запуск потока должны быть одной
+    # операцией. Раньше лок отпускался до старта потока, и два одновременных
+    # запроса успевали оба пройти проверку: sync_channel регистрируется в
+    # _fetching уже внутри потока, поэтому второй запрос видел пустой набор и
+    # поднимал вторую загрузку тех же метаданных канала. Побеждала та, что
+    # финишировала последней, а её результат мог быть старее.
     with channel_assets._fetch_lock:
         if author in channel_assets._fetching:
             return jsonify({'status': 'checking', 'message': 'Синхронизация уже выполняется'})
-    threading.Thread(target=channel_assets.sync_channel, args=(author, channel_url), daemon=True).start()
+        # Занимаем слот здесь же, под тем же локом. sync_channel вызывается с
+        # already_claimed=True, чтобы не пытаться занять его повторно, но
+        # освобождение по-прежнему остаётся за ним (finally в sync_channel).
+        channel_assets._fetching.add(author)
+    try:
+        threading.Thread(
+            target=channel_assets.sync_channel,
+            args=(author, channel_url),
+            kwargs={'already_claimed': True},
+            daemon=True,
+        ).start()
+    except RuntimeError as e:
+        # Поток не создался (например, исчерпаны ресурсы): слот надо отдать,
+        # иначе канал навсегда останется в состоянии «синхронизируется».
+        with channel_assets._fetch_lock:
+            channel_assets._fetching.discard(author)
+        logger.error(f"api_channel_sync: не удалось запустить поток для «{author}»: {e}")
+        return jsonify({'error': 'Не удалось запустить синхронизацию'}), 500
     return jsonify({'status': 'checking', 'message': 'Проверка канала запущена'})
+
+
+# Прозрачный GIF 1x1: отдаём вместо превью, когда файла нет. Раньше здесь
+# отдавался static/images/lazy_placeholder.gif, которого в проекте нет вовсе:
+# send_file на несуществующем пути поднимает NotFound, поэтому каждое видео без
+# thumbnail.jpg приводило к 404 в консоли браузера, а предзагрузка превью на
+# главной (preloadAllThumbnails) заваливала лог ошибками.
+PLACEHOLDER_GIF = bytes.fromhex(
+    '47494638396101000100800000000000ffffff21f90401000000'
+    '002c00000000010001000002024401003b')
 
 
 @app.route('/api/thumbnail/<vid_id>')
 def api_thumbnail(vid_id):
-    if vid_id not in VIDEO_MAP: build_video_map()
+    # ensure_video_map, а не build_video_map: раньше промах по id запускал полный
+    # обход библиотеки на КАЖДЫЙ запрос. Главная предзагружает превью всех видео,
+    # поэтому сто неизвестных id давали сто полных сканирований подряд, и страница
+    # вставала. Здесь скан выполняется только если карта успела устареть.
+    if vid_id not in VIDEO_MAP: ensure_video_map()
+    # Гостю у скрытого канала — 404, а не заглушка: код 200 подтверждал бы, что
+    # такое видео есть.
+    if vid_id in VIDEO_MAP and hidden_from_guest(VIDEO_MAP[vid_id]["author"]):
+        abort(404)
     if vid_id in VIDEO_MAP:
         v = VIDEO_MAP[vid_id]
-        thumb_path = os.path.join(BASE_VIDEO_DIR, v["author"], v["folder"], "thumbnail.jpg")
-        if os.path.exists(thumb_path):
-            return send_file(thumb_path)
-    return send_file(os.path.join(SCRIPT_DIR, "static", "images", "lazy_placeholder.gif"))
+        # Имя превью известно из сканирования: раньше здесь жёстко искался
+        # thumbnail.jpg, поэтому видео с превью в .webp или .png (yt-dlp
+        # сохраняет и такие) всегда отдавали заглушку.
+        candidates = [v.get('thumb_file'), 'thumbnail.jpg', 'thumbnail.webp', 'thumbnail.png']
+        folder = os.path.join(BASE_VIDEO_DIR, v["author"], v["folder"])
+        for name in candidates:
+            if not name:
+                continue
+            thumb_path = os.path.join(folder, name)
+            if os.path.exists(thumb_path):
+                return send_file(thumb_path)
+    response = app.response_class(PLACEHOLDER_GIF, mimetype='image/gif')
+    # Заглушку кэшируем: без этого главная запрашивала её заново на каждый показ.
+    response.headers['Cache-Control'] = 'public, max-age=86400'
+    return response
 
 @app.route('/watch/<vid_id>')
 def watch(vid_id):
     ensure_video_map()
     build_user_video_map()
+
+    # Видео могли открыть из своего плейлиста: тогда после конца ролика плеер
+    # переходит к следующему по списку.
+    # Плейлисты принадлежат владельцу: гостю их состав не показываем.
+    collection_id = (request.args.get('collection') or '') if request_is_owner() else ''
+    collection_order = collection_playback_order(collection_id)
+    if not collection_order:
+        collection_id = ''
+
+    # Гостю страница видео скрытого канала недоступна: прямая ссылка обходила
+    # фильтр каталога.
+    if vid_id in VIDEO_MAP and hidden_from_guest(VIDEO_MAP[vid_id]["author"]):
+        abort(404)
     
     meta = {}
     video_url = None
@@ -649,12 +1179,7 @@ def watch(vid_id):
         author_avatar = get_avatar_url(v["author"])
         is_short = v["is_short"]
         
-        info_file = find_file(folder_path, ['info.json', '.info.json'])
-        if info_file:
-            try:
-                with open(os.path.join(folder_path, info_file), 'r', encoding='utf-8') as f:
-                    meta = json.load(f)
-            except: pass
+        meta = read_video_info(folder_path)
         if not meta:
             meta = {"title": v["title"], "uploader": v["author"], "id": vid_id}
             
@@ -715,13 +1240,23 @@ def watch(vid_id):
                            is_short=is_short,
                            shorts_feed=shorts_feed,
                            video_source=meta.get('source', 'youtube'),
+                           # Просмотр плейлиста по порядку: страница открыта с
+                           # ?collection=<id>, дальше плеер сам ведёт по списку.
+                           collection_id=collection_id,
+                           collection_order=collection_order,
+                           # Гостю из локальной сети кнопки владельца не нужны:
+                           # эндпоинты для него всё равно закрыты.
+                           is_owner=request_is_owner(),
                            publish_date=meta.get('upload_date') or meta.get('upload_date'))
 
 # ================= API: СКАЧИВАНИЕ =================
 @app.route('/api/formats', methods=['POST'])
 def api_formats():
-    url = request.json.get('url')
-    if not url: return jsonify({'error': 'URL не указан'})
+    # silent=True обязателен: request.json без Content-Type: application/json
+    # поднимает 415 и отдаёт HTML-страницу, а клиент разбирает ответ как JSON
+    # и падает на «Unexpected token '<'» вместо понятного сообщения.
+    url = (request.get_json(silent=True) or {}).get('url')
+    if not url: return jsonify({'error': 'URL не указан'}), 400
     formats = get_format_choices(url)
     if not formats:
         formats = [{'type': 'auto', 'format_id': None, 'resolution': 'Авто (рекомендуемое)', 'codec': 'best', 'size_mb': None}]
@@ -729,75 +1264,185 @@ def api_formats():
 
 @app.route('/api/direct_formats', methods=['POST'])
 def api_direct_formats():
-    url = request.json.get('url')
-    if not url: return jsonify({'error': 'URL не указан'})
-    formats = get_format_choices(url)
-    return jsonify({'formats': formats})
+    """Отдаёт фактические параметры уже скачанного файла.
+
+    Раньше сюда приходил локальный путь (/media/Author/id/video.mp4), а не
+    ссылка на YouTube: get_format_choices отвечал «is not a valid URL», список
+    получался пустым, и меню качества в плеере всегда показывало
+    «Нет доступных форматов». Пересобрать файл в другом разрешении локально
+    всё равно нельзя, поэтому показываем то, что есть.
+    """
+    data = request.get_json(silent=True) or {}
+    video_id = data.get('video_id') or ''
+    if not video_id:
+        return jsonify({'error': 'video_id не указан'}), 400
+
+    ensure_video_map()
+    entry = VIDEO_MAP.get(video_id)
+    if not entry:
+        if video_id in USER_VIDEO_MAP:
+            return jsonify({'formats': [{
+                'type': 'local', 'format_id': None, 'resolution': 'Локальный файл',
+                'codec': '', 'size_mb': None, 'local': True,
+            }]})
+        return jsonify({'error': 'Видео не найдено'}), 404
+
+    # Разрешение и кодек в VIDEO_MAP не хранятся, поэтому читаем info.json.
+    folder_path = os.path.join(BASE_VIDEO_DIR, entry['author'], entry['folder'])
+    meta = {}
+    info_file = find_file(folder_path, ['info.json', '.info.json'])
+    if info_file:
+        try:
+            with open(os.path.join(folder_path, info_file), 'r', encoding='utf-8-sig') as f:
+                meta = json.load(f)
+        except Exception as e:
+            logger.warning(f"Не удалось прочитать метаданные {folder_path}: {e}")
+    if not isinstance(meta, dict):
+        meta = {}
+
+    height = meta.get('height')
+    resolution = f"{height}p" if height else (meta.get('resolution') or 'Локальный файл')
+    return jsonify({'formats': [{
+        'type': 'local',
+        'format_id': None,
+        'resolution': resolution,
+        'codec': meta.get('vcodec') or '',
+        'width': meta.get('width'),
+        'height': height,
+        'fps': meta.get('fps'),
+        'size_mb': entry.get('size_mb'),
+        'local': True,
+    }]})
 
 @app.route('/api/direct_download', methods=['POST'])
 def api_direct_download():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     url = data.get('url')
     video_format = data.get('format_id')
     audio_format = data.get('audio_format_id')
 
-    if not url: return jsonify({'error': 'URL не указан'})
+    if not url: return jsonify({'error': 'URL не указан'}), 400
 
     final_format = video_format
     if video_format and audio_format:
-        final_format = f"{video_format}+{audio_format}"
+        # Fallback обязателен: если у видео нет одного из этих id (они уникальны
+        # для конкретного видео), yt-dlp отказывался скачивать вообще.
+        final_format = f"{video_format}+{audio_format}/best"
 
-    success = download_single_sync([url], final_format, lambda p, m: None, merge_format='mp4')
-    if success:
-        build_video_map()
-        return jsonify({'status': 'ok', 'title': 'Загрузка завершена'})
-    else:
-        return jsonify({'error': 'Ошибка загрузки'})
+    result = download_single_sync([url], final_format, lambda p, m: None, merge_format='mp4')
+    reason = getattr(result, 'last_error', '') or ''
+    failed = getattr(result, 'failed', 0)
+    if not result:
+        # Код ответа обязателен: клиент, проверяющий res.ok, раньше считал
+        # отказ (HTTP 200 с телом {'error': ...}) успешной загрузкой.
+        return jsonify({'error': f'Ошибка загрузки: {reason}' if reason else 'Ошибка загрузки'}), 502
+    build_video_map()
+    if failed:
+        return jsonify({
+            'status': 'partial',
+            'title': f'Скачано частично: {failed} из {getattr(result, "succeeded", 0) + failed} не удалось',
+            'error': reason,
+        })
+    if getattr(result, 'skipped', 0):
+        return jsonify({'status': 'ok', 'title': 'Видео уже было скачано'})
+    return jsonify({'status': 'ok', 'title': 'Загрузка завершена'})
 
 # ================= API: COOKIES =================
 @app.route('/api/cookies', methods=['GET', 'DELETE'])
 def api_cookies():
     if request.method == 'GET':
-        if not os.path.exists(COOKIES_PATH):
+        # os.path.exists + getsize/getmtime — три отдельных обращения к диску.
+        # Файл могли удалить или перезаписать между ними (импорт cookies идёт
+        # через os.replace), и тогда getmtime падал с FileNotFoundError, отдавая
+        # HTML-страницу 500 на JSON-запрос настроек.
+        try:
+            stat = os.stat(COOKIES_PATH)
+        except FileNotFoundError:
             return jsonify({'exists': False, 'size': 0})
-        mtime = os.path.getmtime(COOKIES_PATH)
-        return jsonify({'exists': True, 'size': os.path.getsize(COOKIES_PATH), 'modified': mtime})
+        except OSError as e:
+            logger.error(f"api_cookies: не удалось прочитать {COOKIES_PATH}: {e}")
+            return jsonify({'error': 'Не удалось прочитать файл cookies'}), 500
+        return jsonify({'exists': True, 'size': stat.st_size, 'modified': stat.st_mtime})
     elif request.method == 'DELETE':
-        if os.path.exists(COOKIES_PATH):
+        # На Windows файл, открытый yt-dlp, удалить нельзя: получаем
+        # PermissionError. Без обработки это тоже давало 500 вместо
+        # объяснимого ответа. FileNotFoundError означает, что удалять уже
+        # нечего, — для DELETE это успех по смыслу операции.
+        try:
             os.remove(COOKIES_PATH)
-            return jsonify({'status': 'deleted'})
-        return jsonify({'status': 'not_found'})
+        except FileNotFoundError:
+            return jsonify({'status': 'not_found'})
+        except OSError as e:
+            logger.error(f"api_cookies: не удалось удалить {COOKIES_PATH}: {e}")
+            return jsonify({'error': 'Файл cookies занят другим процессом'}), 500
+        return jsonify({'status': 'deleted'})
 
 @app.route('/api/cookies/status', methods=['GET'])
 def api_cookies_status():
-    return jsonify({
-        'exists': os.path.exists(COOKIES_PATH),
-        'size': os.path.getsize(COOKIES_PATH) if os.path.exists(COOKIES_PATH) else 0,
-        'modified': os.path.getmtime(COOKIES_PATH) if os.path.exists(COOKIES_PATH) else 0
-    })
+    # Один os.stat вместо четырёх обращений к диску: прежний вариант проверял
+    # существование трижды и мог получить исчезнувший файл между проверками.
+    try:
+        stat = os.stat(COOKIES_PATH)
+    except OSError:
+        return jsonify({'exists': False, 'size': 0, 'modified': 0})
+    return jsonify({'exists': True, 'size': stat.st_size, 'modified': stat.st_mtime})
+
+# Реализация живёт в utils: тем же путём идёт импорт cookies из браузера
+# (auth_options), которому нельзя импортировать app.
+sanitize_netscape_cookies = utils_sanitize_cookies
+
+
+class CookieImportError(Exception):
+    """Импортированные cookies не годятся для записи."""
+
+
+def _store_cookies(content, cookies_count):
+    """Записывает cookies.txt атомарно, отвергая пустой результат.
+
+    Раньше файл открывался на запись напрямую: обрыв записи оставлял огрызок,
+    а импорт файла, из которого не удалось разобрать ни одной записи, молча
+    затирал рабочие cookies заголовком без единой строки — авторизация
+    пропадала, и причину в интерфейсе было не видно.
+    """
+    if not cookies_count:
+        raise CookieImportError(
+            'Ни одной cookie распознать не удалось, файл не заменён. '
+            'Проверьте, что это экспорт в формате Netscape или JSON.')
+    try:
+        write_text_atomic(COOKIES_PATH, content)
+    except OSError as e:
+        raise CookieImportError(f'Не удалось сохранить cookies: {e}') from e
+
 
 @app.route('/api/cookies/import', methods=['POST'])
 def api_cookies_import():
     try:
-        if request.content_type == 'application/json':
-            data = request.json
+        # Раньше здесь стояло request.content_type == 'application/json', а
+        # браузеры присылают 'application/json; charset=utf-8': точное сравнение
+        # не срабатывало, ветка JSON пропускалась, и вставка текста в настройках
+        # отвечала «Нет данных для импорта».
+        payload = request.get_json(silent=True)
+        if isinstance(payload, dict):
+            data = payload
             text = data.get('text', '')
             if not text:
-                return jsonify({'error': 'Нет данных cookies'})
-            lines = text.strip().split('\n')
+                return jsonify({'error': 'Нет данных cookies'}), 400
+            stripped = text.strip()
             cookies_count = 0
-            if lines and "Netscape" in lines[0]:
-                netscape_content = text
-                try:
-                    import http.cookiejar
-                    import io
-                    cookie_jar = http.cookiejar.MozillaCookieJar()
-                    cookie_jar.load(io.StringIO(netscape_content), ignore_discard=True, ignore_expires=True)
-                    cookies_count = len(list(cookie_jar))
-                except Exception:
-                    cookies_count = len([l for l in lines if l.strip() and not l.startswith('#')])
-                with open(COOKIES_PATH, 'w', encoding='utf-8') as f:
-                    f.write(text)
+            # Формат определяем по содержимому, а не по первой строке: файлы из
+            # части расширений начинаются с '# HTTP Cookie File' без слова
+            # Netscape, и такой файл уходил в разбор как JSON и отвергался.
+            if not stripped.startswith(('[', '{')):
+                # Битые записи выбрасываем: одна строка с переводом строки в
+                # значении разрывала запись на две неполные, и yt-dlp отвергал
+                # ВЕСЬ файл («does not look like a Netscape format cookies
+                # file»), то есть авторизация терялась целиком.
+                netscape_content, cookies_count = sanitize_netscape_cookies(text)
+                # Через _store_cookies, а не open(...,'w') напрямую: прямая
+                # запись обрывала файл на месте, поэтому сбой посреди неё
+                # оставлял половину cookies, и она же затирала рабочий файл
+                # пустым результатом, если распознать не удалось ничего.
+                _store_cookies(netscape_content, cookies_count)
             else:
                 try:
                     import json as json_module
@@ -805,31 +1450,62 @@ def api_cookies_import():
                     if isinstance(data_cookies, list):
                         netscape_lines = ['# Netscape HTTP Cookie File']
                         for c in data_cookies:
-                            netscape_lines.append(f"{c.get('domain', '')}\t{'TRUE' if c.get('domain','').startswith('.') else 'FALSE'}\t{c.get('path', '/')}\t{'TRUE' if c.get('secure') else 'FALSE'}\t{c.get('expires', 0)}\t{c.get('name', '')}\t{c.get('value', '')}")
-                        with open(COOKIES_PATH, 'w', encoding='utf-8') as f:
-                            f.write('\n'.join(netscape_lines))
-                        cookies_count = len(data_cookies)
+                            domain = str(c.get('domain', ''))
+                            # Табы и переводы строк внутри значения разрывают
+                            # запись, и файл становится нечитаемым для yt-dlp.
+                            def _clean(value):
+                                return re.sub(r'[\t\r\n]+', ' ', str(value)).strip()
+
+                            expires = c.get('expires', 0)
+                            try:
+                                expires = int(float(expires or 0))
+                            except (TypeError, ValueError):
+                                expires = 0
+                            netscape_lines.append('\t'.join([
+                                _clean(domain),
+                                'TRUE' if domain.startswith('.') else 'FALSE',
+                                _clean(c.get('path', '/')) or '/',
+                                'TRUE' if c.get('secure') else 'FALSE',
+                                str(expires),
+                                _clean(c.get('name', '')),
+                                _clean(c.get('value', '')),
+                            ]))
+                        content, cookies_count = sanitize_netscape_cookies(
+                            '\n'.join(netscape_lines))
+                        _store_cookies(content, cookies_count)
                     else:
-                        return jsonify({'error': 'Неверный формат JSON'})
+                        return jsonify({'error': 'Неверный формат JSON'}), 400
+                except CookieImportError as e:
+                    return jsonify({'error': str(e)}), 400
                 except Exception as e:
-                    return jsonify({'error': f'Ошибка парсинга: {str(e)}'})
+                    return jsonify({'error': f'Ошибка парсинга: {str(e)}'}), 400
         elif 'file' in request.files:
             file = request.files['file']
             if not file:
-                return jsonify({'error': 'Файл не загружен'})
-            content = file.read().decode('utf-8')
-            cookies_count = len([l for l in content.strip().split('\n') if l.strip() and not l.startswith('#')])
-            with open(COOKIES_PATH, 'w', encoding='utf-8') as f:
-                f.write(content)
+                return jsonify({'error': 'Файл не загружен'}), 400
+            content = file.read().decode('utf-8', 'replace')
+            # Файл из браузера тоже может содержать битые записи.
+            content, cookies_count = sanitize_netscape_cookies(content)
+            _store_cookies(content, cookies_count)
         else:
-            return jsonify({'error': 'Нет данных для импорта'})
+            return jsonify({'error': 'Нет данных для импорта'}), 400
         return jsonify({'status': 'ok', 'cookies_count': cookies_count})
+    except CookieImportError as e:
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'error': str(e)})
+        logger.error(f"Импорт cookies не удался: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/cookies/browsers', methods=['GET'])
+def api_cookies_browsers():
+    """Браузеры для выбора при импорте cookies."""
+    return jsonify({'browsers': auth_options.available_browsers()})
 
 @app.route('/api/cookies/from-browser', methods=['POST'])
 def api_cookies_from_browser():
-    browser = (request.json or {}).get('browser', '')
+    # get_json(silent=True), а не request.json: сама property поднимает 415 ещё
+    # до `or {}`, поэтому запрос без заголовка получал HTML вместо JSON.
+    browser = (request.get_json(silent=True) or {}).get('browser', '')
     if not browser:
         return jsonify({'error': 'Не указан браузер'}), 400
     result = auth_options.import_cookies_from_browser(browser)
@@ -839,13 +1515,147 @@ def api_cookies_from_browser():
 
 @app.route('/api/playlist/info', methods=['POST'])
 def api_playlist_info():
-    url = request.json.get('url')
-    if not url: return jsonify({'error': 'URL не указан'})
+    url = (request.get_json(silent=True) or {}).get('url')
+    if not url: return jsonify({'error': 'URL не указан'}), 400
     try:
         info = get_playlist_info(url)
         return jsonify(info)
     except Exception as e:
-        return jsonify({'error': str(e)})
+        return jsonify({'error': str(e)}), 502
+
+CHANNEL_TAB_SUFFIXES = ('/videos', '/shorts', '/streams')
+# Ссылка из info.json может уже указывать на конкретный таб канала.
+KNOWN_TAB_SUFFIXES = CHANNEL_TAB_SUFFIXES + ('/playlists', '/featured', '/community', '/live')
+# Всё, что не ведёт на страницу видео, — служебная запись канала (таб, плейлист).
+VIDEO_URL_MARKERS = ('watch?v=', '/shorts/', '/live/', 'youtu.be/')
+
+_TIKTOK_HOSTS = {'tiktok.com', 'm.tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com'}
+_YOUTUBE_HOSTS = {'youtube.com', 'm.youtube.com', 'music.youtube.com',
+                  'youtu.be', 'youtube-nocookie.com'}
+
+
+def _url_host(url):
+    try:
+        parsed = urlparse(str(url).strip())
+    except (TypeError, ValueError):
+        return '', None
+    if parsed.scheme not in ('http', 'https'):
+        return '', None
+    return parsed.hostname.lower().removeprefix('www.') if parsed.hostname else '', parsed
+
+
+def is_supported_download_url(url):
+    """Принимает только ссылки YouTube и TikTok, а не произвольные HTTP URL."""
+    host, parsed = _url_host(url)
+    if host in _YOUTUBE_HOSTS:
+        return True
+    if host not in _TIKTOK_HOSTS or parsed is None:
+        return False
+    # Короткие vm/vt-ссылки раскрывает yt-dlp. На основном сайте нужен путь:
+    # корень tiktok.com не является ни роликом, ни профилем.
+    if host in {'vm.tiktok.com', 'vt.tiktok.com'}:
+        return bool(parsed.path.strip('/'))
+    parts = [part for part in parsed.path.split('/') if part]
+    return (len(parts) >= 3 and parts[0].startswith('@') and parts[1] == 'video'
+            and parts[2].isdigit()) or (len(parts) == 1 and parts[0].startswith('@')) \
+        or (host == 'm.tiktok.com' and len(parts) >= 2 and parts[0] == 'v'
+            and parts[1].removesuffix('.html').isdigit())
+
+
+def is_tiktok_profile_url(url):
+    """Профиль @user: его надо развернуть в список отдельных роликов."""
+    host, parsed = _url_host(url)
+    if host != 'tiktok.com' or parsed is None:
+        return False
+    parts = [part for part in parsed.path.split('/') if part]
+    return len(parts) == 1 and parts[0].startswith('@') and len(parts[0]) > 1
+
+
+def _entry_video_url(entry):
+    """URL ролика из плоской записи yt-dlp или None для служебной записи."""
+    if not isinstance(entry, dict) or entry.get('_type') == 'playlist':
+        return None
+    url = str(entry.get('webpage_url') or entry.get('url') or '')
+    if url.startswith(('http://', 'https://')) and is_supported_download_url(url):
+        return url
+    return None
+
+
+def expand_download_urls(url):
+    """Раскрывает профиль TikTok в URL его роликов.
+
+    YouTube-плейлисты обрабатывает существующий выборщик, а обычные ссылки и
+    короткие TikTok URL остаются одной задачей — yt-dlp сам раскрывает redirect.
+    """
+    if not is_tiktok_profile_url(url):
+        return [url]
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': 'in_playlist',
+        'ignoreerrors': 'only_download',
+        'socket_timeout': 30,
+        'retries': 2,
+        'cookiefile': cookiefile_for_ydl(COOKIES_PATH),
+    }
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+    entries = info.get('entries') if isinstance(info, dict) else None
+    urls, seen = [], set()
+    for entry in entries if isinstance(entries, list) else []:
+        video_url = _entry_video_url(entry)
+        if video_url and video_url not in seen:
+            seen.add(video_url)
+            urls.append(video_url)
+    if not urls:
+        raise RuntimeError('TikTok не вернул ролики профиля')
+    return urls
+
+
+def channel_tab_urls(channel_url):
+    """Ссылки на табы канала.
+
+    Корень канала отдаёт не видео, а список табов, поэтому обходим
+    /videos, /shorts и /streams по отдельности.
+    """
+    base = str(channel_url or '').strip().rstrip('/')
+    if not base:
+        return []
+    for suffix in KNOWN_TAB_SUFFIXES:
+        if base.endswith(suffix):
+            base = base[:-len(suffix)]
+            break
+    return [base + suffix for suffix in CHANNEL_TAB_SUFFIXES]
+
+
+def channel_entry_video_url(entry):
+    """Ссылка на видео из плоской записи канала или None, если это не видео."""
+    if not isinstance(entry, dict):
+        return None
+    # Таб и плейлист сами по себе не видео: их извлекает YoutubeTab.
+    if entry.get('_type') == 'playlist' or entry.get('ie_key') in ('YoutubeTab', 'YoutubePlaylist'):
+        return None
+    video_id = str(entry.get('id') or '')
+    url = str(entry.get('webpage_url') or entry.get('url') or '')
+    if url.startswith('http'):
+        if is_supported_download_url(url):
+            return url
+        return url if any(marker in url for marker in VIDEO_URL_MARKERS) else None
+    return f"https://www.youtube.com/watch?v={video_id}" if video_id else None
+
+
+def iter_channel_videos(info, depth=0):
+    """Разворачивает вложенные плейлисты канала в плоский список записей."""
+    if not isinstance(info, dict) or depth > 3:
+        return
+    entries = info.get('entries')
+    if isinstance(entries, list):
+        for entry in entries:
+            yield from iter_channel_videos(entry, depth + 1)
+        return
+    if info.get('id') and channel_entry_video_url(info):
+        yield info
+
 
 @app.route('/api/channel/<author>/remaining', methods=['POST'])
 def api_channel_remaining(author):
@@ -854,42 +1664,84 @@ def api_channel_remaining(author):
     channel_url = next((url for url in channel_urls if url), '')
     if not channel_url:
         return jsonify({'error': 'Не удалось определить ссылку на канал'}), 404
-    try:
-        options = {
-            'quiet': True,
-            'no_warnings': True,
-            'skip_download': True,
-            'extract_flat': True,
-            'ignoreerrors': True,
-            'socket_timeout': 30,
-            'cookiefile': COOKIES_PATH if os.path.exists(COOKIES_PATH) else None,
-            # Иначе канал не извлекается, если cookies от другого аккаунта.
-            'extractor_args': {'youtubetab': {'skip': ['authcheck']}},
-        }
-        po_args = get_po_args()
-        if po_args:
-            options.update(po_args)
-        with yt_dlp.YoutubeDL(options) as ydl:
-            info = ydl.extract_info(channel_url, download=False)
-        entries = info.get('entries', []) if isinstance(info, dict) else []
-        local_ids = set(VIDEO_MAP.keys())
-        remaining = []
-        seen = set()
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            video_id = entry.get('id', '')
-            url = entry.get('webpage_url') or entry.get('url')
-            if video_id and not str(url).startswith('http'):
-                url = f"https://www.youtube.com/watch?v={video_id}"
+
+    options = {
+        'quiet': True,
+        'no_warnings': True,
+        'skip_download': True,
+        # 'in_playlist', а не True: с True корень YouTube-канала отдавал сами
+        # табы. У TikTok это обычная лента профиля, но та же опция возвращает
+        # плоские записи без загрузки.
+        'extract_flat': 'in_playlist',
+        # 'only_download', а не True: с True yt-dlp гасит ошибку извлечения и
+        # возвращает None, из-за чего недоступный профиль выглядел пустым.
+        'ignoreerrors': 'only_download',
+        'socket_timeout': 30,
+        # Поток, а не путь: иначе yt-dlp перезапишет cookies.txt при close().
+        'cookiefile': cookiefile_for_ydl(COOKIES_PATH),
+    }
+    is_tiktok = is_tiktok_profile_url(channel_url)
+    if not is_tiktok:
+        # Только YouTube: иначе TikTok получает несуществующие extractor args.
+        options['extractor_args'] = {'youtubetab': {'skip': ['authcheck']}}
+        # apply_po_args, а не update: update затирал extractor_args целиком
+        # вместе с youtubetab:skip=authcheck.
+        apply_po_args(options)
+
+    local_ids = set(VIDEO_MAP.keys())
+    remaining, seen, errors = [], set(), []
+    profile_urls = [channel_url] if is_tiktok else channel_tab_urls(channel_url)
+    for tab_url in profile_urls:
+        info = None
+        last_exc = None
+        # Обрыв сети повторяем: иначе один сбой SSL «съедал» все видео таба,
+        # и список остальных видео молча выходил неполным.
+        for attempt in range(1, download_lib.STREAM_RETRIES + 1):
+            try:
+                with yt_dlp.YoutubeDL(options) as ydl:
+                    info = ydl.extract_info(tab_url, download=False)
+                if info is None:
+                    raise RuntimeError('YouTube не вернул данные вкладки')
+                last_exc = None
+                break
+            except Exception as e:
+                last_exc = e
+                info = None
+                if (attempt >= download_lib.STREAM_RETRIES
+                        or not download_lib.is_transient_error(str(e))):
+                    break
+                time.sleep(download_lib.STREAM_RETRY_DELAY * attempt)
+        if last_exc is not None:
+            # Таба может не быть вовсе (канал без трансляций или без shorts) —
+            # это не повод терять видео, собранные из остальных табов.
+            errors.append(str(last_exc))
+            logger.warning(f"Не удалось получить {tab_url}: {last_exc}")
+            continue
+        for entry in iter_channel_videos(info):
+            video_id = str(entry.get('id') or '')
+            url = channel_entry_video_url(entry)
             if not url or not video_id or video_id in local_ids or video_id in seen:
                 continue
             seen.add(video_id)
-            remaining.append({'id': video_id, 'url': url, 'title': entry.get('title', 'Видео')})
-        return jsonify({'title': info.get('title', author), 'videos': remaining, 'count': len(remaining)})
-    except Exception as e:
-        logger.warning(f"Не удалось получить видео канала {author}: {e}")
-        return jsonify({'error': str(e)}), 502
+            # duration нужна модалке выбора видео; при extract_flat её может
+            # не быть, поэтому приводим к числу только когда значение пришло.
+            raw_duration = entry.get('duration')
+            try:
+                duration = float(raw_duration) if raw_duration is not None else None
+            except (TypeError, ValueError):
+                duration = None
+            remaining.append({
+                'id': video_id,
+                'url': url,
+                'title': entry.get('title') or 'Видео',
+                'duration': duration,
+            })
+
+    # Ошибку показываем только если не набралось ни одного видео: иначе
+    # недоступный таб превращал успешный обход в 502.
+    if not remaining and errors:
+        return jsonify({'error': errors[0]}), 502
+    return jsonify({'title': author, 'videos': remaining, 'count': len(remaining)})
 
 # ================= ОЧЕРЕДЬ =================
 # Плагины getpot_bgutil для PO Token (создаются при первом запуске)
@@ -898,27 +1750,64 @@ try:
 except Exception as e:
     logger.warning(f"Не удалось установить плагины PO Token: {e}")
 
+# Провайдер PO Token поднимается в фоне: без токена YouTube отдаёт HTTP 403
+# на середине длинных видео. Ожидание сервера не должно задерживать старт.
+def _start_po_provider():
+    try:
+        if auth_options.ensure_bgutil_server():
+            logger.info("Провайдер PO Token готов")
+        elif auth_options.get_options().get("po_token") == "bgutil:http":
+            logger.warning("Провайдер PO Token не запустился: длинные видео могут падать с HTTP 403")
+    except Exception as e:
+        logger.warning(f"Не удалось запустить провайдер PO Token: {e}")
+
+
+threading.Thread(target=_start_po_provider, daemon=True).start()
+
 _queue_worker_started = False
+_queue_worker_thread = None
+_queue_worker_lock = threading.Lock()
+
 
 def ensure_queue_worker():
-    """Запускает фоновый обработчик очереди (только один раз)."""
-    global _queue_worker_started
-    if not _queue_worker_started:
+    """Запускает фоновый обработчик очереди, если он ещё не работает.
+
+    Проверяем именно живость потока, а не флаг: раньше упавший воркер навсегда
+    оставлял флаг поднятым, и очередь замирала до перезапуска процесса, при
+    этом /api/queue/add продолжал отвечать 200.
+    """
+    global _queue_worker_started, _queue_worker_thread
+    # Лок вокруг check-then-set: без него два одновременных запроса могли
+    # поднять двух воркеров и скачивать одну задачу дважды.
+    with _queue_worker_lock:
+        if _queue_worker_thread is not None and _queue_worker_thread.is_alive():
+            return _queue_worker_thread
+        _queue_worker_thread = threading.Thread(target=process_queue, daemon=True)
         _queue_worker_started = True
-        threading.Thread(target=process_queue, daemon=True).start()
+        _queue_worker_thread.start()
+        return _queue_worker_thread
 
 def process_queue():
     global queue_processing, queue_paused
     queue_processing = True
     while True:
-        if queue_paused:
+        try:
+            _process_queue_once()
+        except Exception as e:
+            # Последний рубеж: воркер один, и любое непойманное исключение
+            # раньше останавливало очередь до перезапуска процесса.
+            logger.error(f"Сбой цикла очереди: {e}")
             time.sleep(2)
-            continue
-            
+
+
+def _process_queue_once():
         task_to_process = None
         with queue_lock:
+            # Пауза читается под локом вместе с выбором задачи: раньше проверка
+            # шла до лока, и задача, снятая с паузы прямо в этот момент, могла
+            # уйти в загрузку уже после нажатия «Пауза».
             # Сначала высокий приоритет, внутри одного приоритета — порядок добавления.
-            waiting = [t for t in queue_tasks if t.status == "waiting"]
+            waiting = [] if queue_paused else [t for t in queue_tasks if t.status == "waiting"]
             if waiting:
                 task = min(waiting, key=lambda t: PRIORITY_ORDER.get(t.priority, 1))
                 task_to_process = task
@@ -937,10 +1826,9 @@ def process_queue():
             save_queue()
 
         if not task_to_process:
-
             time.sleep(2)
-            continue
-            
+            return
+
         def update_progress(percent, message):
             with queue_lock:
                 task_to_process.progress = max(0, min(100, percent or 0))
@@ -954,25 +1842,82 @@ def process_queue():
                     if speed_match:
                         task_to_process.speed = speed_match.group(1).strip()
                         task_to_process.eta = speed_match.group(2).strip()
-            save_queue()
+            # С троттлингом: раньше здесь был save_queue() на каждый тик прогресса,
+            # то есть запись queue.json с копией и fsync примерно раз в секунду на
+            # каждую активную загрузку.
+            save_queue_progress()
             
         def is_cancelled():
             with queue_lock:
                 return task_to_process.id in queue_cancel_requests
 
         try:
-            success = download_single_sync(
+            result = download_single_sync(
                 task_to_process.urls, 
                 task_to_process.format_id, 
                 update_progress, 
                 task_to_process.merge_format,
                 should_cancel=is_cancelled
             )
+            # DownloadOutcome ведёт себя как bool, но несёт разбивку по видео:
+            # она нужна, чтобы не выдавать частичный провал за полный успех.
+            # Заглушки в тестах возвращают обычный bool, поэтому getattr.
+            success = bool(result)
+            done = getattr(result, 'succeeded', 1 if success else 0)
+            failed = getattr(result, 'failed', 0 if success else 1)
             with queue_lock:
-                task_to_process.status = "completed" if success else "error"
-                task_to_process.progress = 100 if success else 0
-                task_to_process.message = "Готово" if success else "Ошибка скачивания"
-                task_to_process.error = "" if success else task_to_process.message
+                # Отмена, пришедшая на этапе склейки, раньше терялась: хуков
+                # прогресса там уже нет, и задача помечалась как «Готово».
+                if task_to_process.id in queue_cancel_requests:
+                    queue_cancel_requests.discard(task_to_process.id)
+                    task_to_process.status = "cancelled"
+                    task_to_process.progress = 0
+                    task_to_process.message = "Отменено пользователем"
+                    task_to_process.error = ""
+                    task_to_process.speed = ""
+                    task_to_process.eta = ""
+                else:
+                    # Флаг снимаем и на успешном пути: иначе он оставался в
+                    # queue_cancel_requests навсегда и мог отменить чужую задачу.
+                    queue_cancel_requests.discard(task_to_process.id)
+                    task_to_process.speed = ""
+                    task_to_process.eta = ""
+                    reason = getattr(result, 'last_error', '') or ''
+                    skipped = getattr(result, 'skipped', 0)
+                    if not success:
+                        task_to_process.status = "error"
+                        task_to_process.progress = 0
+                        # Настоящая причина отказа вместо заглушки: yt-dlp с
+                        # ignoreerrors не бросает исключение, поэтому раньше в
+                        # очереди всегда стояло «Ошибка скачивания».
+                        task_to_process.message = f"Ошибка: {reason}" if reason else "Ошибка скачивания"
+                        task_to_process.error = task_to_process.message
+                    elif failed:
+                        # Частичный успех нельзя показывать как «Готово»:
+                        # со статусом completed до задачи не доставали ни кнопка
+                        # «Повторить», ни фильтр «С ошибками», ни массовый повтор.
+                        task_to_process.status = "partial"
+                        task_to_process.progress = 100
+                        # Считаем от размера задачи, а не от числа обработанных
+                        # ссылок: при остановке из-за сети задача прекращается на
+                        # середине, и «3 из 27» скрывало 52 нетронутых видео.
+                        planned = len(task_to_process.urls) or (done + failed)
+                        untouched = max(0, planned - done - failed)
+                        task_to_process.message = (
+                            f"Готово, но {failed + untouched} из {planned} не скачано")
+                        if reason:
+                            task_to_process.message += f". Последняя ошибка: {reason}"
+                        task_to_process.error = task_to_process.message
+                    else:
+                        task_to_process.status = "completed"
+                        task_to_process.progress = 100
+                        if skipped and skipped >= done:
+                            task_to_process.message = f"Все {skipped} видео уже были скачаны"
+                        elif skipped:
+                            task_to_process.message = f"Готово ({skipped} уже было скачано)"
+                        else:
+                            task_to_process.message = "Готово"
+                        task_to_process.error = ""
             save_queue()
         except DownloadCancelledByUser:
             with queue_lock:
@@ -993,32 +1938,62 @@ def process_queue():
                 task_to_process.message = f"Ошибка: {e}"
             save_queue()
 
-                
-        build_video_map()
+        # Пересканирование библиотеки не должно ронять воркер: раньше любая
+        # ошибка файловой системы убивала единственный поток очереди, и
+        # следующие задачи навсегда оставались в статусе waiting.
+        try:
+            build_video_map()
+        except Exception as e:
+            logger.error(f"Не удалось пересканировать библиотеку: {e}")
         time.sleep(1)
 
 @app.route('/api/queue/add', methods=['POST'])
 def api_queue_add():
     ensure_queue_worker()
-    data = request.json
-    urls = data.get('urls', [])
+    # silent=True: без него запрос без заголовка Content-Type получал HTML-страницу
+    # 415, и клиент падал на разборе ответа как JSON.
+    data = request.get_json(silent=True) or {}
+    urls = data.get('urls') or []
+    if not isinstance(urls, list):
+        urls = [urls]
+    # Отбрасываем мусор: пустая или чужая ссылка иначе уходила в загрузчик.
+    urls = [str(u).strip() for u in urls if isinstance(u, (str, bytes)) and str(u).strip()]
+    if not urls: return jsonify({'error': 'Нет ссылок'}), 400
+    invalid = next((url for url in urls if not is_supported_download_url(url)), None)
+    if invalid:
+        return jsonify({'error': 'Поддерживаются ссылки YouTube и TikTok'}), 400
+    try:
+        expanded = []
+        for url in urls:
+            expanded.extend(expand_download_urls(url))
+        urls = expanded
+    except Exception as e:
+        logger.warning(f"Не удалось получить ролики TikTok: {e}")
+        return jsonify({'error': f'Не удалось получить ролики TikTok: {e}'}), 502
+    if not urls:
+        return jsonify({'error': 'Нет роликов для загрузки'}), 400
     format_id = data.get('format_id')
     title = data.get('title', 'Видео')
     merge_format = data.get('merge_format', 'mp4')
-    
-    if not urls: return jsonify({'error': 'Нет ссылок'})
+
+    # Код ответа обязателен: без него клиент, проверяющий res.ok, считал
+    # отказ успешным добавлением.
+    if not urls: return jsonify({'error': 'Нет ссылок'}), 400
     
     priority = data.get('priority', PRIORITY_NORMAL)
-    task_id = hashlib.md5(f"{time.time()}{urls[0]}".encode()).hexdigest()[:8]
-    task = QueueTask(task_id, urls, format_id, title, merge_format, priority)
-    
+
     with queue_lock:
+        task_id = _new_task_id_locked()
+        task = QueueTask(task_id, urls, format_id, title, merge_format, priority)
         queue_tasks.append(task)
-    save_queue()
-    return jsonify({'status': 'ok', 'task_id': task_id})
+    return save_queue_or_error({'task_id': task_id})
 
 @app.route('/api/queue/list', methods=['GET'])
 def api_queue_list():
+    # Воркер поднимается и здесь: при запуске не через `python app.py`
+    # (WSGI-хост, flask run) он раньше не существовал вообще, и восстановленные
+    # после перезапуска задачи навсегда оставались в «Ожидание».
+    ensure_queue_worker()
     with queue_lock:
         tasks = [{
             'id': t.id, 'title': t.title, 'urls': t.urls,
@@ -1029,7 +2004,10 @@ def api_queue_list():
             'attempts': t.attempts, 'priority': t.priority,
             'cancelling': t.id in queue_cancel_requests and t.status == 'downloading'
         } for t in queue_tasks]
-    return jsonify({'tasks': tasks, 'paused': queue_paused})
+        # Читаем под тем же локом, что и задачи: иначе ответ мог сообщить о
+        # снятой паузе, показав при этом список задач до её снятия.
+        paused = queue_paused
+    return jsonify({'tasks': tasks, 'paused': paused})
 
 @app.route('/api/queue/remove/<task_id>', methods=['DELETE'])
 def api_queue_remove(task_id):
@@ -1040,9 +2018,12 @@ def api_queue_remove(task_id):
         active = any(t.id == task_id and t.status == 'downloading' for t in queue_tasks)
         if active:
             queue_cancel_requests.add(task_id)
+        else:
+            # Неактивную задачу удаляем вместе с её флагом: иначе он оставался
+            # в наборе навсегда и мог отменить новую задачу с тем же id.
+            queue_cancel_requests.discard(task_id)
         queue_tasks = [t for t in queue_tasks if t.id != task_id]
-    save_queue()
-    return jsonify({'status': 'ok', 'cancelled_active': active})
+    return save_queue_or_error({'cancelled_active': active})
 
 
 @app.route('/api/queue/cancel/<task_id>', methods=['POST'])
@@ -1052,7 +2033,7 @@ def api_queue_cancel(task_id):
         task = next((t for t in queue_tasks if t.id == task_id), None)
         if not task:
             return jsonify({'error': 'Задача не найдена'}), 404
-        if task.status in ('completed', 'error', 'cancelled'):
+        if task.status in FINISHED_STATUSES:
             return jsonify({'error': 'Задача уже завершена'}), 409
         was_downloading = task.status == 'downloading'
         if was_downloading:
@@ -1064,14 +2045,13 @@ def api_queue_cancel(task_id):
             task.progress = 0
             task.message = 'Отменено пользователем'
             task.error = ''
-    save_queue()
-    return jsonify({'status': 'ok', 'was_downloading': was_downloading})
+    return save_queue_or_error({'was_downloading': was_downloading})
 
 
 @app.route('/api/queue/priority/<task_id>', methods=['POST'])
 def api_queue_priority(task_id):
     """Меняет приоритет ожидающей задачи."""
-    priority = (request.json or {}).get('priority', PRIORITY_NORMAL)
+    priority = (request.get_json(silent=True) or {}).get('priority', PRIORITY_NORMAL)
     if priority not in PRIORITY_ORDER:
         return jsonify({'error': 'Неизвестный приоритет'}), 400
     with queue_lock:
@@ -1079,52 +2059,87 @@ def api_queue_priority(task_id):
         if not task:
             return jsonify({'error': 'Задача не найдена'}), 404
         task.priority = priority
-    save_queue()
-    return jsonify({'status': 'ok', 'priority': priority})
+    return save_queue_or_error({'priority': priority})
 
 @app.route('/api/queue/retry/<task_id>', methods=['POST'])
 def api_queue_retry(task_id):
-    found = False
     with queue_lock:
-        for t in queue_tasks:
-            if t.id == task_id:
-                queue_cancel_requests.discard(task_id)
-                t.status = 'waiting'
-                t.progress = 0
-                t.error = ''
-                t.message = 'Повторная попытка ожидает запуска'
-                found = True
-                break
-    if not found:
-        return jsonify({'error': 'Задача не найдена'}), 404
-    save_queue()
+        task = next((t for t in queue_tasks if t.id == task_id), None)
+        if not task:
+            return jsonify({'error': 'Задача не найдена'}), 404
+        # Активную загрузку перезапускать нельзя: снятие флага отмены делало
+        # её неотменяемой, а статус waiting тут же перетирался воркером.
+        if task.status == 'downloading':
+            return jsonify({'error': 'Задача уже выполняется'}), 409
+        queue_cancel_requests.discard(task_id)
+        task.status = 'waiting'
+        task.progress = 0
+        task.error = ''
+        task.message = 'Повторная попытка ожидает запуска'
+        # Позицию и метрики прошлой попытки надо обнулить: иначе у ожидающей
+        # задачи оставалось «Видео 11/79 · 1.50MiB/s», и это выглядело как
+        # сохранённый прогресс, хотя загрузка начинается с первого видео.
+        task.current_index = 0
+        task.current_url = ''
+        task.speed = ''
+        task.eta = ''
+    response = save_queue_or_error()
     ensure_queue_worker()
-    return jsonify({'status': 'ok'})
+    return response
 
 @app.route('/api/queue/pause', methods=['POST'])
 def api_queue_pause():
     global queue_paused
-    queue_paused = True
-    save_queue()
-    return jsonify({'status': 'ok', 'paused': True})
+    # Под локом: save_queue читает queue_paused под тем же локом, и без этого
+    # запись флага могла попасть между чтением и записью файла — на диск уходило
+    # старое значение, и после перезапуска пауза пропадала.
+    with queue_lock:
+        queue_paused = True
+    return save_queue_or_error({'paused': True})
 
 @app.route('/api/queue/resume', methods=['POST'])
 def api_queue_resume():
     global queue_paused
-    queue_paused = False
-    save_queue()
+    with queue_lock:
+        queue_paused = False
+    response = save_queue_or_error({'paused': False})
     ensure_queue_worker()
-    return jsonify({'status': 'ok', 'paused': False})
+    return response
 
 @app.route('/api/queue/clear', methods=['POST'])
 def api_queue_clear():
     global queue_tasks
     with queue_lock:
-        queue_tasks = [t for t in queue_tasks if t.status not in ('completed', 'error', 'cancelled')]
-    save_queue()
-    return jsonify({'status': 'ok'})
+        queue_tasks = [t for t in queue_tasks if t.status not in FINISHED_STATUSES]
+        # Флаги отмены удалённых задач надо убрать вместе с ними: сюда попадают
+        # id завершённых задач (отмена активной загрузки оставляет флаг, а
+        # обработчик снимает его не на всех путях), и без чистки набор растёт на
+        # весь срок работы процесса. Побочный эффект: _new_task_id_locked
+        # исключает id из набора при выдаче новых, так что мусор постепенно
+        # сужал пространство id.
+        live_ids = {t.id for t in queue_tasks}
+        queue_cancel_requests.intersection_update(live_ids)
+    return save_queue_or_error()
 
 # ================= ПОЛЬЗОВАТЕЛЬСКИЕ ВИДЕО =================
+TEMP_UPLOAD_DIR = paths.data_path('uploads_tmp')
+
+
+def _temp_upload_path(kind, filename):
+    """Уникальный путь для временного файла загрузки.
+
+    Расширение берётся из имени, присланного клиентом, поэтому его надо чистить:
+    имя вида 'video.mp4/../../evil' уводило запись за пределы каталога, а
+    os.path.splitext на нём даёт вовсе не то, что ожидается.
+    """
+    ext = os.path.splitext(filename or '')[1][:10]
+    ext = re.sub(r'[^A-Za-z0-9.]', '', ext)
+    if ext and not ext.startswith('.'):
+        ext = '.' + ext
+    os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
+    return os.path.join(TEMP_UPLOAD_DIR, f"{kind}_{uuid.uuid4().hex}{ext}")
+
+
 @app.route('/upload')
 def upload_page():
     return render_template('upload.html')
@@ -1143,51 +2158,71 @@ def api_user_upload():
         t_file = request.files.get('thumbnail_file')
         
         if not v_file: return jsonify({'error': 'Файл видео обязателен'}), 400
-        
-        tmp_v = os.path.join(SCRIPT_DIR, "temp_video" + os.path.splitext(v_file.filename)[1])
+
+    except Exception as e:
+        logger.error(f"Загрузка своего видео не удалась: {e}")
+        return jsonify({'error': str(e)}), 500
+
+    # Имя временного файла уникально: раньше это был общий "temp_video.mp4" в
+    # корне проекта, поэтому две одновременные загрузки писали в один файл и
+    # первая получала чужое видео. Уборка вынесена в finally: при ошибке
+    # add_user_video многогигабайтный temp_video оставался на диске навсегда.
+    tmp_v = tmp_t = None
+    try:
+        tmp_v = _temp_upload_path("video", v_file.filename)
         v_file.save(tmp_v)
-        
-        tmp_t = None
+
         if t_file:
-            tmp_t = os.path.join(SCRIPT_DIR, "temp_thumb" + os.path.splitext(t_file.filename)[1])
+            tmp_t = _temp_upload_path("thumb", t_file.filename)
             t_file.save(tmp_t)
-            
+
         info = add_user_video(tmp_v, title, desc, username, tmp_t)
-        
-        if os.path.exists(tmp_v): os.remove(tmp_v)
-        if tmp_t and os.path.exists(tmp_t): os.remove(tmp_t)
-        
         build_user_video_map()
         return jsonify({'status': 'ok', 'id': info['id']})
     except Exception as e:
+        logger.error(f"Загрузка своего видео не удалась: {e}")
         return jsonify({'error': str(e)}), 500
+    finally:
+        for path in (tmp_v, tmp_t):
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError as e:
+                    logger.warning(f"Не удалось удалить временный файл {path}: {e}")
 
 @app.route('/api/user_video/edit/<vid_id>', methods=['POST'])
 def api_user_edit(vid_id):
+    username = request.form.get('username')
+    title = request.form.get('title')
+    desc = request.form.get('description')
+    t_file = request.files.get('thumbnail_file')
+
+    tmp_t = None
     try:
-        username = request.form.get('username')
-        title = request.form.get('title')
-        desc = request.form.get('description')
-        t_file = request.files.get('thumbnail_file')
-        
-        tmp_t = None
         if t_file:
-            tmp_t = os.path.join(SCRIPT_DIR, "temp_thumb2" + os.path.splitext(t_file.filename)[1])
+            tmp_t = _temp_upload_path("thumb", t_file.filename)
             t_file.save(tmp_t)
-            
+
         info = edit_user_video(vid_id, title, desc, username, tmp_t)
-        if tmp_t and os.path.exists(tmp_t): os.remove(tmp_t)
-        
         if info:
             build_user_video_map()
             return jsonify({'status': 'ok'})
         return jsonify({'error': 'Не найдено или нет прав'}), 403
     except Exception as e:
+        logger.error(f"Правка своего видео не удалась: {e}")
         return jsonify({'error': str(e)}), 500
+    finally:
+        # finally: раньше удаление стояло после edit_user_video, и при ошибке
+        # правки временный файл превью оставался в корне проекта.
+        if tmp_t and os.path.exists(tmp_t):
+            try:
+                os.remove(tmp_t)
+            except OSError as e:
+                logger.warning(f"Не удалось удалить временный файл {tmp_t}: {e}")
 
 @app.route('/api/user_video/delete/<vid_id>', methods=['POST'])
 def api_user_delete(vid_id):
-    username = request.json.get('username')
+    username = (request.get_json(silent=True) or {}).get('username')
     if delete_user_video(vid_id, username):
         build_user_video_map()
         return jsonify({'status': 'ok'})
@@ -1207,10 +2242,14 @@ def api_auth_options_get():
 
 @app.route('/api/auth/options', methods=['POST'])
 def api_auth_options_save():
-    data = request.json or {}
+    # silent=True: запрос без Content-Type иначе получал HTML-страницу 415.
+    data = request.get_json(silent=True) or {}
     result = auth_options.save_options(data)
     if isinstance(result, dict) and result.get('error'):
         return jsonify({'error': result['error']}), 400
+    # Включение PO Token без этого требовало перезапуска приложения: настройка
+    # сохранялась, но провайдер оставался незапущенным.
+    threading.Thread(target=_start_po_provider, daemon=True).start()
     return jsonify({'status': 'ok'})
 
 @app.route('/api/auth/ensure', methods=['POST'])
@@ -1222,43 +2261,178 @@ def api_auth_ensure():
 def api_auth_status():
     return jsonify(auth_options.status())
 
+# ================= ЯЗЫК ИНТЕРФЕЙСА =================
+@app.route('/api/i18n/<lang>')
+def api_i18n_dictionary(lang):
+    """Словарь для строк, которые собирает клиентский код.
+
+    Разметку переводит сервер, но часть подписей появляется уже в браузере
+    (очередь загрузок, списки каналов), и для них нужен тот же словарь.
+    """
+    if lang not in i18n.LANGUAGES:
+        return jsonify({'error': 'Неизвестный язык'}), 404
+    return jsonify({'lang': lang, 'strings': i18n.load_dictionary(lang)})
+
+
+@app.route('/api/language', methods=['POST'])
+def api_language_save():
+    """Сохраняет выбранный язык в cookie.
+
+    Cookie, а не config.json: язык — свойство устройства, с которого смотрят.
+    На телефоне гостя может быть удобен английский, хотя владелец сидит на
+    русском, и общая настройка на сервере ломала бы обоим.
+    """
+    # silent=True: запрос без Content-Type иначе получал HTML-страницу 415.
+    data = request.get_json(silent=True) or {}
+    lang = data.get('lang')
+    if lang not in i18n.LANGUAGES:
+        return jsonify({'error': _t('Неизвестный язык')}), 400
+    response = jsonify({'status': 'ok', 'lang': lang})
+    response.set_cookie(i18n.LANG_COOKIE, lang, max_age=i18n.LANG_COOKIE_MAX_AGE,
+                        samesite='Lax')
+    return response
+
+# ================= НАСТРОЙКИ ЗАГРУЗКИ (ЯЗЫКИ И СУБТИТРЫ) =================
+@app.route('/api/download/prefs', methods=['GET'])
+def api_download_prefs_get():
+    """Языки аудиодорожек и субтитров плюс список языков для выпадающих полей.
+
+    Список приходит с сервера, а не дублируется в шаблоне: две копии
+    разъезжаются, и в настройках оказывался язык, которого код не знает.
+    """
+    data = download_prefs.get_prefs()
+    data['languages'] = download_prefs.languages_for_ui()
+    return jsonify(data)
+
+
+@app.route('/api/download/prefs', methods=['POST'])
+def api_download_prefs_save():
+    # silent=True: запрос без Content-Type иначе получал HTML-страницу 415.
+    data = request.get_json(silent=True) or {}
+    result = download_prefs.save_prefs(data)
+    if isinstance(result, dict) and result.get('error'):
+        # Шаблон приходит с {value}: переводим текст, потом подставляем код
+        # языка. Иначе строку с уже подставленным кодом не нашлось бы в словаре.
+        message = _t(result['error']).format(value=result.get('value', ''))
+        return jsonify({'error': message}), 400
+    return jsonify({'status': 'ok'})
+
+# ================= ХРАНЕНИЕ (ПУТИ К ПАПКАМ) =================
+@app.route('/api/storage', methods=['GET'])
+def api_storage_get():
+    """Текущие пути хранения: как заданы в конфиге и куда разрешились."""
+    cfg = load_config()
+    data = {key: cfg[key] for key in DEFAULT_DIRS}
+    # Относительное "videos" не объясняет, где лежат файлы: показываем и то,
+    # во что путь разворачивается на самом деле.
+    data['resolved'] = {key: resolve_dir(cfg[key]) for key in DEFAULT_DIRS}
+    data['defaults'] = dict(DEFAULT_DIRS)
+    return jsonify(data)
+
+@app.route('/api/storage', methods=['POST'])
+def api_storage_save():
+    # silent=True: запрос без Content-Type иначе отдаёт HTML-страницу 415.
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not data:
+        return jsonify({'error': 'Нет данных для сохранения.'}), 400
+
+    unknown = [key for key in data if key not in DEFAULT_DIRS]
+    if unknown:
+        # Опечатка в имени ключа иначе молча ничего бы не изменила.
+        return jsonify({'error': 'Неизвестные настройки: ' + ', '.join(sorted(unknown))}), 400
+
+    cfg = load_config()
+    updates = {}
+    for key, raw in data.items():
+        value = (raw or '').strip() if isinstance(raw, str) else ''
+        if not value:
+            return jsonify({'error': f'Путь для «{key}» не может быть пустым.'}), 400
+        target = resolve_dir(value)
+        if os.path.exists(target) and not os.path.isdir(target):
+            return jsonify({'error': f'По пути {target} лежит файл, а не папка.'}), 400
+        # Проверяем доступность до записи в конфиг: иначе приложение осталось бы
+        # с путём, по которому нельзя ничего создать.
+        try:
+            os.makedirs(target, exist_ok=True)
+        except OSError as e:
+            return jsonify({'error': f'Не удалось создать папку {target}: {e}'}), 400
+        updates[key] = value
+
+    cfg.update(updates)
+    try:
+        save_config(cfg)
+    except JsonWriteError as e:
+        return jsonify({'error': f'Не удалось сохранить настройки: {e}'}), 500
+
+    # Пути применяются на живом сервере: без этого веб продолжал бы показывать
+    # старую папку, пока загрузчик уже писал бы в новую.
+    apply_storage_paths(cfg)
+    custom_quality.init(BASE_VIDEO_DIR, logger, lambda: VIDEO_MAP, lambda: USER_VIDEO_MAP, build_video_map, build_user_video_map, USER_VIDEOS_ROOT)
+    audio_language.init(BASE_VIDEO_DIR, SUBTITLES_DIR, logger, lambda: VIDEO_MAP, lambda: USER_VIDEO_MAP, build_video_map)
+    build_video_map()
+    build_user_video_map()
+    build_playlist_map()
+    # Кэш аватарок сбрасывается по mtime каталога, а каталог сменился целиком:
+    # без сброса в выдаче остались бы ссылки на файлы из старой папки.
+    with _avatar_cache_lock:
+        _avatar_cache['mtime'] = None
+        _avatar_cache['map'] = {}
+
+    result = {key: cfg[key] for key in DEFAULT_DIRS}
+    result['resolved'] = {key: resolve_dir(cfg[key]) for key in DEFAULT_DIRS}
+    return jsonify({'status': 'ok', **result})
+
 # ================= УТИЛИТЫ (Аватарки и Превью) =================
+# Обе задачи выполняются внутри процесса, а не через subprocess с sys.executable.
+# В собранной версии sys.executable — это сам LocalTube.exe, поэтому такой вызов
+# запускал бы второе приложение (второй сервер на том же порту), а не скрипт:
+# скриптов рядом с exe нет вовсе.
+
 @app.route('/api/avatars/download_all', methods=['POST'])
 def api_download_all_avatars():
-    def run_script():
-        subprocess.run([sys.executable, 'download_avatars.py'], cwd=SCRIPT_DIR)
-    threading.Thread(target=run_script, daemon=True).start()
+    def run_task():
+        try:
+            import download_avatars
+            download_avatars.main([])
+        except Exception as e:
+            logger.error(f"Загрузка аватарок не завершилась: {e}")
+    threading.Thread(target=run_task, daemon=True).start()
     return jsonify({'status': 'started'})
 
 @app.route('/api/thumbnails/generate', methods=['POST'])
 def api_generate_thumbnails():
-    force = request.json.get('force', False)
-    def run_script():
-        cmd = [sys.executable, 'download_thumbnails.py']
-        if force: cmd.append('--force')
-        subprocess.run(cmd, cwd=SCRIPT_DIR)
-    threading.Thread(target=run_script, daemon=True).start()
+    force = (request.get_json(silent=True) or {}).get('force', False)
+    def run_task():
+        try:
+            import download_thumbnails
+            download_thumbnails.main(['--force'] if force else [])
+        except Exception as e:
+            logger.error(f"Генерация превью не завершилась: {e}")
+    threading.Thread(target=run_task, daemon=True).start()
     return jsonify({'status': 'started'})
+
+# Темы, у которых есть свои обои. Список закрытый: имя темы попадало прямо в
+# os.path.join, и хотя конвертер <theme> не пропускает '/', абсолютный путь
+# ('C:\\Windows') или '..' в другой форме листали бы чужой каталог.
+THEMES_WITH_BACKGROUNDS = ('frutiger-aero',)
+BACKGROUND_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp')
+
 
 @app.route('/api/theme-backgrounds/<theme>')
 def api_theme_backgrounds(theme):
+    if theme not in THEMES_WITH_BACKGROUNDS:
+        return jsonify([])
     theme_dir = os.path.join(SCRIPT_DIR, 'static', 'images', 'themes', theme)
-    if not os.path.exists(theme_dir): return jsonify([])
-    images = [f for f in os.listdir(theme_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
+    try:
+        # Сортировка обязательна: os.listdir отдаёт порядок файловой системы, и
+        # разные страницы получали список в разном порядке, поэтому переход
+        # между страницами менял обои даже при неизменном наборе файлов.
+        images = sorted(f for f in os.listdir(theme_dir)
+                        if f.lower().endswith(BACKGROUND_EXTENSIONS))
+    except OSError:
+        # Папки может не быть (обои не скачаны) — это не ошибка, просто нет обоев.
+        return jsonify([])
     return jsonify(images)
-
-@app.route('/api/frutiger/backgrounds')
-def api_frutiger_backgrounds():
-    theme_dir = os.path.join(SCRIPT_DIR, 'static', 'images', 'themes', 'frutiger-aero')
-    if not os.path.exists(theme_dir):
-        return jsonify({'status': 'error', 'message': 'Directory not found'}), 404
-    images = [f for f in os.listdir(theme_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
-    if not images:
-        return jsonify({'status': 'error', 'message': 'No images found'}), 404
-    import random
-    selected = random.sample(images, min(2, len(images)))
-    urls = ['/static/images/themes/frutiger-aero/' + quote(img) for img in selected]
-    return jsonify({'status': 'ok', 'urls': urls})
 
 
 # ================= API: КАТАЛОГ (JSON) =================
@@ -1276,7 +2450,7 @@ def _video_item(vid, v):
         thumb = find_file(os.path.join(BASE_VIDEO_DIR, v["author"], v["folder"]), ['.jpg', '.png', '.webp'])
     return {
         "id": vid, "author": v["author"], "title": v["title"],
-        "is_short": v["is_short"], "size_mb": v["size_mb"], "duration": v.get("duration", 0), "upload_date": v.get("upload_date", ""), "source": "youtube",
+        "is_short": v["is_short"], "size_mb": v["size_mb"], "duration": v.get("duration", 0), "upload_date": v.get("upload_date", ""), "source": v.get("source", "youtube"),
         "video_url": f"/media/{quote(v['author'])}/{quote(v['folder'])}/{quote(v['filename'])}",
         "thumb": f"/media/{quote(v['author'])}/{quote(v['folder'])}/{quote(thumb)}" if thumb else None,
         "author_avatar": get_avatar_url(v["author"]),
@@ -1296,14 +2470,41 @@ def hidden_channels_set():
         return set()
 
 
+def hidden_for_request():
+    """Скрытые каналы с учётом того, кто спрашивает.
+
+    include_hidden=1 нужен странице настроек владельца, чтобы показать сами
+    скрытые каналы. Для гостя этот параметр игнорируется: иначе он был бы
+    готовой лазейкой — достаточно дописать его к адресу.
+    """
+    if request_is_owner() and request.args.get('include_hidden') == '1':
+        return set()
+    return hidden_channels_set()
+
+
+def guest_hidden_authors():
+    """Каналы, недоступные текущему клиенту целиком.
+
+    Для владельца — пустое множество: скрытие он включил сам и должен иметь
+    доступ к своим видео. Для гостя скрытый канал пропадает полностью: и
+    страница канала, и страница видео, и файлы на диске.
+    """
+    if request_is_owner():
+        return set()
+    return hidden_channels_set()
+
+
+def hidden_from_guest(author):
+    return bool(author) and author in guest_hidden_authors()
+
+
 @app.route('/api/catalog')
 def api_catalog():
     ensure_video_map()
     build_user_video_map()
     build_playlist_map()
 
-    # include_hidden=1 нужен странице настроек, чтобы показать сами скрытые каналы.
-    hidden = set() if request.args.get('include_hidden') == '1' else hidden_channels_set()
+    hidden = hidden_for_request()
 
     videos, shorts = [], []
     for vid, v in VIDEO_MAP.items():
@@ -1352,21 +2553,17 @@ def api_video(vid_id):
         author_avatar = get_avatar_url(uv["author"])
         thumb = _user_media_url(uv["thumb"]) if uv.get("thumb") else None
         source = "user"
-    elif vid_id in VIDEO_MAP:
+    elif vid_id in VIDEO_MAP and not hidden_from_guest(VIDEO_MAP[vid_id]["author"]):
         v = VIDEO_MAP[vid_id]
         folder_path = os.path.join(BASE_VIDEO_DIR, v["author"], v["folder"])
         video_url = f"/media/{quote(v['author'])}/{quote(v['folder'])}/{quote(v['filename'])}"
         author_avatar = get_avatar_url(v["author"])
         is_short = v["is_short"]
+        source = v.get("source", "youtube")
         thumb_file = find_file(folder_path, ['.jpg', '.png', '.webp'])
         if thumb_file:
             thumb = f"/media/{quote(v['author'])}/{quote(v['folder'])}/{quote(thumb_file)}"
-        info_file = find_file(folder_path, ['info.json', '.info.json'])
-        if info_file:
-            try:
-                with open(os.path.join(folder_path, info_file), 'r', encoding='utf-8') as f:
-                    meta = json.load(f)
-            except: pass
+        meta = read_video_info(folder_path)
         if not meta:
             meta = {"title": v["title"], "uploader": v["author"], "id": vid_id}
 
@@ -1377,11 +2574,25 @@ def api_video(vid_id):
     if video_url.endswith('.webm'): mime_type = "video/webm"
     elif video_url.endswith('.mkv'): mime_type = "video/x-matroska"
 
-    full_path = os.path.join(SCRIPT_DIR, video_url.lstrip('/'))
-    file_size_mb = round(os.path.getsize(full_path) / (1024 * 1024), 1) if os.path.exists(full_path) else 0
+    # Размер берём по реальному пути на диске, а не по URL. Раньше здесь было
+    # os.path.join(SCRIPT_DIR, video_url), то есть каталог проекта + «/media/…»:
+    # такого пути не существует, плюс имена в URL percent-кодированы. Проверка
+    # os.path.exists всегда была ложной, и размер файла всегда показывался 0.
+    file_size_mb = 0
+    if vid_id in USER_VIDEO_MAP:
+        media_path = USER_VIDEO_MAP[vid_id]["video_path"]
+    else:
+        v = VIDEO_MAP[vid_id]
+        media_path = os.path.join(BASE_VIDEO_DIR, v["author"], v["folder"], v["filename"])
+    try:
+        file_size_mb = round(os.path.getsize(media_path) / (1024 * 1024), 1)
+    except OSError:
+        # Файл могли удалить или переименовать между сканированием и запросом.
+        pass
 
     recommended = []
-    all_combined = list(VIDEO_MAP.values())
+    hidden = guest_hidden_authors()
+    all_combined = [v for v in VIDEO_MAP.values() if v["author"] not in hidden]
     random.shuffle(all_combined)
     for rv in all_combined[:15]:
         if rv.get("youtube_id", rv["folder"]) != vid_id:
@@ -1415,7 +2626,7 @@ def api_userdata_get():
 def api_userdata_favorite(vid_id):
     # Клиент может прислать желаемое состояние (active). Без него — переключение,
     # но тогда запрос, отправленный до загрузки данных, сделает обратное.
-    desired = (request.json or {}).get('active') if request.is_json else None
+    desired = (request.get_json(silent=True) or {}).get('active')
     try:
         active, items = userdata.toggle_favorite(vid_id, desired)
     except ValueError as e:
@@ -1427,7 +2638,7 @@ def api_userdata_favorite(vid_id):
 
 @app.route('/api/userdata/hidden-channel', methods=['POST'])
 def api_userdata_hidden_channel():
-    payload = request.json or {}
+    payload = request.get_json(silent=True) or {}
     author = payload.get('author', '')
     try:
         hidden, items = userdata.toggle_hidden_channel(author, payload.get('hidden'))
@@ -1468,10 +2679,163 @@ def api_userdata_migrate():
     поэтому мнимый успех означал бы потерю данных.
     """
     try:
-        added, state = userdata.merge_from_client(request.json or {})
+        added, state = userdata.merge_from_client(request.get_json(silent=True) or {})
     except userdata.UserDataSaveError as e:
         return jsonify({'error': f'Не удалось сохранить: {e}'}), 500
     return jsonify({'status': 'ok', 'added': added, **state})
+
+
+# ================= СВОИ ПЛЕЙЛИСТЫ =================
+# Это не плейлисты, скачанные с YouTube (те лежат папками в playlists/), а
+# коллекции, которые пользователь собирает сам из уже скачанных видео.
+
+def collection_playback_order(collection_id):
+    """Порядок видео в плейлисте для последовательного просмотра.
+
+    Нужен странице видео: она открывается с ?collection=<id>, и после конца
+    ролика надо знать, что играть дальше. Неизвестный плейлист и отсутствующий
+    параметр дают пустой список — обычный просмотр не меняется.
+    """
+    # Пустой id и неизвестный плейлист get_collection одинаково отдаёт как None,
+    # поэтому отдельная проверка на пустое значение здесь не нужна.
+    item = userdata.get_collection(collection_id)
+    if not item:
+        return []
+    return list(item['videos'])
+
+
+def _collection_summary(item):
+    """Запись для списка: сайдбару нужно число видео, а не все идентификаторы."""
+    return {
+        'id': item['id'],
+        'title': item['title'],
+        'count': len(item['videos']),
+        'videos': item['videos'],
+        'built_in': item['id'] == userdata.WATCH_LATER_ID,
+    }
+
+
+@app.route('/api/collections', methods=['GET'])
+def api_collections_list():
+    data = userdata.get_all()
+    return jsonify({'collections': [_collection_summary(c) for c in data['collections']]})
+
+
+@app.route('/api/collections', methods=['POST'])
+def api_collections_create():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({'error': 'Нет данных.'}), 400
+    try:
+        item = userdata.create_collection(payload.get('title'))
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except userdata.UserDataSaveError as e:
+        return jsonify({'error': f'Не удалось сохранить: {e}'}), 500
+    return jsonify({'status': 'ok', 'collection': _collection_summary(item)})
+
+
+@app.route('/api/collections/<collection_id>', methods=['PATCH'])
+def api_collections_rename(collection_id):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({'error': 'Нет данных.'}), 400
+    try:
+        item = userdata.rename_collection(collection_id, payload.get('title'))
+    except KeyError:
+        return jsonify({'error': 'Плейлист не найден.'}), 404
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except userdata.UserDataSaveError as e:
+        return jsonify({'error': f'Не удалось сохранить: {e}'}), 500
+    return jsonify({'status': 'ok', 'collection': _collection_summary(item)})
+
+
+@app.route('/api/collections/<collection_id>', methods=['DELETE'])
+def api_collections_delete(collection_id):
+    try:
+        userdata.delete_collection(collection_id)
+    except KeyError:
+        return jsonify({'error': 'Плейлист не найден.'}), 404
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except userdata.UserDataSaveError as e:
+        return jsonify({'error': f'Не удалось сохранить: {e}'}), 500
+    return jsonify({'status': 'ok'})
+
+
+def _resolve_collection_id(collection_id):
+    """Подставляет встроенный список, создавая его при первом обращении.
+
+    Кнопка «Смотреть позже» на странице видео иначе требовала бы, чтобы
+    пользователь заранее создал список руками.
+    """
+    if collection_id == userdata.WATCH_LATER_ID:
+        userdata.watch_later()
+    return collection_id
+
+
+@app.route('/api/collections/<collection_id>/videos', methods=['POST'])
+def api_collections_add_video(collection_id):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({'error': 'Нет данных.'}), 400
+    try:
+        item = userdata.add_to_collection(_resolve_collection_id(collection_id),
+                                          payload.get('video_id'))
+    except KeyError:
+        return jsonify({'error': 'Плейлист не найден.'}), 404
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except userdata.UserDataSaveError as e:
+        return jsonify({'error': f'Не удалось сохранить: {e}'}), 500
+    return jsonify({'status': 'ok', 'collection': _collection_summary(item)})
+
+
+@app.route('/api/collections/<collection_id>/videos/<vid_id>', methods=['DELETE'])
+def api_collections_remove_video(collection_id, vid_id):
+    try:
+        item = userdata.remove_from_collection(collection_id, vid_id)
+    except KeyError:
+        return jsonify({'error': 'Плейлист не найден.'}), 404
+    except userdata.UserDataSaveError as e:
+        return jsonify({'error': f'Не удалось сохранить: {e}'}), 500
+    return jsonify({'status': 'ok', 'collection': _collection_summary(item)})
+
+
+@app.route('/collection/<collection_id>')
+def collection_page(collection_id):
+    """Страница своего плейлиста."""
+    item = userdata.get_collection(collection_id)
+    if item is None:
+        abort(404)
+
+    if not VIDEO_MAP:
+        build_video_map()
+    if not USER_VIDEO_MAP:
+        build_user_video_map()
+
+    videos = []
+    for vid in item['videos']:
+        entry = VIDEO_MAP.get(vid) or USER_VIDEO_MAP.get(vid)
+        # Видео могли удалить с диска: пропускаем, но плейлист не ломаем.
+        if not entry:
+            continue
+        # Превью отдаёт /api/thumbnail/<id>: у него есть готовый фолбэк на
+        # заглушку, поэтому собирать путь к файлу тут не нужно.
+        videos.append({
+            'id': vid,
+            'title': entry.get('title', 'Без названия'),
+            'author': entry.get('author', 'Unknown'),
+            'size_mb': entry.get('size_mb', 0),
+            'source': entry.get('source', 'youtube'),
+            'folder': entry.get('folder'),
+            'author_avatar': get_avatar_url(entry.get('author', '')),
+        })
+
+    missing = len(item['videos']) - len(videos)
+    return render_template('collection.html', collection=item, videos=videos,
+                           missing=missing, built_in_id=userdata.WATCH_LATER_ID)
 
 
 @app.route('/api/search')
@@ -1482,7 +2846,7 @@ def api_search():
     ensure_video_map()
     build_user_video_map()
 
-    hidden = set() if request.args.get('include_hidden') == '1' else hidden_channels_set()
+    hidden = hidden_for_request()
 
     results = []
     for vid, v in VIDEO_MAP.items():
@@ -1499,6 +2863,162 @@ def api_search():
                 "author_avatar": get_avatar_url(uv["author"]),
             })
     return jsonify({"results": results})
+
+
+# ================= ЛОКАЛЬНАЯ СЕТЬ =================
+# Свой сервер: адреса для гостей, QR, PIN, тумблер доступа.
+# Чужие серверы: сохранённый список, проверка связи и поиск в своей подсети.
+
+SERVER_PORT = access.DEFAULT_PORT
+
+
+@app.route('/api/network/ping')
+def api_network_ping():
+    """Отклик для автопоиска: «здесь LocalTube».
+
+    Открыт гостям намеренно, иначе чужое устройство не смогло бы найти сервер.
+    Поэтому в ответе только вывеска и число видео: ни PIN, ни путей, ни личных
+    данных.
+    """
+    ensure_video_map()
+    hidden = guest_hidden_authors()
+    count = sum(1 for v in VIDEO_MAP.values() if v["author"] not in hidden)
+    return jsonify({
+        'app': 'LocalTube',
+        'title': socket.gethostname(),
+        'videos': count,
+        'guest_allowed': access.is_network_enabled(),
+    })
+
+
+@app.route('/api/network/info')
+def api_network_info():
+    """Всё для раздела «Сеть»: адреса, PIN, состояние тумблера."""
+    return jsonify({
+        'port': SERVER_PORT,
+        'addresses': access.local_addresses(SERVER_PORT),
+        'pin': access.get_pin(),
+        'enabled': access.is_network_enabled(),
+        'servers': access.saved_servers(),
+        'hidden_channels': sorted(hidden_channels_set()),
+    })
+
+
+@app.route('/api/network/qr')
+def api_network_qr():
+    """QR с адресом сервера: гостю проще навести камеру, чем набирать цифры."""
+    url = request.args.get('url') or ''
+    if not url:
+        addresses = access.local_addresses(SERVER_PORT)
+        url = addresses[0]['url'] if addresses else f'http://127.0.0.1:{SERVER_PORT}'
+    if not access.normalize_server_url(url):
+        return jsonify({'error': 'Непонятный адрес.'}), 400
+    try:
+        png = access.make_qr_png(url)
+    except Exception as e:
+        logger.error(f"Не удалось нарисовать QR: {e}")
+        return jsonify({'error': 'Не удалось нарисовать QR-код.'}), 500
+    response = app.response_class(png, mimetype='image/png')
+    # Адрес меняется при смене сети, поэтому кэшируем ненадолго.
+    response.headers['Cache-Control'] = 'private, max-age=60'
+    return response
+
+
+@app.route('/api/network/enabled', methods=['POST'])
+def api_network_enabled():
+    data = request.get_json(silent=True) or {}
+    value = data.get('enabled')
+    if not isinstance(value, bool):
+        return jsonify({'error': 'Нужно поле enabled: true или false.'}), 400
+    return jsonify({'enabled': access.set_network_enabled(value)})
+
+
+@app.route('/api/network/pin/regenerate', methods=['POST'])
+def api_network_pin_regenerate():
+    """Новый PIN. Ранее впущенные устройства отключаются."""
+    return jsonify({'pin': access.regenerate_pin()})
+
+
+@app.route('/api/network/unlock', methods=['POST'])
+def api_network_unlock():
+    """Повышает устройство до владельца по PIN.
+
+    Ключ уходит в cookie: права нужны и обычным страницам (настройки, загрузка),
+    а не только запросам из JS.
+    """
+    data = request.get_json(silent=True) or {}
+    # Окно попыток закрыто — говорим об этом прямо, иначе владелец, опечатавшийся
+    # десять раз, видел бы «Неверный PIN» на верный PIN и не понимал причины.
+    wait = access.pin_locked_for(request.remote_addr)
+    if wait:
+        logger.warning(f"Перебор PIN с адреса {request.remote_addr}: попытки исчерпаны")
+        return jsonify({'error': f'Слишком много попыток. Подождите {wait} с.',
+                        'retry_after': wait}), 429
+    token = access.token_for_pin(str(data.get('pin') or ''), request.remote_addr)
+    if not token:
+        left = access.attempts_left(request.remote_addr)
+        logger.warning(f"Неверный PIN с адреса {request.remote_addr}, осталось попыток: {left}")
+        return jsonify({'error': 'Неверный PIN.', 'attempts_left': left}), 403
+    response = jsonify({'ok': True})
+    response.set_cookie(access.TOKEN_COOKIE, token, max_age=90 * 24 * 3600,
+                        httponly=True, samesite='Lax')
+    return response
+
+
+@app.route('/api/network/lock', methods=['POST'])
+def api_network_lock():
+    """Возвращает устройству права гостя."""
+    response = jsonify({'ok': True})
+    response.delete_cookie(access.TOKEN_COOKIE)
+    return response
+
+
+@app.route('/api/network/servers', methods=['GET'])
+def api_network_servers_list():
+    return jsonify({'servers': access.saved_servers()})
+
+
+@app.route('/api/network/servers', methods=['POST'])
+def api_network_servers_add():
+    data = request.get_json(silent=True) or {}
+    try:
+        item = access.add_server(data.get('url'), data.get('title'))
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'server': item, 'servers': access.saved_servers()})
+
+
+@app.route('/api/network/servers', methods=['DELETE'])
+def api_network_servers_remove():
+    data = request.get_json(silent=True) or {}
+    try:
+        removed = access.remove_server(data.get('url'))
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'removed': removed, 'servers': access.saved_servers()})
+
+
+@app.route('/api/network/check', methods=['POST'])
+def api_network_check():
+    """Проверка связи с чужим сервером."""
+    data = request.get_json(silent=True) or {}
+    url = data.get('url')
+    if not access.normalize_server_url(url):
+        return jsonify({'error': 'Непонятный адрес сервера.'}), 400
+    # Недоступный сервер — обычный ответ, а не ошибка: интерфейсу нужно
+    # показать «не отвечает», а не пятисотку.
+    return jsonify(access.probe_server(url))
+
+
+@app.route('/api/network/scan', methods=['POST'])
+def api_network_scan():
+    """Ищет другие LocalTube в своей подсети."""
+    try:
+        found = access.scan_network(SERVER_PORT)
+    except Exception as e:
+        logger.error(f"Поиск в сети не удался: {e}")
+        return jsonify({'error': 'Не удалось просмотреть сеть.'}), 500
+    return jsonify({'servers': found})
 
 
 # ================= ЗАПУСК СЕРВЕРА =================

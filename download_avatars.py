@@ -15,18 +15,25 @@ import re
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from utils import safe_name
+import paths
+from utils import safe_name, cookiefile_for_ydl
+from channel_assets import pick_avatar
 
 try:
     import yt_dlp
 except ImportError:
-    print("Ошибка: установите yt-dlp: pip install yt-dlp")
-    sys.exit(1)
+    # sys.exit на импорте убивал бы весь сервер: модуль вызывается из
+    # приложения, а не только как отдельный скрипт. Без yt-dlp работать нечем,
+    # поэтому main() сообщит об этом и завершится сам.
+    yt_dlp = None
 
 # ========== ЗАГРУЗКА КОНФИГА ==========
 def load_config():
-    default = {"video_dir": "videos", "avatars_dir": "avatars"}
-    config_file = os.path.join(os.path.dirname(__file__), "config.json")
+    # avatars_dir обязан совпадать с app.py: здесь стояло "avatars", и без
+    # config.json аватарки скачивались в папку, в которую веб не смотрит,
+    # поэтому на страницах каналов не появлялись картинки.
+    default = {"video_dir": "videos", "avatars_dir": "avas"}
+    config_file = paths.data_path("config.json")
     if os.path.exists(config_file):
         try:
             with open(config_file, 'r', encoding='utf-8') as f:
@@ -35,8 +42,10 @@ def load_config():
                     if k not in cfg:
                         cfg[k] = default[k]
                 return cfg
-        except:
-            pass
+        # Голый except глотал KeyboardInterrupt/SystemExit. Битый конфиг —
+        # не повод падать, возвращаем значения по умолчанию.
+        except (OSError, ValueError) as e:
+            print(f"[warn] не удалось прочитать {config_file}: {e}")
     return default
 
 # ========== ПОИСК ВСЕХ АВТОРОВ ПО ПАПКАМ ==========
@@ -75,8 +84,12 @@ def get_avatar_from_json(author_name, video_dir):
                         uploader_url = meta.get('uploader_url')
                         if uploader_url and 'youtube.com' in uploader_url:
                             return _fetch_avatar_from_channel_url(uploader_url, author_name)
-                    except:
-                        pass
+                    # Битый .info.json — причина перейти к следующему файлу, а
+                    # не прекращать обход. AttributeError ловим потому, что
+                    # json.load может вернуть список или строку, и тогда
+                    # meta.get не существует.
+                    except (OSError, ValueError, AttributeError) as e:
+                        print(f"[warn] не удалось прочитать {json_path}: {e}")
     return None
 
 # ========== МЕТОД 2: ПОИСК КАНАЛА ПО ИМЕНИ ==========
@@ -90,8 +103,10 @@ def get_avatar_by_search(author_name):
         'default_search': 'ytsearch',
     }
     cookies_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
-    if os.path.exists(cookies_path):
-        ydl_opts['cookiefile'] = cookies_path
+    # Поток, а не путь: иначе yt-dlp перезапишет cookies.txt при close().
+    cookies_stream = cookiefile_for_ydl(cookies_path)
+    if cookies_stream is not None:
+        ydl_opts['cookiefile'] = cookies_stream
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -142,31 +157,23 @@ def _fetch_avatar_from_channel_url(channel_url, author_name):
         'skip_download': True,
     }
     cookies_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
-    if os.path.exists(cookies_path):
-        ydl_opts['cookiefile'] = cookies_path
+    # Поток, а не путь: иначе yt-dlp перезапишет cookies.txt при close().
+    cookies_stream = cookiefile_for_ydl(cookies_path)
+    if cookies_stream is not None:
+        ydl_opts['cookiefile'] = cookies_stream
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(channel_url, download=False)
-            # Поле thumbnails может быть в разных местах
+            # Аватарка и шапка канала лежат в общем списке thumbnails. Здесь
+            # выбиралась «самая большая картинка», а шапка 2560x424 крупнее
+            # аватарки 900x900 — в avas/ попадала широкая полоса вместо
+            # круглой аватарки. Логика общая с channel_assets, чтобы дефект не
+            # разъезжался по двум копиям.
             thumbnails = info.get('thumbnails') or info.get('avatar') or []
-            if thumbnails and isinstance(thumbnails, list):
-                # Выбираем самое большое изображение
-                best = None
-                best_size = 0
-                for t in thumbnails:
-                    url = t.get('url')
-                    if not url:
-                        continue
-                    # Предпочитаем большие картинки
-                    width = t.get('width', 0)
-                    height = t.get('height', 0)
-                    size = width * height
-                    if size > best_size:
-                        best_size = size
-                        best = url
-                if best:
-                    return best
+            best = pick_avatar(thumbnails)
+            if best:
+                return best
             # Альтернативное поле
             avatar_url = info.get('avatar_thumbnail_url') or info.get('thumbnail')
             if avatar_url:
@@ -202,15 +209,22 @@ def download_file(url, save_path):
     return False
 
 # ========== ОСНОВНАЯ ФУНКЦИЯ ==========
-def main():
+def main(argv=None):
+    """Точка входа. argv передаётся явно, чтобы функцию можно было вызвать из
+    приложения: без параметра argparse читал бы sys.argv сервера и завершал
+    процесс через sys.exit при незнакомом ключе."""
     parser = argparse.ArgumentParser(description="Скачивание аватарок для авторов видео")
     parser.add_argument("--author", help="Только для указанного автора")
     parser.add_argument("--force", action="store_true", help="Перезаписать существующие")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+
+    if yt_dlp is None:
+        print("Ошибка: установите yt-dlp: pip install yt-dlp")
+        return
 
     config = load_config()
-    video_dir = os.path.join(os.path.dirname(__file__), config["video_dir"])
-    avatars_dir = os.path.join(os.path.dirname(__file__), config["avatars_dir"])
+    video_dir = paths.user_path(config["video_dir"])
+    avatars_dir = paths.user_path(config["avatars_dir"])
     os.makedirs(avatars_dir, exist_ok=True)
 
     # Список авторов

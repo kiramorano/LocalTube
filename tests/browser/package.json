@@ -4,9 +4,14 @@
   "description": "Playwright checks for the LocalTube web UI. Requires a running server on http://127.0.0.1:5000",
   "scripts": {
     "test": "node run-all.cjs",
-    "queue": "node queue-ui.cjs && node queue-cancel-ui.cjs",
-    "channel": "node channel-verify.cjs && node channel-sync-ui.cjs",
+    "queue": "node queue-ui.cjs && node queue-cancel-ui.cjs && node queue-verify.cjs",
+    "channel": "node channel-verify.cjs && node channel-sync-ui.cjs && node picker-verify.cjs",
     "mobile": "node mobile-shorts.cjs && node mobile-channel.cjs",
+    "settings": "node settings-sections.cjs && node cookies-browser-ui.cjs && node userdata-verify.cjs",
+    "collections": "node collections-ui.cjs",
+    "player": "node quality-switch.cjs",
+    "network": "node lan-access.cjs",
+    "theme": "node theme-verify.cjs",
     "audit": "node visual-audit.cjs"
   },
   "devDependencies": {

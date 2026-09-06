@@ -1,0 +1,321 @@
+/* ============================================================
+   ОБЩИЙ СЛОЙ ОФОРМЛЕНИЯ (дизайн-система)
+   ------------------------------------------------------------
+   Раньше «тема» задавала только цвета, а радиусы, тени, отступы и
+   состояния кнопок были вписаны числами в инлайновые стили восьми
+   шаблонов. Копии разъехались: одна и та же кнопка имела радиус 20px на
+   настройках, 18px на канале и 4px в модальных окнах, наведение где-то
+   меняло цвет, где-то нет, а фокус с клавиатуры не рисовался вовсе.
+   Отсюда ощущение незаконченного продукта.
+
+   Здесь собраны токены и базовые состояния, общие для ВСЕХ тем. Цвета
+   берутся только из переменных темы (--yt-*), поэтому файл не спорит с
+   выбранным оформлением.
+
+   Подключается ПОСЛЕ инлайновых стилей и ДО mobile.css: специфичность
+   правил одинаковая, поэтому побеждает тот, кто объявлен последним, а
+   мобильные правки должны остаться сверху.
+   ============================================================ */
+
+:root {
+    /* Радиусы: три ступени вместо десятка случайных значений. */
+    --lt-radius-sm: 8px;
+    --lt-radius-md: 12px;
+    --lt-radius-lg: 16px;
+    --lt-radius-pill: 999px;
+
+    /* Тени: только две, иначе глубина перестаёт читаться. */
+    --lt-shadow-1: 0 1px 2px rgba(0, 0, 0, .18), 0 2px 8px rgba(0, 0, 0, .12);
+    --lt-shadow-2: 0 4px 12px rgba(0, 0, 0, .24), 0 12px 32px rgba(0, 0, 0, .18);
+
+    /* Акцент один на весь интерфейс: раньше рядом жили #3ea6ff, #1c62b9 и
+       #00897b без системы. */
+    --lt-accent: #3ea6ff;
+    --lt-accent-strong: #1a8cff;
+    --lt-accent-contrast: #06121f;
+    --lt-danger: #ff5252;
+
+    --lt-transition: 160ms cubic-bezier(.2, 0, .2, 1);
+    /* Выезд снизу у мобильных панелей: чуть дольше и с торможением, иначе
+       движение читается как рывок. */
+    --lt-transition-sheet: 260ms cubic-bezier(.32, .72, 0, 1);
+
+    /* Шаг сетки: отступы кратны 4px. */
+    --lt-space-1: 4px;
+    --lt-space-2: 8px;
+    --lt-space-3: 12px;
+    --lt-space-4: 16px;
+    --lt-space-5: 20px;
+    --lt-space-6: 24px;
+    --lt-space-8: 32px;
+
+    /* Размерная шкала текста. Раньше каждый мобильный размер был отдельным
+       числом по месту (12, 13, 14, 15, 16, 18, 20, 22), поэтому заголовок
+       карточки на главной и в плейлисте различались на пиксель без причины. */
+    --lt-text-xs: 12px;
+    --lt-text-sm: 13px;
+    --lt-text-md: 14px;
+    --lt-text-lg: 15px;
+    --lt-text-xl: 16px;
+    --lt-text-2xl: 20px;
+    --lt-leading-tight: 1.3;
+    --lt-leading: 1.45;
+
+    /* Минимальная площадь под палец. 44px — порог из Apple HIG, 48px — из
+       Material; браузерная проверка mobile-audit.cjs требует именно 44.
+       Раньше это число было вписано в каждое правило отдельно, и часть целей
+       осталась на 40px. */
+    --lt-tap: 44px;
+    --lt-tap-lg: 48px;
+
+    /* Вырезы и жестовая полоса телефона. env() без запасного значения даёт
+       невалидную длину на настольных браузерах, поэтому 0px обязателен. */
+    --lt-safe-top: env(safe-area-inset-top, 0px);
+    --lt-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --lt-safe-left: env(safe-area-inset-left, 0px);
+    --lt-safe-right: env(safe-area-inset-right, 0px);
+
+    /* Нижняя навигация: высота нужна и самой панели, и отступу снизу у
+       контента, иначе панель накрывает последнюю карточку. */
+    --lt-nav-height: 60px;
+    --lt-nav-gap: calc(var(--lt-nav-height) + var(--lt-safe-bottom) + var(--lt-space-4));
+
+    /* Цвета панели вынесены в отдельные токены, чтобы тема могла их заменить,
+       не переписывая саму раскладку. Frutiger Aero пользуется этим: её панель
+       — светлое стекло, и унаследованный белый текст давал контраст 1.03
+       (белое на белом). Значения по умолчанию берут поверхность из моста ниже. */
+    --lt-nav-bg: var(--lt-surface-raised);
+    --lt-nav-fg: var(--lt-on-surface-muted);
+    --lt-nav-fg-active: var(--lt-on-surface);
+    --lt-nav-chip: var(--lt-pressed);
+
+    /* Мост между двумя семействами токенов. Каталог использует --yt-*, а
+       настройки, канал и плейлист — --bg/--card/--border. Общие мобильные
+       компоненты не могут выбирать семейство по странице, поэтому берут
+       первое объявленное. Порядок важен: --yt-* объявляют и темы, и шаблоны
+       каталога, --card остаётся для страниц второго семейства. */
+    --lt-surface: var(--yt-card-bg, var(--card));
+    --lt-surface-raised: var(--yt-modal-bg, var(--card));
+    --lt-on-surface: var(--yt-spec-text-primary, var(--text));
+    --lt-on-surface-muted: var(--yt-spec-text-secondary, var(--muted));
+    --lt-hairline: var(--yt-spec-border, var(--border));
+    --lt-pressed: var(--yt-button-hover, var(--button));
+
+    /* Размытие под полупрозрачными панелями. Стеклянные темы переопределяют
+       его своим значением. */
+    --lt-blur: blur(18px) saturate(160%);
+}
+
+/* --- Типографика ------------------------------------------------------ */
+
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3 {
+    letter-spacing: -.01em;
+    line-height: 1.25;
+}
+
+/* --- Фокус ------------------------------------------------------------ */
+
+/* :focus-visible, а не :focus — кольцо не должно появляться от щелчка мышью.
+   Без него интерфейсом нельзя пользоваться с клавиатуры: активный элемент
+   ничем не выделялся. */
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+    outline: 2px solid var(--lt-accent);
+    outline-offset: 2px;
+    border-radius: var(--lt-radius-sm);
+}
+
+/* --- Кнопки ----------------------------------------------------------- */
+
+/* :not(.tab) — вкладки канала оформляет свой шаблон, и общее правило уже
+   ломало им ширину: полоса вкладок перестала прокручиваться до конца.
+   :not(.download-btn) — кнопка в склейке поиска: у неё скруглён только
+   правый край, а общий радиус разбивал «пилюлю» на отдельные плашки.
+   Исключение надёжнее переопределения: у :not() специфичность выше, чем у
+   восстанавливающего правила .search-container .download-btn. */
+button:not(.tab):not(.icon-btn):not(.download-btn) {
+    border-radius: var(--lt-radius-pill);
+    transition: background-color var(--lt-transition),
+                border-color var(--lt-transition),
+                transform var(--lt-transition),
+                box-shadow var(--lt-transition);
+}
+
+button:not(.tab):not(.icon-btn):not(.download-btn):not([disabled]):hover {
+    box-shadow: var(--lt-shadow-1);
+}
+
+/* Нажатие должно чувствоваться: без этого кнопки выглядели неживыми. */
+button:not(.tab):not(.icon-btn):not(.download-btn):not([disabled]):active {
+    transform: translateY(1px);
+}
+
+button[disabled] {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+button.primary,
+.tab-btn.active {
+    background: var(--lt-accent);
+    border-color: var(--lt-accent);
+    color: var(--lt-accent-contrast);
+    font-weight: 500;
+}
+
+button.primary:not([disabled]):hover {
+    background: var(--lt-accent-strong);
+    border-color: var(--lt-accent-strong);
+}
+
+.icon-btn {
+    border-radius: var(--lt-radius-pill);
+    transition: fill var(--lt-transition), opacity var(--lt-transition);
+}
+
+/* --- Поля ввода ------------------------------------------------------- */
+
+/* Поля склейки поиска исключены: их геометрию задаёт шаблон, а общий радиус
+   разбивал «пилюлю» на три отдельные плашки. */
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not(.url-input),
+select:not(.url-quality),
+textarea {
+    border-radius: var(--lt-radius-sm);
+    transition: border-color var(--lt-transition), box-shadow var(--lt-transition);
+}
+
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+    border-color: var(--lt-accent);
+}
+
+/* --- Карточки и поверхности ------------------------------------------ */
+
+.video-card {
+    border-radius: var(--lt-radius-lg);
+    /* overflow: hidden — иначе прямые углы превью торчали из скруглённой
+       карточки. */
+    overflow: hidden;
+    transition: transform var(--lt-transition), box-shadow var(--lt-transition);
+}
+
+.video-card:hover {
+    box-shadow: var(--lt-shadow-2);
+}
+
+.video-thumb,
+.video-thumb img {
+    border-radius: 0;
+}
+
+section,
+.queue-item,
+.modal-content,
+.settings-menu {
+    border-radius: var(--lt-radius-md);
+}
+
+/* Тонкая линия вместо жирной рамки: границы в 1px сплошного цвета делали
+   интерфейс «черновым». */
+hr {
+    border: 0;
+    border-top: 1px solid var(--lt-hairline);
+}
+
+/* --- Полосы прокрутки ------------------------------------------------- */
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--yt-spec-border) transparent;
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--yt-spec-border);
+    border-radius: var(--lt-radius-pill);
+    /* Прозрачная рамка сужает ползунок, не меняя область захвата. */
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--yt-spec-text-secondary);
+    background-clip: content-box;
+}
+
+/* --- Выделение -------------------------------------------------------- */
+
+::selection {
+    background: var(--lt-accent);
+    color: var(--lt-accent-contrast);
+}
+
+/* --- Доступность ------------------------------------------------------ */
+
+/* Пользователь мог отключить анимации на уровне системы: вестибулярные
+   расстройства делают движение интерфейса болезненным. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+
+/* --- Боковая панель ---------------------------------------------------- */
+
+/* Состояние свёрнутости живёт на <html>, а не на самой панели. Инлайновые
+   стили шаблонов подключаются ДО этого файла, но index.html закреплял панель
+   внутри @media (min-width: 1000px), и правило .sidebar-drawer { left: 0 }
+   перебивало .sidebar-drawer.active по порядку каскада — на десктопе панель
+   не сворачивалась вообще, кнопка лишь включала затемнение. Селектор от корня
+   документа выигрывает у любого правила уровня .sidebar-drawer в шаблоне. */
+@media (min-width: 1000px) {
+    :root.sidebar-collapsed .sidebar-drawer {
+        left: calc(-1 * var(--yt-sidebar-width, 240px));
+    }
+    /* Контент занимает освободившееся место. margin-left задан инлайн в
+       разметке, поэтому без !important правило не применяется. */
+    :root.sidebar-collapsed #mainContent,
+    :root.sidebar-collapsed #queueContainer,
+    :root.sidebar-collapsed .video-page-layout {
+        margin-left: 0 !important;
+    }
+    /* Закреплённая панель ничего не перекрывает: затемнять фон незачем.
+       Правило в index.html стояло до .sidebar-overlay.active при равной
+       специфичности и потому проигрывало — экран темнел на десктопе. */
+    .sidebar-overlay,
+    .sidebar-overlay.active {
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+/* Плавное освобождение места под контент — тем же темпом, что и сама панель. */
+#mainContent,
+#queueContainer {
+    transition: margin-left .3s ease;
+}

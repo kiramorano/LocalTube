@@ -86,11 +86,13 @@ def is_package_installed(package_name):
     except importlib.metadata.PackageNotFoundError:
         return False
 
-def get_package_version(package_name):
-    try:
-        return importlib.metadata.distribution(package_name).version
-    except:
-        return None
+    def get_package_version(package_name):
+        # Пакет не установлен — PackageNotFoundError; повреждённые метаданные
+        # дают OSError/ValueError. Голый except прятал и KeyboardInterrupt.
+        try:
+            return importlib.metadata.distribution(package_name).version
+        except (importlib.metadata.PackageNotFoundError, OSError, ValueError):
+            return None
 
 def install_package(package_name, extra_args=""):
     cprint(f"Установка {package_name}...", Colors.YELLOW)
@@ -261,13 +263,15 @@ def check_plugins():
 
 def check_config():
     if file_exists(CONFIG_FILE):
+        # Проверяем только читаемость и разбор JSON, результат не нужен.
+        # Голый except показывал «повреждён» и при Ctrl+C во время проверки.
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                cfg = json.load(f)
+                json.load(f)
             cprint("  ✅ config.json (валидный)", Colors.GREEN)
             return True
-        except:
-            cprint("  ❌ config.json повреждён", Colors.RED)
+        except (OSError, ValueError) as e:
+            cprint(f"  ❌ config.json повреждён: {e}", Colors.RED)
             return False
     else:
         cprint("  ❌ config.json ОТСУТСТВУЕТ", Colors.RED)

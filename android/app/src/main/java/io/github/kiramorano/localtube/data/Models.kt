@@ -16,7 +16,9 @@ data class VideoItem(
     val uploadDate: String = "",
     val channelUrl: String = "",
     /** Доступные локально варианты качества (video_1080.mp4 и подобные). */
-    val qualities: List<String> = emptyList()
+    val qualities: List<String> = emptyList(),
+    /** Аватар канала: в вебе он показан на карточке рядом с названием. */
+    val authorAvatar: String? = null
 ) {
     /** Ключ сортировки по дате: сначала дата публикации, иначе дата добавления. */
     val sortKey: String get() = if (uploadDate.isNotBlank()) uploadDate else addedAt
@@ -82,7 +84,9 @@ data class DownloadTask(
     val priority: TaskPriority = TaskPriority.NORMAL,
     val etaSeconds: Long = 0,
     val speed: String = "",
-    val attempts: Int = 0
+    val attempts: Int = 0,
+    /** Контейнер для склейки видео и звука: mp4, mkv или webm. */
+    val mergeFormat: String = Engine.DEFAULT_MERGE_FORMAT
 ) {
     val isFinished: Boolean
         get() = status == TaskStatus.COMPLETED ||
@@ -110,22 +114,73 @@ private fun formatEta(seconds: Long): String {
     return "${minutes / 60}ч ${minutes % 60}м"
 }
 
+/**
+ * Личный плейлист (коллекция). Аналог collections в серверном userdata.json:
+ * те же поля id/title/videos/created_at, чтобы файл переносился между ПК и
+ * телефоном без потери данных.
+ */
+data class VideoCollection(
+    val id: String,
+    val title: String,
+    val videos: List<String> = emptyList(),
+    val createdAt: Double = 0.0
+) {
+    companion object {
+        /** Встроенный плейлист «Смотреть позже»: тот же id, что на сервере. */
+        const val WATCH_LATER_ID = "watch-later"
+        const val WATCH_LATER_TITLE = "Смотреть позже"
+
+        /** Лимиты серверной версии: userdata.py. */
+        const val TITLE_LIMIT = 100
+        const val VIDEOS_LIMIT = 1000
+        const val COUNT_LIMIT = 200
+    }
+}
+
+/**
+ * Итог операции с коллекцией: либо id, либо текст ошибки для показа.
+ * Логический true/false здесь не годится — причину отказа («такое название уже
+ * есть», «достигнут лимит») пользователь должен видеть.
+ */
+sealed interface CollectionResult {
+    data class Ok(val id: String) : CollectionResult
+    data class Error(val message: String) : CollectionResult
+
+    val errorOrNull: String? get() = (this as? Error)?.message
+    val idOrNull: String? get() = (this as? Ok)?.id
+}
+
 /** Личные данные пользователя. Аналог userdata.json в серверной версии. */
 data class UserData(
     val favorites: List<String> = emptyList(),
     val history: List<String> = emptyList(),
     val hiddenChannels: List<String> = emptyList(),
     /** id видео -> позиция воспроизведения в миллисекундах. */
-    val positions: Map<String, Long> = emptyMap()
+    val positions: Map<String, Long> = emptyMap(),
+    val collections: List<VideoCollection> = emptyList()
 )
 
 enum class AppTheme(val id: String, val label: String) {
     DARK("dark", "Тёмная"),
     LIGHT("light", "Светлая"),
-    AERO("aero", "Frutiger Aero");
+    MIDNIGHT("midnight", "Midnight"),
+    GLASS("glass", "Glass"),
+    // id как в вебе (static/js/theme.js): каталог и настройки общие, и
+    // расхождение означало бы разную тему на телефоне и в браузере.
+    AERO("frutiger-aero", "Frutiger Aero");
 
     companion object {
-        fun from(id: String?): AppTheme = entries.firstOrNull { it.id == id } ?: DARK
+        /**
+         * Тема по сохранённому идентификатору.
+         *
+         * "aero" — прежний идентификатор этой сборки, до выравнивания с вебом.
+         * Он остаётся читаемым, иначе у тех, кто уже выбрал Frutiger Aero,
+         * после обновления молча включилась бы тёмная тема.
+         */
+        fun from(id: String?): AppTheme = when (id) {
+            "aero" -> AERO
+            else -> entries.firstOrNull { it.id == id } ?: DARK
+        }
     }
 }
 

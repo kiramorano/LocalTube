@@ -14,7 +14,7 @@ from pathlib import Path
 
 # Добавляем текущую директорию для импорта utils
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from utils import safe_name, is_shorts_video
+from utils import safe_name, is_shorts_video, cookiefile_for_ydl
 
 try:
     import yt_dlp
@@ -27,13 +27,16 @@ def load_config():
     default = {"video_dir": "videos"}
     config_file = os.path.join(os.path.dirname(__file__), "config.json")
     if os.path.exists(config_file):
+        # Голый except глотал KeyboardInterrupt/SystemExit. Битый или
+        # недоступный конфиг — не повод падать, работаем на значениях
+        # по умолчанию.
         try:
             with open(config_file, 'r', encoding='utf-8') as f:
                 cfg = json.load(f)
                 if "video_dir" in cfg:
                     default["video_dir"] = cfg["video_dir"]
-        except:
-            pass
+        except (OSError, ValueError) as e:
+            print(f"[warn] не удалось прочитать {config_file}: {e}")
     return default
 
 # ========== ОСНОВНАЯ ФУНКЦИЯ СКАЧИВАНИЯ ==========
@@ -56,9 +59,11 @@ def download_media(url, format_id=None, is_playlist=False, callback_file=None):
         'progress_hooks': [lambda d: progress_hook(d, callback_file)] if callback_file else [],
     }
 
-    # Добавляем cookies, если есть
-    if os.path.exists(cookies_path):
-        ydl_opts['cookiefile'] = cookies_path
+    # Добавляем cookies, если есть. Поток, а не путь: иначе yt-dlp
+    # перезапишет cookies.txt при close() и потеряет токены входа.
+    cookies_stream = cookiefile_for_ydl(cookies_path)
+    if cookies_stream is not None:
+        ydl_opts['cookiefile'] = cookies_stream
 
     # Выбор формата
     if format_id:
@@ -82,11 +87,14 @@ def download_media(url, format_id=None, is_playlist=False, callback_file=None):
             write_callback(cb_file, {"status": "error", "message": str(d.get('error', ''))})
 
     def write_callback(cb_file, data):
+        # Файл прогресса — вспомогательный: сбой записи не должен прерывать
+        # саму загрузку. Но перехватывать всё подряд нельзя, иначе Ctrl+C
+        # (KeyboardInterrupt) внутри хука прогресса терялся.
         if cb_file:
             try:
-                with open(cb_file, 'w') as f:
+                with open(cb_file, 'w', encoding='utf-8') as f:
                     json.dump(data, f)
-            except:
+            except (OSError, TypeError, ValueError):
                 pass
 
     try:

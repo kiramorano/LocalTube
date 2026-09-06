@@ -12,76 +12,132 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import io.github.kiramorano.localtube.data.AppTheme
 
-private val DarkColors = darkColorScheme(
-    primary = Color(0xFFFF4040),
-    onPrimary = Color(0xFFFFFFFF),
-    secondary = Color(0xFF90A4AE),
-    background = Color(0xFF0F0F0F),
-    onBackground = Color(0xFFF1F1F1),
-    surface = Color(0xFF1E1E1E),
-    onSurface = Color(0xFFF1F1F1),
-    surfaceVariant = Color(0xFF2A2A2A),
-    onSurfaceVariant = Color(0xFFAAAAAA)
-)
-
-private val LightColors = lightColorScheme(
-    primary = Color(0xFFCC0000),
-    onPrimary = Color(0xFFFFFFFF),
-    secondary = Color(0xFF546E7A),
-    background = Color(0xFFFFFFFF),
-    onBackground = Color(0xFF0F0F0F),
-    surface = Color(0xFFF9F9F9),
-    onSurface = Color(0xFF0F0F0F),
-    surfaceVariant = Color(0xFFE8E8E8),
-    onSurfaceVariant = Color(0xFF606060)
-)
+/** Признак темы Aero: панели становятся полупрозрачными поверх градиента. */
+val LocalIsAero = staticCompositionLocalOf { false }
 
 /**
- * Frutiger Aero: стеклянные панели на голубом градиенте — та же тема, что в
- * веб-версии. Полупрозрачные поверхности поверх фонового градиента.
+ * Признак темы со стеклянными поверхностями (Glass, Aero).
+ *
+ * Отдельно от LocalIsAero: полупрозрачность нужна обеим темам, а голубой
+ * градиент и радиус 20dp — только Aero.
  */
-private val AeroColors = lightColorScheme(
-    primary = Color(0xFF0EA5E9),
-    onPrimary = Color(0xFFFFFFFF),
-    secondary = Color(0xFF34D399),
-    background = Color(0xFFB3D9F0),
-    onBackground = Color(0xFF0B2942),
-    surface = Color(0xCCFFFFFF),
-    onSurface = Color(0xFF0B2942),
-    surfaceVariant = Color(0x99FFFFFF),
-    onSurfaceVariant = Color(0xFF14507A),
-    outline = Color(0x66FFFFFF)
-)
-
-/** Признак темы Aero: экраны добавляют полупрозрачность поверх градиента. */
-val LocalIsAero = staticCompositionLocalOf { false }
+val LocalIsGlassy = staticCompositionLocalOf { false }
 
 /** Признак телевизора: увеличенные отступы и подсветка фокуса. */
 val LocalIsTv = staticCompositionLocalOf { false }
+
+/**
+ * Пороги ширины экрана.
+ *
+ * Раньше их было два в разных файлах: `compact` считался от 600dp в
+ * MainActivity, а постоянный сайдбар включался от 720dp в AppRoot. В зазоре
+ * 600-719dp (обычный 7-дюймовый планшет) получалось несогласованное состояние:
+ * карточки уже «большие», 260dp, но переключаться между разделами всё ещё
+ * приходилось нижней панелью, хотя места под сайдбар хватало.
+ *
+ * Границы совпадают с классами Material (compact < 600 <= medium < 840) и с
+ * медиазапросами веб-версии, где мобильная раскладка живёт до 600px.
+ */
+object LtBreakpoints {
+    /** Ниже — телефон: одна колонка разделов, нижняя панель. */
+    const val COMPACT_MAX_DP = 600
+
+    /** От этой ширины сайдбар помещается рядом с контентом. */
+    const val SIDEBAR_MIN_DP = 600
+
+    fun isCompact(widthDp: Int): Boolean = widthDp < COMPACT_MAX_DP
+
+    /**
+     * На телевизоре сайдбар нужен всегда: пульт не попадает по мелким целям, а
+     * ширины там заведомо достаточно.
+     */
+    fun hasPermanentSidebar(widthDp: Int, isTv: Boolean): Boolean =
+        isTv || widthDp >= SIDEBAR_MIN_DP
+}
 
 @Composable
 fun LocalTubeTheme(
     theme: AppTheme = AppTheme.DARK,
     isTv: Boolean = false,
+    compact: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colors = when (theme) {
-        AppTheme.DARK -> DarkColors
-        AppTheme.LIGHT -> LightColors
-        AppTheme.AERO -> AeroColors
+    val lt = when (theme) {
+        AppTheme.DARK -> DarkLtColors
+        AppTheme.LIGHT -> LightLtColors
+        AppTheme.MIDNIGHT -> MidnightLtColors
+        AppTheme.GLASS -> GlassLtColors
+        AppTheme.AERO -> AeroLtColors
     }
+
+    // Material-схема выводится из тех же цветов: диалоги и системные
+    // компоненты должны совпадать с остальным интерфейсом.
+    val scheme = if (theme == AppTheme.LIGHT || theme == AppTheme.AERO) {
+        lightColorScheme(
+            primary = lt.brandRed,
+            onPrimary = lt.onAccent,
+            background = lt.background,
+            onBackground = lt.textPrimary,
+            surface = lt.background,
+            onSurface = lt.textPrimary,
+            surfaceVariant = lt.buttonBg,
+            onSurfaceVariant = lt.textSecondary,
+            outline = lt.border,
+            outlineVariant = lt.border
+        )
+    } else {
+        darkColorScheme(
+            primary = lt.brandRed,
+            onPrimary = lt.onAccent,
+            background = lt.background,
+            onBackground = lt.textPrimary,
+            surface = lt.background,
+            onSurface = lt.textPrimary,
+            surfaceVariant = lt.buttonBg,
+            onSurfaceVariant = lt.textSecondary,
+            outline = lt.border,
+            outlineVariant = lt.border
+        )
+    }
+
+    val sizes = LtSizes(
+        // На телефоне карточка во всю ширину: 310px как в вебе оставили бы
+        // одну колонку с огромными отступами.
+        videoCardMinWidth = if (compact) 170.dp else if (isTv) 300.dp else 260.dp,
+        shortCardWidth = if (compact) 140.dp else if (isTv) 210.dp else 180.dp,
+        gridGap = if (compact) 12.dp else 20.dp,
+        // Запас под overscan: на ТВ телевизор обрезает до 5% по краям.
+        screenPadding = if (isTv) 24.dp else 0.dp,
+        // 16dp — --lt-radius-lg веб-версии (было 12dp, как у старой разметки).
+        // Aero скругляет сильнее: там карточка выглядит стеклянной плиткой.
+        cornerRadius = if (theme == AppTheme.AERO) 20.dp else 16.dp
+    )
+
     CompositionLocalProvider(
         LocalIsAero provides (theme == AppTheme.AERO),
-        LocalIsTv provides isTv
+        LocalIsGlassy provides (theme == AppTheme.AERO || theme == AppTheme.GLASS),
+        LocalIsTv provides isTv,
+        LocalLtColors provides lt,
+        LocalLtSizes provides sizes
     ) {
-        MaterialTheme(colorScheme = colors) {
-            if (theme == AppTheme.AERO) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(
+        // Раньше передавались только цвета, поэтому больше восьмидесяти
+        // обращений к MaterialTheme.typography.* отдавали дефолты Material,
+        // ни с чем в проекте не согласованные.
+        MaterialTheme(
+            colorScheme = scheme,
+            typography = LtTypography,
+            shapes = LtShapes
+        ) {
+            // Фон рисуется здесь, под всем интерфейсом: у Glass и Aero панели
+            // полупрозрачные и должны пропускать его сквозь себя.
+            val background = Modifier
+                .fillMaxSize()
+                .then(
+                    when (theme) {
+                        AppTheme.AERO -> Modifier.background(
                             Brush.verticalGradient(
                                 listOf(
                                     Color(0xFF7EC8F0),
@@ -90,10 +146,21 @@ fun LocalTubeTheme(
                                 )
                             )
                         )
-                ) { content() }
-            } else {
-                content()
-            }
+                        // Два цветных пятна из веб-темы: синее сверху слева,
+                        // сиреневое сверху справа (radial-gradient в glass.css).
+                        AppTheme.GLASS -> Modifier
+                            .background(lt.background)
+                            .background(
+                                Brush.linearGradient(
+                                    0f to Color(0x474084FF),
+                                    0.55f to Color(0x00000000),
+                                    1f to Color(0x338C5AFF)
+                                )
+                            )
+                        else -> Modifier.background(lt.background)
+                    }
+                )
+            Box(background) { content() }
         }
     }
 }

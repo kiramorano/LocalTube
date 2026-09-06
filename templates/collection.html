@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="{{ ui_lang }}" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>{{ collection.title }} - LocalTube</title>
+    <link rel="stylesheet" href="/static/css/fonts.css">
+    <style>
+        :root[data-theme="dark"] { --yt-bg: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa; --yt-spec-border: #3f3f3f; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: #272727; --yt-button-hover: #3f3f3f; --yt-header-height: 56px; --yt-modal-bg: #212121; --yt-card-bg: #1a1a1a; }
+        :root[data-theme="light"] { --yt-bg: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060; --yt-spec-border: #e5e5e5; --yt-spec-icon-inactive: #030303; --yt-button-bg: #f2f2f2; --yt-button-hover: #e0e0e0; --yt-header-height: 56px; --yt-modal-bg: #ffffff; --yt-card-bg: #f9f9f9; }
+        :root[data-theme="frutiger-aero"] { --yt-bg: transparent; --yt-spec-text-primary: #fff; --yt-spec-text-secondary: #e3f2fd; --yt-spec-border: rgba(255,255,255,.35); --yt-spec-icon-inactive: #fff; --yt-button-bg: rgba(255,255,255,.22); --yt-button-hover: rgba(255,255,255,.32); --yt-header-height: 56px; --yt-modal-bg: rgba(255,255,255,.18); --yt-card-bg: rgba(255,255,255,.18); }
+        :root[data-theme="frutiger-aero"] body { background-color: #b3d9f0; }
+        :root { --yt-font-family: 'Roboto', Arial, sans-serif; }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; font-family: var(--yt-font-family); }
+        #bg-layer-1, #bg-layer-2 { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center center; background-repeat: no-repeat; transition: opacity 1.5s ease-in-out; pointer-events: none; z-index: -3; }
+        #bg-layer-2 { z-index: -2; }
+
+        header { position: fixed; top: 0; left: 0; right: 0; height: var(--yt-header-height); background-color: var(--yt-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 100; border-bottom: 1px solid var(--yt-spec-border); }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .logo { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 500; text-decoration: none; color: var(--yt-spec-text-primary); }
+        .logo svg { width: 30px; height: 30px; fill: red; }
+        .icon-btn { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; color: inherit; }
+        .icon-btn svg { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); }
+
+        .page-content { padding: calc(var(--yt-header-height) + 24px) 24px 40px; max-width: 1100px; margin: 0 auto; }
+        .back-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; margin-bottom: 20px; background: var(--yt-button-bg); color: var(--yt-spec-text-primary); border: none; border-radius: 18px; cursor: pointer; font-size: 14px; font-family: inherit; }
+        .back-btn:hover { background: var(--yt-button-hover); }
+
+        .collection-header { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 28px; }
+        .collection-cover { width: 220px; height: 124px; border-radius: 12px; background: var(--yt-button-bg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
+        .collection-cover img { width: 100%; height: 100%; object-fit: cover; }
+        .collection-cover svg { width: 48px; height: 48px; fill: var(--yt-spec-text-secondary); }
+        .collection-info { flex: 1; min-width: 240px; }
+        .collection-info h1 { font-size: 26px; margin-bottom: 8px; word-break: break-word; }
+        .collection-meta { color: var(--yt-spec-text-secondary); font-size: 14px; margin-bottom: 16px; }
+        .collection-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .collection-actions button { padding: 9px 16px; background: var(--yt-button-bg); color: var(--yt-spec-text-primary); border: none; border-radius: 18px; cursor: pointer; font-size: 14px; font-family: inherit; }
+        .collection-actions button:hover { background: var(--yt-button-hover); }
+        .collection-actions .primary { background: #3ea6ff; color: #000; }
+        .collection-actions .danger { color: #ff6b6b; }
+
+        .video-list { display: flex; flex-direction: column; gap: 12px; }
+        .video-row { display: flex; gap: 14px; align-items: center; padding: 8px; border-radius: 10px; text-decoration: none; color: inherit; background: var(--yt-card-bg); }
+        .video-row:hover { background: var(--yt-button-hover); }
+        .row-index { width: 26px; text-align: center; color: var(--yt-spec-text-secondary); font-size: 14px; flex-shrink: 0; }
+        .row-thumb { width: 160px; height: 90px; border-radius: 8px; overflow: hidden; background: #272727; flex-shrink: 0; }
+        .row-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .row-details { flex: 1; min-width: 0; }
+        .row-title { font-size: 15px; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .row-meta { color: var(--yt-spec-text-secondary); font-size: 13px; }
+        .row-remove { width: 36px; height: 36px; border-radius: 50%; background: none; border: none; cursor: pointer; color: var(--yt-spec-text-secondary); flex-shrink: 0; font-size: 18px; }
+        .row-remove:hover { background: var(--yt-button-hover); color: var(--yt-spec-text-primary); }
+
+        .empty-note { padding: 40px 20px; text-align: center; color: var(--yt-spec-text-secondary); }
+        .missing-note { margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; background: var(--yt-button-bg); color: var(--yt-spec-text-secondary); font-size: 13px; }
+
+        #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(120%); background: #323232; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 2000; transition: transform 0.3s; max-width: 90%; }
+        #toast.show { transform: translateX(-50%) translateY(0); }
+
+        @media (max-width: 760px) {
+            .page-content { padding: calc(var(--yt-header-height) + 16px) 12px 32px; }
+            .collection-cover { width: 100%; height: 160px; }
+            .row-thumb { width: 120px; height: 68px; }
+            .row-index { display: none; }
+            button { min-height: 44px; }
+        }
+    </style>
+    <!-- Без href="": пустое значение браузер трактует как ссылку на текущую
+         страницу и запрашивает HTML как стиль. Файл темы подставит theme.js.
+         После инлайновых стилей: иначе токены шаблона перебивают тему. -->
+    <link id="theme-style" rel="stylesheet">
+    <!-- ui.css и mobile.css после инлайновых стилей: правила имеют равную
+         специфичность, поэтому побеждает тот, кто идёт последним. -->
+    <link rel="stylesheet" href="/static/css/ui.css">
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    <!-- Синхронно, после ссылки на файл темы и до разметки. -->
+    <!-- Перевод строк, которые собирает клиентский код. До theme.js:
+         t() должна быть готова к первому вызову. -->
+    {# Словарь идёт вместе со страницей: отдельный запрос приходил позже
+       первой отрисовки, и подписи из скриптов оставались русскими. #}
+    {% if ui_strings %}<script>
+        window.LT_I18N = {{ ui_strings|tojson }};
+    </script>{% endif %}
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/theme.js"></script>
+</head>
+<body>
+    <div id="bg-layer-1" style="background-image:none; opacity:0;"></div>
+    <div id="bg-layer-2" style="background-image:none; opacity:0;"></div>
+
+    <header>
+        <div class="header-left">
+            <a href="/" class="logo"><svg viewBox="0 0 24 24"><path d="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5s-6.25,0-7.81,0.42c-0.88,0.23-1.54,0.89-1.77,1.77 C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42 c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19z M10,15V9l5.2,3L10,15z"/></svg>LocalTube</a>
+        </div>
+        <div class="header-right">
+            <a class="icon-btn" href="/settings" title="{{ 'Настройки'|t }}"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg></a>
+        </div>
+    </header>
+
+    <div class="page-content">
+        <button type="button" class="back-btn" onclick="window.location.href='/'">{{ '← На главную'|t }}</button>
+
+        <div class="collection-header">
+            <div class="collection-cover">
+                {% if videos %}
+                    <img src="/api/thumbnail/{{ videos[0].id }}" alt="">
+                {% else %}
+                    <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM12 6v8l5-4-5-4z"/></svg>
+                {% endif %}
+            </div>
+            <div class="collection-info">
+                <h1 id="collectionTitle">{{ collection.title }}</h1>
+                <div class="collection-meta" id="collectionMeta">{{ videos|length }} видео</div>
+                <div class="collection-actions">
+                    {% if videos %}<button type="button" class="primary" id="playAllBtn">{{ '▶ Смотреть'|t }}</button>{% endif %}
+                    {% if collection.id != built_in_id %}
+                    <button type="button" id="renameBtn">{{ 'Переименовать'|t }}</button>
+                    <button type="button" class="danger" id="deleteBtn">{{ 'Удалить плейлист'|t }}</button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {% if missing %}
+        <div class="missing-note">{{ 'В плейлисте'|t }} {{ missing }} {{ 'видео больше нет на диске — они не показаны.'|t }}</div>
+        {% endif %}
+
+        <div class="video-list" id="videoList">
+            {% for v in videos %}
+            <a href="/watch/{{ v.id }}" class="video-row" data-id="{{ v.id }}">
+                <span class="row-index">{{ loop.index }}</span>
+                <div class="row-thumb">
+                    {% if v.source == 'user' %}
+                        {% if v.folder %}<img loading="lazy" src="/usermedia/{{ v.author }}/{{ v.folder }}/thumbnail.jpg" alt="">{% endif %}
+                    {% else %}
+                        <img loading="lazy" src="/api/thumbnail/{{ v.id }}" alt="">
+                    {% endif %}
+                </div>
+                <div class="row-details">
+                    <div class="row-title">{{ v.title }}</div>
+                    <div class="row-meta">{{ v.author }} · {{ v.size_mb }} {{ 'МБ'|t }}</div>
+                </div>
+                <button type="button" class="row-remove" title="{{ 'Убрать из плейлиста'|t }}"
+                        data-remove="{{ v.id }}">✕</button>
+            </a>
+            {% endfor %}
+        </div>
+
+        {% if not videos %}
+        <div class="empty-note" id="emptyNote">
+            {% if missing %}
+                {{ 'Видео из этого плейлиста больше нет на диске.'|t }}
+            {% else %}
+                {{ 'Плейлист пуст. Откройте любое видео и нажмите «Сохранить», чтобы добавить его сюда.'|t }}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    {# Нижняя навигация: на телефоне разделы должны быть в один тап. #}
+    {% include '_mobile_nav.html' with context %}
+
+    <div id="toast"></div>
+
+    <script>
+        const COLLECTION_ID = {{ collection.id|tojson }};
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            clearTimeout(showToast._timer);
+            showToast._timer = setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // Тема, файл стилей и обои — /static/js/theme.js (единая реализация на
+        // все страницы). Здесь была своя копия с путём, зашитым под
+        // frutiger-aero: новые темы открывались на этой странице как тёмная.
+
+        // ===== Просмотр по порядку =====
+        // Открываем первое видео: плеер сам ведёт по списку через ?collection.
+        document.getElementById('playAllBtn')?.addEventListener('click', () => {
+            const first = document.querySelector('.video-row');
+            if (first) window.location.href = first.getAttribute('href') + '?collection=' + encodeURIComponent(COLLECTION_ID);
+        });
+
+        // ===== Убрать видео =====
+        // Кнопка внутри ссылки: без preventDefault клик уводил на страницу видео.
+        document.getElementById('videoList')?.addEventListener('click', async event => {
+            const button = event.target.closest('[data-remove]');
+            if (!button) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const videoId = button.dataset.remove;
+            button.disabled = true;
+            try {
+                const res = await fetch(`/api/collections/${encodeURIComponent(COLLECTION_ID)}/videos/${encodeURIComponent(videoId)}`,
+                    { method: 'DELETE' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось убрать видео.'));
+                const row = button.closest('.video-row');
+                if (row) row.remove();
+                renumber();
+                showToast(t('Видео убрано из плейлиста'));
+            } catch (err) {
+                button.disabled = false;
+                showToast(err.message);
+            }
+        });
+
+        function renumber() {
+            const rows = document.querySelectorAll('.video-row');
+            rows.forEach((row, i) => {
+                const index = row.querySelector('.row-index');
+                if (index) index.textContent = i + 1;
+            });
+            const meta = document.getElementById('collectionMeta');
+            if (meta) meta.textContent = t('{count} видео').replace('{count}', rows.length);
+            if (!rows.length) {
+                const list = document.getElementById('videoList');
+                if (list && !document.getElementById('emptyNote')) {
+                    const note = document.createElement('div');
+                    note.className = 'empty-note';
+                    note.id = 'emptyNote';
+                    note.textContent = t('Плейлист пуст. Откройте любое видео и нажмите «Сохранить», чтобы добавить его сюда.');
+                    list.after(note);
+                }
+                document.getElementById('playAllBtn')?.remove();
+            }
+        }
+
+        // ===== Переименование и удаление =====
+        document.getElementById('renameBtn')?.addEventListener('click', async () => {
+            const current = document.getElementById('collectionTitle').textContent.trim();
+            const title = prompt(t('Новое название плейлиста:'), current);
+            if (title === null) return;
+            try {
+                const res = await fetch(`/api/collections/${encodeURIComponent(COLLECTION_ID)}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось переименовать.'));
+                document.getElementById('collectionTitle').textContent = data.collection.title;
+                document.title = data.collection.title + ' - LocalTube';
+                showToast(t('Плейлист переименован'));
+            } catch (err) {
+                showToast(err.message);
+            }
+        });
+
+        document.getElementById('deleteBtn')?.addEventListener('click', async () => {
+            if (!confirm(t('Удалить плейлист? Сами видео останутся на диске.'))) return;
+            try {
+                const res = await fetch(`/api/collections/${encodeURIComponent(COLLECTION_ID)}`, { method: 'DELETE' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось удалить.'));
+                window.location.href = '/';
+            } catch (err) {
+                showToast(err.message);
+            }
+        });
+    </script>
+</body>
+</html>

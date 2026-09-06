@@ -1,0 +1,50 @@
+{# ============================================================
+   Нижняя навигация для телефона.
+   ------------------------------------------------------------
+   Единственным способом переключить раздел на телефоне был гамбургер:
+   выдвижное меню на 240px, скопированное с настольной вёрстки. Каждый переход
+   стоил двух касаний (открыть меню, выбрать пункт), а до пунктов ниже списка
+   каналов приходилось прокручивать. Панель снизу держит основные разделы под
+   большим пальцем.
+
+   Стилей и переменных здесь нет намеренно: оформление лежит в mobile.css,
+   который подключается последним. Инлайновый <style> в этом файле попал бы в
+   разметку каждой страницы восемь раз, а var() без объявления ломает проверку
+   test_css_variables_are_declared.
+
+   Активный пункт задаёт вызывающая страница через nav_active. На главной
+   разделы переключает JS без перезагрузки, поэтому там значение обновляет
+   filterNav().
+   ============================================================ #}
+{% set active = nav_active|default('') %}
+<nav class="lt-bottom-nav" id="ltBottomNav" aria-label="{{ 'Основные разделы'|t }}">
+    <a class="lt-nav-item{% if active == 'home' %} active{% endif %}" href="/" data-nav-target="all"{% if active == 'home' %} aria-current="page"{% endif %}>
+        <span class="lt-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg></span>
+        <span class="lt-nav-label">{{ 'Главная'|t }}</span>
+    </a>
+    <a class="lt-nav-item{% if active == 'shorts' %} active{% endif %}" href="/?nav=shorts" data-nav-target="shorts"{% if active == 'shorts' %} aria-current="page"{% endif %}>
+        <span class="lt-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.77,10.32l-1.2-.5L18,9.06a3.74,3.74,0 0 0-3.5-6.62L6,6.94a3.74,3.74,0 0 0,.23,6.74l1.2.49L6,14.93a3.75,3.75,0 0 0,3.5,6.63l8.5-4.5a3.74,3.74,0 0 0-.23-6.74Z"></path></svg></span>
+        <span class="lt-nav-label">Shorts</span>
+    </a>
+    <a class="lt-nav-item{% if active == 'favorites' %} active{% endif %}" href="/?nav=favorites" data-nav-target="favorites"{% if active == 'favorites' %} aria-current="page"{% endif %}>
+        <span class="lt-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"></path></svg></span>
+        <span class="lt-nav-label">{{ 'Избранное'|t }}</span>
+    </a>
+    {# Очередь и настройки меняют файлы на диске владельца: гостю из локальной
+       сети вместо них показываем историю просмотров его устройства. #}
+    {% if is_owner|default(true) %}
+    <a class="lt-nav-item{% if active == 'queue' %} active{% endif %}" href="/?nav=queue" data-nav-target="queue"{% if active == 'queue' %} aria-current="page"{% endif %}>
+        <span class="lt-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 6h8v2h-8V6zm0 4h8v2h-8v-2zm0 4h6v2h-6v-2z"></path></svg></span>
+        <span class="lt-nav-label">{{ 'Очередь'|t }}</span>
+    </a>
+    <a class="lt-nav-item{% if active == 'settings' %} active{% endif %}" href="/settings"{% if active == 'settings' %} aria-current="page"{% endif %}>
+        <span class="lt-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg></span>
+        <span class="lt-nav-label">{{ 'Настройки'|t }}</span>
+    </a>
+    {% else %}
+    <a class="lt-nav-item{% if active == 'history' %} active{% endif %}" href="/?nav=history" data-nav-target="history"{% if active == 'history' %} aria-current="page"{% endif %}>
+        <span class="lt-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.14-8-8s3.58-8 8-8 8 3.14 8 8-3.14 8-8 8zm.5-13H11v6h3V7h-2V4z"></path></svg></span>
+        <span class="lt-nav-label">{{ 'История'|t }}</span>
+    </a>
+    {% endif %}
+</nav>

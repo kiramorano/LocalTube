@@ -10,32 +10,75 @@ jobs:
   build:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: android } }
+    # Секреты объявлены на уровне job: в условии if шага контекст secrets
+    # недоступен, а env виден только если задан здесь.
+    env:
+      LT_KEYSTORE_B64: ${{ secrets.LT_KEYSTORE_B64 }}
+      LT_STORE_PASSWORD: ${{ secrets.LT_STORE_PASSWORD }}
+      LT_KEY_ALIAS: ${{ secrets.LT_KEY_ALIAS }}
+      LT_KEY_PASSWORD: ${{ secrets.LT_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - name: Install Gradle 8.10.2
         run: wget -q https://services.gradle.org/distributions/gradle-8.10.2-bin.zip -O /tmp/gradle.zip && unzip -q /tmp/gradle.zip -d /tmp && echo /tmp/gradle-8.10.2/bin >> $GITHUB_PATH
-      # Проект использует ABI splits, product flavors в нём нет: задач вида
-      # assembleMobileDebug не существует.
+      # Постоянный ключ подписи из секретов. Без него Gradle подписал бы release
+      # отладочным ключом, а на runner'е он генерируется заново при каждом
+      # запуске: APK разных релизов оказались бы подписаны разными ключами и не
+      # ставились бы обновлением поверх (данные приложения при переустановке
+      # теряются вместе со скачанными видео).
+      - name: Restore keystore
+        if: env.LT_KEYSTORE_B64 != ''
+        run: echo "$LT_KEYSTORE_B64" | base64 -d > app/keystore.jks
+      # Два product flavor: mobile (телефоны и планшеты) и tv (Android TV),
+      # каждый с ABI splits. Задач :app:assembleDebug больше нет — имя варианта
+      # включает флейвор.
       - name: Unit tests
-        run: gradle --no-daemon :app:testDebugUnitTest
+        run: gradle --no-daemon :app:testMobileDebugUnitTest :app:testTvDebugUnitTest
       - name: Build APKs
-        run: gradle --no-daemon :app:assembleDebug :app:assembleRelease
+        run: gradle --no-daemon :app:assembleMobileDebug :app:assembleMobileRelease :app:assembleTvDebug :app:assembleTvRelease
+      - name: Check release signature
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          for apk in app/build/outputs/apk/*/release/*.apk; do
+            "$BT/apksigner" verify --print-certs "$apk" | grep 'certificate DN'
+          done
+      # Проверяем, что флейворы действительно разошлись: в ТВ-сборке leanback
+      # обязателен, в мобильной — нет. Ошибка слияния манифестов иначе
+      # обнаружилась бы только при загрузке в Play.
+      - name: Check TV manifest
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          TV=$("$BT/aapt2" dump badging app/build/outputs/apk/tv/release/app-tv-arm64-v8a-release.apk)
+          MOBILE=$("$BT/aapt2" dump badging app/build/outputs/apk/mobile/release/app-mobile-arm64-v8a-release.apk)
+          echo "$TV" | grep -q "uses-feature: name='android.software.leanback'" || { echo 'В ТВ-сборке нет обязательного leanback'; exit 1; }
+          echo "$TV" | grep -q 'leanback-launchable-activity' || { echo 'В ТВ-сборке нет запуска через лончер Android TV'; exit 1; }
+          echo "$MOBILE" | grep -q "uses-feature-not-required: name='android.software.leanback'" || { echo 'В мобильной сборке leanback не помечен необязательным'; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
-          name: LocalTube-Android-debug
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: LocalTube-Android-mobile-debug
+          path: android/app/build/outputs/apk/mobile/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: LocalTube-Android-release
-          path: android/app/build/outputs/apk/release/*.apk
+          name: LocalTube-Android-mobile-release
+          path: android/app/build/outputs/apk/mobile/release/*.apk
           if-no-files-found: error
-      # Одна и та же сборка работает на телефонах и Android TV: в манифесте есть
-      # LEANBACK_LAUNCHER и touchscreen required=false.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalTube-Android-tv-debug
+          path: android/app/build/outputs/apk/tv/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalTube-Android-tv-release
+          path: android/app/build/outputs/apk/tv/release/*.apk
+          if-no-files-found: error
+      # К релизу прикладываем оба варианта: имена файлов различаются префиксом
+      # флейвора, поэтому не перетирают друг друга.
       - name: Attach APKs to release
         if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.event.release.tag_name }}" app/build/outputs/apk/release/*.apk --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" app/build/outputs/apk/mobile/release/*.apk app/build/outputs/apk/tv/release/*.apk --clobber

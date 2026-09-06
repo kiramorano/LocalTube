@@ -13,6 +13,9 @@ import shutil
 import subprocess
 from urllib.parse import quote
 
+import paths
+from utils import cookiefile_for_ydl
+
 # Пытаемся импортировать yt-dlp (он уже есть в проекте)
 try:
     import yt_dlp
@@ -22,27 +25,30 @@ except ImportError:
 
 def load_config():
     """Загружает конфигурацию, чтобы получить папку для субтитров."""
-    config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+    config_file = paths.data_path("config.json")
     default = {"subtitles_dir": "subtitles"}
     if os.path.exists(config_file):
+        # Голый except перехватывал в том числе KeyboardInterrupt и
+        # SystemExit; для битого конфига достаточно значений по умолчанию.
         try:
             with open(config_file, 'r', encoding='utf-8') as f:
                 cfg = json.load(f)
                 if "subtitles_dir" not in cfg:
                     cfg["subtitles_dir"] = default["subtitles_dir"]
                 return cfg
-        except:
+        except (OSError, ValueError):
             return default
     return default
 
 def get_subtitles_dir():
     """Возвращает абсолютный путь к папке субтитров, создаёт её при необходимости."""
     config = load_config()
-    sub_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), config["subtitles_dir"])
+    sub_dir = paths.user_path(config["subtitles_dir"])
     os.makedirs(sub_dir, exist_ok=True)
     return sub_dir
 
 import re as _re
+
 
 def _sanitize_component(value, fallback="unknown"):
     """БАГФИКС: очищает компонент пути (video_id, lang, source) от опасных символов —
@@ -115,10 +121,12 @@ def download_youtube_subtitles(video_url, video_id, lang='ru'):
         'subtitlesformat': 'vtt',
         'outtmpl': os.path.join(folder, '%(title)s.%(ext)s')
     }
-    # Добавляем cookies, если есть
-    cookies_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
-    if os.path.exists(cookies_path):
-        ydl_opts['cookiefile'] = cookies_path
+    # Добавляем cookies, если есть. Поток, а не путь: иначе yt-dlp
+    # перезапишет cookies.txt при close() и потеряет токены входа.
+    cookies_path = paths.data_path("cookies.txt")
+    cookies_stream = cookiefile_for_ydl(cookies_path)
+    if cookies_stream is not None:
+        ydl_opts['cookiefile'] = cookies_stream
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -190,10 +198,12 @@ def get_video_id_from_metadata(video_path):
     """
     info_file = os.path.join(os.path.dirname(video_path), "info.json")
     if os.path.exists(info_file):
+        # AttributeError: json.load вернёт список или строку, если файл
+        # содержит не объект, и тогда у data нет .get.
         try:
             with open(info_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 return data.get('id')
-        except:
+        except (OSError, ValueError, AttributeError):
             pass
     return None

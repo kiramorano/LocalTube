@@ -9,15 +9,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.VolumeOff
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,10 +41,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -52,6 +57,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import io.github.kiramorano.localtube.ui.components.EmptyBox
+import io.github.kiramorano.localtube.ui.components.LoadingBox
 import io.github.kiramorano.localtube.vm.ShortsViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -69,10 +75,12 @@ fun ShortsScreen(
     vm: ShortsViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var muted by remember { mutableStateOf(false) }
-    var playing by remember { mutableStateOf(true) }
+    var playing by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val userData by vm.userData.collectAsStateWithLifecycle()
 
     LaunchedEffect(startId) { vm.load(startId.ifBlank { null }) }
 
@@ -83,6 +91,33 @@ fun ShortsScreen(
         }
     }
 
+    // Состояние берём событием, а не чтением isPlaying сразу после play():
+    // плеер в этот момент ещё буферизует и отвечает false, из-за чего на экране
+    // висел значок «play», хотя видео шло.
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                playing = isPlaying
+            }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
+
+    // Уход в фон должен глушить звук: MainActivity объявляет configChanges, и
+    // без наблюдателя лента продолжала играть за пределами приложения.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> player.pause()
+                Lifecycle.Event.ON_START -> player.play()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     DisposableEffect(Unit) {
         onDispose { player.release() }
     }
@@ -90,7 +125,9 @@ fun ShortsScreen(
     val shorts = vm.shorts
     if (shorts.isEmpty()) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
-            EmptyBox("Shorts пока нет")
+            // Пока идёт сканирование, показываем индикатор: «Shorts пока нет»
+            // раньше мигало на каждом открытии.
+            if (vm.loading) LoadingBox() else EmptyBox("Shorts пока нет")
             IconButton(onClick = onBack, modifier = Modifier.align(Alignment.TopStart)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = Color.White)
             }
@@ -109,12 +146,22 @@ fun ShortsScreen(
             player.prepare()
             player.volume = if (muted) 0f else 1f
             player.play()
-            playing = true
             vm.markWatched(item.id)
         }
     }
 
     LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
+
+    fun togglePlay() {
+        player.playWhenReady = !player.playWhenReady
+    }
+
+    fun toggleMuted() {
+        muted = !muted
+        player.volume = if (muted) 0f else 1f
+    }
+
+    fun currentId(): String? = shorts.getOrNull(pagerState.currentPage)?.id
 
     Box(
         Modifier
@@ -144,14 +191,15 @@ fun ShortsScreen(
                     }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                        if (player.isPlaying) player.pause() else player.play()
-                        playing = player.isPlaying
-                        true
+                        togglePlay(); true
                     }
-                    KeyEvent.KEYCODE_M -> {
-                        muted = !muted
-                        player.volume = if (muted) 0f else 1f
-                        true
+                    // Вправо — в избранное: боковые кнопки пультом не достать,
+                    // потому что вверх-вниз занято прокруткой ленты.
+                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_BOOKMARK -> {
+                        currentId()?.let { vm.toggleFavorite(it) }; true
+                    }
+                    KeyEvent.KEYCODE_MUTE, KeyEvent.KEYCODE_VOLUME_MUTE, KeyEvent.KEYCODE_M -> {
+                        toggleMuted(); true
                     }
                     else -> false
                 }
@@ -161,15 +209,14 @@ fun ShortsScreen(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
         ) { page ->
-            val item = shorts[page]
+            // getOrNull: список могли обновить, пока пейджер стоял на последней
+            // странице, и обращение по индексу падало.
+            val item = shorts.getOrNull(page) ?: return@VerticalPager
             Box(
                 Modifier
                     .fillMaxSize()
                     .pointerInput(page) {
-                        detectTapGestures(onTap = {
-                            if (player.isPlaying) player.pause() else player.play()
-                            playing = player.isPlaying
-                        })
+                        detectTapGestures(onTap = { togglePlay() })
                     }
             ) {
                 if (page == pagerState.currentPage) {
@@ -183,6 +230,9 @@ fun ShortsScreen(
                             }
                         },
                         update = { view -> view.player = player },
+                        // Без этого уходящая страница держала view привязанной
+                        // к общему плееру.
+                        onRelease = { it.player = null },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -194,7 +244,7 @@ fun ShortsScreen(
                         tint = Color.White.copy(alpha = 0.85f),
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .padding(8.dp)
+                            .size(64.dp)
                     )
                 }
 
@@ -226,28 +276,25 @@ fun ShortsScreen(
                         .align(Alignment.CenterEnd)
                         .padding(end = 8.dp)
                 ) {
-                    var favorite by remember(item.id) { mutableStateOf(vm.isFavorite(item.id)) }
-                    IconButton(onClick = { favorite = vm.toggleFavorite(item.id) }) {
+                    // Избранное читается из общего состояния: снимок в remember
+                    // устаревал, стоило поменять звёздочку на другом экране.
+                    val favorite = userData.favorites.contains(item.id)
+                    IconButton(onClick = { vm.toggleFavorite(item.id) }) {
                         Icon(
                             if (favorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
                             contentDescription = "Избранное",
                             tint = if (favorite) Color(0xFFFFD700) else Color.White
                         )
                     }
-                    IconButton(onClick = {
-                        muted = !muted
-                        player.volume = if (muted) 0f else 1f
-                    }) {
+                    IconButton(onClick = { toggleMuted() }) {
                         Icon(
-                            if (muted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                            if (muted) Icons.AutoMirrored.Filled.VolumeOff
+                            else Icons.AutoMirrored.Filled.VolumeUp,
                             contentDescription = "Звук",
                             tint = Color.White
                         )
                     }
-                    IconButton(onClick = {
-                        if (player.isPlaying) player.pause() else player.play()
-                        playing = player.isPlaying
-                    }) {
+                    IconButton(onClick = { togglePlay() }) {
                         Icon(
                             if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                             contentDescription = "Пауза",

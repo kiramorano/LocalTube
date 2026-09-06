@@ -6,20 +6,24 @@ import yt_dlp
 import logging
 import traceback
 
+import paths
+from utils import cookiefile_for_ydl
+
 logger = logging.getLogger(__name__)
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-COOKIES_PATH = os.path.join(PROJECT_ROOT, 'cookies.txt')
+PROJECT_ROOT = paths.data_dir()
+COOKIES_PATH = paths.data_path('cookies.txt')
 
 class YouTubeExtractor:
     def _get_ydl_opts(self, extra_args: dict = None) -> dict:
-        from po_manager import get_po_args
+        from po_manager import get_po_args, apply_po_args
         
         opts = {
             'quiet': True,
             'no_warnings': True,
             'ignoreerrors': True,
             'extract_flat': 'in_playlist',
-            'cookiefile': COOKIES_PATH if os.path.exists(COOKIES_PATH) else None,
+            # Поток, а не путь: иначе yt-dlp перезапишет cookies.txt при close().
+            'cookiefile': cookiefile_for_ydl(COOKIES_PATH),
             'socket_timeout': 30,
             'retries': 5,
             'format': 'bestvideo+bestaudio/best',
@@ -28,7 +32,7 @@ class YouTubeExtractor:
 
         po_args = get_po_args()
         if po_args:
-            opts.update(po_args)
+            apply_po_args(opts, po_args)
 
         if extra_args:
             opts.update(extra_args)

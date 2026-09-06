@@ -1,10 +1,21 @@
 /* ============================================================
-   FRUTIGER AERO — БЕЛЫЙ ТЕКСТ + ПЛАВНЫЙ ПЕРЕХОД
+   FRUTIGER AERO — стеклянная тема
+   ------------------------------------------------------------
+   Обои рисуют слои #bg-layer-1 / #bg-layer-2 (см. static/js/theme.js),
+   а не сам body: раньше здесь стояли background-size / position / repeat /
+   attachment с !important прямо на body, но картинка туда никогда не
+   попадала, поэтому эти правила и медиазапросы к ним ничего не делали.
    ============================================================ */
 
 :root[data-theme="frutiger-aero"] {
     --yt-font-family: 'Aero_03', Arial, sans-serif;
+    /* Прозрачный фон — чтобы сквозь разметку были видны слои обоев. Из-за
+       этого var(--yt-bg) нельзя использовать как цвет текста: см. ниже
+       правила для .chip.active и других «активных» элементов. */
     --yt-bg: transparent;
+    /* Непрозрачная версия фона: разметка использует её как цвет текста на
+       инвертированных элементах, где transparent дал бы невидимую надпись. */
+    --yt-bg-solid: #0f0f0f;
     --yt-spec-text-primary: #ffffff;
     --yt-spec-text-secondary: #dddddd;
     --yt-spec-border: rgba(255, 255, 255, 0.25);
@@ -14,28 +25,47 @@
     --yt-button-bg: rgba(255, 255, 255, 0.15);
     --yt-button-hover: rgba(255, 255, 255, 0.2);
     --yt-card-bg: rgba(255, 255, 255, 0.15);
-    --yt-modal-bg: rgba(255, 255, 255, 0.75);
+    /* Панели поверх обоев делаем почти непрозрачными и с тёмным текстом:
+       при 0.75 сквозь меню просвечивали обои, а белый текст на светлом
+       стекле не читался вовсе. */
+    --yt-modal-bg: rgba(255, 255, 255, 0.92);
+    --yt-modal-text: #0f0f0f;
     --yt-header-height: 56px;
     --yt-sidebar-width: 240px;
     --video-card-min-width: 310px;
+    /* Тень под текстом: белые надписи лежат на светлых обоях, без неё
+       контраст пропадает на засветлённых участках картинки. */
+    --aero-text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+
+    /* Второе семейство токенов — его использует страница настроек. Раньше
+       эти значения жили только инлайном в settings.html, поэтому тема
+       «знала» о своём оформлении не полностью: любая страница на этих
+       переменных без своей копии осталась бы без фона и цвета текста. */
+    --bg: transparent;
+    --text: #ffffff;
+    --muted: #e3f2fd;
+    --border: rgba(255, 255, 255, 0.35);
+    --card: rgba(255, 255, 255, 0.18);
+    --button: rgba(255, 255, 255, 0.22);
 }
 
-[data-theme="frutiger-aero"] * {
-    font-family: 'Aero_03', Arial, sans-serif !important;
-}
-
+/* Шрифт задаёт fonts.css через html[data-theme=...]. Здесь раньше стояло
+   `* { font-family: ... !important }` — оно перебивало и моноширинный шрифт
+   в полях с логами, и иконочные шрифты. */
 
 [data-theme="frutiger-aero"] body {
     min-height: 100vh;
     position: relative;
     overflow-x: hidden;
+    /* Цвет на случай, если обоев нет: страница не должна остаться белой. */
     background-color: #b3d9f0;
-    background-repeat: no-repeat !important;
-    background-size: cover !important;
-    background-position: center center !important;
-    background-attachment: fixed !important;
-    /* Плавный переход для фона */
-    transition: background-image 1.5s ease-in-out, background-color 0.8s ease-in-out, color 0.5s ease;
+    transition: background-color 0.8s ease-in-out, color 0.5s ease;
+    /* Тень наследуется всем текстом страницы. Тема делает текст белым, а фон
+       под ним светлый (обои или #b3d9f0), поэтому контраст белого по светлому
+       порядка 1.5:1 — прочитать нельзя. Раньше тень навешивалась поимённо на
+       десяток селекторов, и всё, что забыли (ссылки, подписи полей, кнопки
+       вкладок в настройках), оставалось нечитаемым. */
+    text-shadow: var(--aero-text-shadow);
 }
 
 [data-theme="frutiger-aero"] body::after {
@@ -51,27 +81,14 @@
     transition: background 1s ease;
 }
 
-@media (max-width: 767px) {
-    [data-theme="frutiger-aero"] body {
-        background-attachment: scroll !important;
-        background-position: top center !important;
-    }
-}
-
-@media (min-width: 1920px) {
-    [data-theme="frutiger-aero"] body {
-        background-size: 100% 100% !important;
-    }
-}
-
-/* ===== СТЕКЛЯННЫЕ ЭЛЕМЕНТЫ С ПЛАВНЫМ ПЕРЕХОДОМ ===== */
+/* ===== СТЕКЛЯННЫЕ ЭЛЕМЕНТЫ ===== */
 [data-theme="frutiger-aero"] .sidebar-drawer,
-[data-theme="frutiger-aero"] .sidebar,
 [data-theme="frutiger-aero"] header,
-[data-theme="frutiger-aero"] .modal-content,
 [data-theme="frutiger-aero"] .queue-item,
 [data-theme="frutiger-aero"] .video-card,
 [data-theme="frutiger-aero"] .subtitles-section,
+[data-theme="frutiger-aero"] .description-box,
+[data-theme="frutiger-aero"] .toolbar,
 [data-theme="frutiger-aero"] #miniplayer-container {
     background: rgba(255, 255, 255, 0.2) !important;
     backdrop-filter: blur(16px) saturate(180%);
@@ -81,8 +98,7 @@
     transition: background 0.5s ease, backdrop-filter 0.5s ease, border 0.5s ease, box-shadow 0.5s ease;
 }
 
-[data-theme="frutiger-aero"] .sidebar-drawer,
-[data-theme="frutiger-aero"] .sidebar {
+[data-theme="frutiger-aero"] .sidebar-drawer {
     border-right: 1px solid rgba(255, 255, 255, 0.25);
 }
 
@@ -99,47 +115,148 @@
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255,255,255,0.4);
     transition: transform 0.2s, box-shadow 0.2s, background 0.5s ease, backdrop-filter 0.5s ease;
 }
+/* Радиус превью совпадает с радиусом карточки: при 12px против 20px по
+   верхним углам оставались заметные «уголки» подложки. */
+[data-theme="frutiger-aero"] .video-card .video-thumb {
+    border-radius: 19px 19px 0 0;
+}
+[data-theme="frutiger-aero"] .video-grid.list-view .video-card .video-thumb {
+    border-radius: 19px 0 0 19px;
+}
 [data-theme="frutiger-aero"] .video-card:hover {
     transform: translateY(-6px) scale(1.01);
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255,255,255,0.5);
     background: rgba(255, 255, 255, 0.25) !important;
 }
 
+/* ===== ЭЛЕМЕНТЫ УПРАВЛЕНИЯ =====
+   Светлое стекло + ТЁМНЫЙ текст. Раньше кнопки и поля получали белый текст на
+   белом стекле поверх светлых обоев: контраст около 1.4:1, надписи не читались.
+   Тень тут не спасает — браузеры не наследуют text-shadow в элементы форм,
+   поэтому и общая тень на body до кнопок не доходила. */
+/* :not(.tab) обязателен: вкладки канала — это <button>, и общее правило
+   добавляло им рамку 1px и font-weight 500. Вкладки от этого становились на
+   ~1.5px шире, полоса вкладок переставала прокручиваться до конца, и последняя
+   вкладка («О канале») оставалась подрезанной у правого края на мобильном.
+   Своё оформление вкладок задаёт channel.html, тут его перебивать не нужно. */
+[data-theme="frutiger-aero"] button:not(.tab),
 [data-theme="frutiger-aero"] .download-btn,
 [data-theme="frutiger-aero"] .btn-primary,
 [data-theme="frutiger-aero"] .action-btn,
 [data-theme="frutiger-aero"] .edit-btn,
-[data-theme="frutiger-aero"] .danger-btn {
-    background: rgba(255, 255, 255, 0.2) !important;
+[data-theme="frutiger-aero"] .download-file-btn,
+[data-theme="frutiger-aero"] .hide-channel-btn {
+    background: rgba(255, 255, 255, 0.75) !important;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.85);
     border-radius: 40px;
-    color: #ffffff !important;
+    color: #0f2233 !important;
     font-weight: 500;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255,255,255,0.5);
+    text-shadow: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255,255,255,0.9);
     transition: all 0.3s;
 }
+/* Иконки внутри кнопок рисуются через fill, а не color. */
+[data-theme="frutiger-aero"] button svg,
+[data-theme="frutiger-aero"] .download-btn svg,
+[data-theme="frutiger-aero"] .action-btn svg {
+    fill: #0f2233;
+}
+/* Кнопки поверх видео и превью — тёмное стекло со светлыми иконками: они лежат
+   на кадре, а не на обоях, и светлая заливка там слепит и перекрывает картинку. */
+[data-theme="frutiger-aero"] .control-btn,
+[data-theme="frutiger-aero"] .short-btn,
+[data-theme="frutiger-aero"] .action-btn {
+    background: rgba(0, 0, 0, 0.55) !important;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #ffffff !important;
+    box-shadow: none;
+}
+[data-theme="frutiger-aero"] .control-btn svg,
+[data-theme="frutiger-aero"] .short-btn svg,
+[data-theme="frutiger-aero"] .action-btn svg {
+    fill: #ffffff;
+}
+[data-theme="frutiger-aero"] .control-btn:hover,
+[data-theme="frutiger-aero"] .short-btn:hover,
+[data-theme="frutiger-aero"] .action-btn:hover {
+    background: rgba(0, 0, 0, 0.75) !important;
+    transform: none;
+}
+/* Звёздочка «в избранном» должна оставаться золотой. */
+[data-theme="frutiger-aero"] .action-btn .fav-active,
+[data-theme="frutiger-aero"] .fav-active {
+    fill: #FFD700 !important;
+}
+[data-theme="frutiger-aero"] button:hover,
 [data-theme="frutiger-aero"] .download-btn:hover,
 [data-theme="frutiger-aero"] .btn-primary:hover,
-[data-theme="frutiger-aero"] .action-btn:hover {
-    background: rgba(255, 255, 255, 0.4) !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255,255,255,0.7);
+[data-theme="frutiger-aero"] .action-btn:hover,
+[data-theme="frutiger-aero"] .edit-btn:hover,
+[data-theme="frutiger-aero"] .download-file-btn:hover {
+    background: rgba(255, 255, 255, 0.92) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255,255,255,1);
     transform: scale(1.02) translateY(-2px);
 }
 
+/* Вторичная кнопка: в разметке у неё background: transparent и белый текст,
+   поэтому в этой теме она полностью исчезала — оставался один текст без
+   очертаний кнопки. */
+[data-theme="frutiger-aero"] .btn-secondary {
+    background: rgba(255, 255, 255, 0.6) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    color: #0f2233 !important;
+    text-shadow: none;
+}
+[data-theme="frutiger-aero"] .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Опасные действия должны оставаться красными, а не сливаться со стеклом. */
+[data-theme="frutiger-aero"] .delete-btn,
+[data-theme="frutiger-aero"] .queue-clear-btn {
+    background: rgba(220, 53, 69, 0.75) !important;
+    border-color: rgba(255, 255, 255, 0.45);
+    color: #ffffff !important;
+}
+[data-theme="frutiger-aero"] .delete-btn:hover,
+[data-theme="frutiger-aero"] .queue-clear-btn:hover {
+    background: rgba(220, 53, 69, 0.9) !important;
+}
+
+/* Поля ввода: тоже светлое стекло с тёмным текстом. Белый текст в поле поверх
+   светлых обоев было не видно ни при вводе ссылки, ни в настройках. */
 [data-theme="frutiger-aero"] .url-input,
 [data-theme="frutiger-aero"] input[type="text"],
+[data-theme="frutiger-aero"] input[type="number"],
+[data-theme="frutiger-aero"] input[type="password"],
+[data-theme="frutiger-aero"] input[type="search"],
 [data-theme="frutiger-aero"] select,
 [data-theme="frutiger-aero"] textarea {
-    background: rgba(255, 255, 255, 0.25) !important;
+    background: rgba(255, 255, 255, 0.8) !important;
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    border: 1px solid var(--yt-search-border);
     border-radius: 40px;
-    color: #ffffff !important;
-    box-shadow: inset 0 1px 4px rgba(0,0,0,0.02);
+    color: #0f2233 !important;
+    text-shadow: none;
+    box-shadow: inset 0 1px 4px rgba(0,0,0,0.06);
     transition: background 0.5s ease, border 0.5s ease, color 0.5s ease;
+}
+/* Многострочному полю круглые края не идут — текст упирается в скругление. */
+[data-theme="frutiger-aero"] textarea {
+    border-radius: 16px;
+}
+/* Нативный список <option> рисует система, и белый текст, унаследованный от
+   select, давал белое на белом: в раскрытом списке не было видно ничего.
+   Правило было прописано вручную только на двух страницах из семи. */
+[data-theme="frutiger-aero"] option,
+[data-theme="frutiger-aero"] optgroup {
+    color: #0f0f0f;
+    background-color: #ffffff;
 }
 [data-theme="frutiger-aero"] .url-input:focus,
 [data-theme="frutiger-aero"] input:focus,
@@ -147,6 +264,34 @@
 [data-theme="frutiger-aero"] textarea:focus {
     border-color: #4fc3f7;
     box-shadow: 0 0 0 3px rgba(79, 195, 247, 0.15), inset 0 1px 4px rgba(0,0,0,0.02);
+}
+/* Подсказка в поле: на светлом стекле нужен тёмный полупрозрачный, а не белый. */
+[data-theme="frutiger-aero"] ::placeholder {
+    color: rgba(15, 34, 51, 0.55);
+}
+
+/* ===== ПОИСКОВАЯ «ПИЛЮЛЯ» =====
+   Поле, выбор качества и кнопка склеены в один элемент: у поля радиус
+   24px слева, у кнопки — справа, стык прямой. Общее правило выше задаёт
+   всем трём радиус 40px по кругу, из-за чего склейка распадалась на три
+   отдельные скруглённые плашки с наложением. Возвращаем геометрию. */
+[data-theme="frutiger-aero"] .search-container .url-input {
+    border-radius: 24px 0 0 24px;
+}
+[data-theme="frutiger-aero"] .search-container .url-quality {
+    border-radius: 0;
+    border-left: none;
+}
+[data-theme="frutiger-aero"] .search-container .download-btn {
+    border-radius: 0 24px 24px 0;
+    border-left: none;
+}
+
+/* Выпадающие списки вне поиска — обычные прямоугольные плашки, круглые
+   края на них выглядят случайно и обрезают текст. */
+[data-theme="frutiger-aero"] .queue-filter,
+[data-theme="frutiger-aero"] .queue-priority-select {
+    border-radius: 8px;
 }
 
 [data-theme="frutiger-aero"] .progress-fill,
@@ -157,6 +302,8 @@
 }
 
 [data-theme="frutiger-aero"] .video-author-avatar,
+[data-theme="frutiger-aero"] .channel-avatar,
+[data-theme="frutiger-aero"] .avatar,
 [data-theme="frutiger-aero"] .user-avatar-placeholder {
     border: 2px solid rgba(255, 255, 255, 0.5);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
@@ -171,9 +318,10 @@
 [data-theme="frutiger-aero"] h3,
 [data-theme="frutiger-aero"] .channel-name,
 [data-theme="frutiger-aero"] .sidebar-item,
+[data-theme="frutiger-aero"] .related-title,
 [data-theme="frutiger-aero"] .logo {
     color: #ffffff !important;
-    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+    text-shadow: var(--aero-text-shadow);
     transition: color 0.5s ease, text-shadow 0.5s ease;
 }
 
@@ -182,18 +330,175 @@
 [data-theme="frutiger-aero"] .channel-subscribers,
 [data-theme="frutiger-aero"] .publish-date,
 [data-theme="frutiger-aero"] .sidebar-title,
+[data-theme="frutiger-aero"] .related-author,
+[data-theme="frutiger-aero"] .queue-filter-label,
 [data-theme="frutiger-aero"] .description-box {
-    color: #dddddd !important;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    color: #eeeeee !important;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
     transition: color 0.5s ease, text-shadow 0.5s ease;
 }
 
 [data-theme="frutiger-aero"] .download-btn,
 [data-theme="frutiger-aero"] .btn-primary,
 [data-theme="frutiger-aero"] .action-btn,
-[data-theme="frutiger-aero"] .edit-btn,
-[data-theme="frutiger-aero"] .danger-btn {
+[data-theme="frutiger-aero"] .edit-btn {
     text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* ===== АКТИВНЫЕ ЭЛЕМЕНТЫ =====
+   В разметке они окрашены как `background: var(--yt-spec-text-primary);
+   color: var(--yt-bg)`. В светлой и тёмной темах это инверсия, но здесь
+   --yt-bg равен transparent, поэтому текст выбранного фильтра, вкладки и
+   пункта меню становился полностью невидимым: оставалась белая плашка. */
+[data-theme="frutiger-aero"] .chip.active,
+[data-theme="frutiger-aero"] .related-tab.active,
+[data-theme="frutiger-aero"] .settings-menu-item.active {
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #0f0f0f !important;
+    text-shadow: none;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* Неактивные фильтры и вкладки: полупрозрачное тёмное стекло со светлым
+   текстом — так они заметно отличаются от выбранного (светлого) состояния. */
+[data-theme="frutiger-aero"] .chip,
+[data-theme="frutiger-aero"] .related-tab,
+[data-theme="frutiger-aero"] .tab-btn {
+    background: rgba(10, 40, 60, 0.45) !important;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: #ffffff !important;
+    text-shadow: none;
+}
+[data-theme="frutiger-aero"] .chip:hover,
+[data-theme="frutiger-aero"] .related-tab:hover,
+[data-theme="frutiger-aero"] .tab-btn:hover {
+    background: rgba(10, 40, 60, 0.65) !important;
+}
+/* Выбранная вкладка в настройках уже синяя с чёрным текстом — не перекрываем. */
+[data-theme="frutiger-aero"] .tab-btn.active {
+    background: #3ea6ff !important;
+    color: #000000 !important;
+    border-color: #3ea6ff;
+}
+
+/* ===== МЕНЮ ПЛЕЕРА =====
+   Панели настроек и качества берут фон из --yt-modal-bg (светлое стекло), а
+   текст наследуют белый от body — получалось белое на белом. Здесь фон почти
+   непрозрачный, поэтому текст и иконки внутри делаем тёмными. */
+[data-theme="frutiger-aero"] .player-settings-menu,
+[data-theme="frutiger-aero"] .modal-content,
+[data-theme="frutiger-aero"] .dl-modal {
+    background: var(--yt-modal-bg) !important;
+    color: var(--yt-modal-text) !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+[data-theme="frutiger-aero"] .player-settings-menu *,
+[data-theme="frutiger-aero"] .modal-content *,
+[data-theme="frutiger-aero"] .dl-modal * {
+    color: var(--yt-modal-text);
+    text-shadow: none;
+}
+[data-theme="frutiger-aero"] .player-settings-menu h1,
+[data-theme="frutiger-aero"] .player-settings-menu h2,
+[data-theme="frutiger-aero"] .player-settings-menu h3,
+[data-theme="frutiger-aero"] .modal-content h1,
+[data-theme="frutiger-aero"] .modal-content h2,
+[data-theme="frutiger-aero"] .modal-content h3,
+[data-theme="frutiger-aero"] .dl-modal h1,
+[data-theme="frutiger-aero"] .dl-modal h2,
+[data-theme="frutiger-aero"] .dl-modal h3 {
+    color: var(--yt-modal-text) !important;
+    text-shadow: none;
+}
+/* Поля внутри светлой панели: общее правило выше делает их текст белым, что
+   на светлом стекле снова даёт белое на белом. */
+[data-theme="frutiger-aero"] .modal-content input,
+[data-theme="frutiger-aero"] .modal-content select,
+[data-theme="frutiger-aero"] .modal-content textarea,
+[data-theme="frutiger-aero"] .dl-modal input,
+[data-theme="frutiger-aero"] .dl-modal select,
+[data-theme="frutiger-aero"] .dl-modal textarea {
+    background: rgba(255, 255, 255, 0.75) !important;
+    border-color: rgba(0, 0, 0, 0.2);
+    color: #0f0f0f !important;
+}
+[data-theme="frutiger-aero"] .modal-content ::placeholder,
+[data-theme="frutiger-aero"] .dl-modal ::placeholder {
+    color: rgba(0, 0, 0, 0.5);
+}
+/* Кнопки в светлой панели: белый текст на светлом стекле не читался. */
+[data-theme="frutiger-aero"] .modal-content .btn-secondary,
+[data-theme="frutiger-aero"] .dl-modal .btn-secondary {
+    background: rgba(0, 0, 0, 0.06) !important;
+    border-color: rgba(0, 0, 0, 0.2);
+    color: #0f0f0f !important;
+}
+[data-theme="frutiger-aero"] .settings-menu-item:hover,
+[data-theme="frutiger-aero"] .quality-option:hover {
+    background: rgba(0, 0, 0, 0.08);
+}
+[data-theme="frutiger-aero"] .settings-menu-header {
+    border-bottom-color: rgba(0, 0, 0, 0.15);
+}
+/* Выбранное качество остаётся синим — это состояние, а не просто ховер. */
+[data-theme="frutiger-aero"] .quality-option.active {
+    background: #3ea6ff;
+    color: #000000 !important;
+}
+
+/* ===== УВЕДОМЛЕНИЯ =====
+   Фон брался из --yt-button-hover (белое стекло 20%), текст белый: на светлых
+   обоях тост читался с трудом. Делаем тёмное стекло. */
+[data-theme="frutiger-aero"] .toast {
+    background: rgba(20, 40, 60, 0.85) !important;
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: #ffffff !important;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3);
+}
+
+/* Плашки статуса в очереди: полупрозрачный фон + читаемый текст. */
+[data-theme="frutiger-aero"] .queue-item-status {
+    background: rgba(255, 255, 255, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    color: #ffffff;
+    text-shadow: var(--aero-text-shadow);
+}
+[data-theme="frutiger-aero"] .queue-item-error {
+    color: #ffd0d0 !important;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Субтитры и связанные видео. */
+[data-theme="frutiger-aero"] .subtitle-item {
+    background: rgba(255, 255, 255, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: #ffffff;
+}
+[data-theme="frutiger-aero"] .related-card:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Стилизуем кнопку выбора файла: системный вид «Обзор…» в этой теме
+   выглядит инородно, а подпись рядом была белой на белом. */
+[data-theme="frutiger-aero"] input[type="file"] {
+    color: #ffffff;
+}
+[data-theme="frutiger-aero"] input[type="file"]::file-selector-button {
+    background: rgba(255, 255, 255, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 20px;
+    color: #ffffff;
+    padding: 6px 14px;
+    margin-right: 10px;
+    cursor: pointer;
+}
+[data-theme="frutiger-aero"] input[type="file"]::file-selector-button:hover {
+    background: rgba(255, 255, 255, 0.4);
 }
 
 [data-theme="frutiger-aero"] ::-webkit-scrollbar {
@@ -212,10 +517,66 @@
     background: rgba(79, 195, 247, 0.8);
 }
 
+/* Фокус видимый: рамка ввода перекрашивается, но у кнопок и ссылок своего
+   видимого фокуса в этой теме не было — навигация с клавиатуры шла вслепую. */
+[data-theme="frutiger-aero"] a:focus-visible,
+[data-theme="frutiger-aero"] button:focus-visible,
+[data-theme="frutiger-aero"] [tabindex]:focus-visible {
+    outline: 2px solid #4fc3f7;
+    outline-offset: 2px;
+}
+
 @media (max-width: 600px) {
-    [data-theme="frutiger-aero"] .sidebar-drawer,
-    [data-theme="frutiger-aero"] .sidebar {
+    [data-theme="frutiger-aero"] .sidebar-drawer {
         backdrop-filter: blur(24px);
         -webkit-backdrop-filter: blur(24px);
+    }
+
+    /* Нижняя навигация. Её подложка приходит из --yt-modal-bg — светлое стекло
+       (белый с alpha .92), а текст пункты наследуют белый от body: получалось
+       белое на белом, контраст 1.03. Та же причина, что у меню плеера выше,
+       поэтому и решение то же — тёмный текст на светлой панели.
+       Токены объявлены в ui.css, здесь только их значения для этой темы. */
+    :root[data-theme="frutiger-aero"] {
+        --lt-nav-fg: rgba(15, 15, 15, 0.65);
+        --lt-nav-fg-active: var(--yt-modal-text);
+        --lt-nav-chip: rgba(0, 0, 0, 0.1);
+    }
+
+    /* Наследуемая тень текста задана на body для читаемости белых надписей
+       поверх обоев. На светлой панели она превращается в грязный ореол. */
+    [data-theme="frutiger-aero"] .lt-bottom-nav,
+    [data-theme="frutiger-aero"] .lt-bottom-nav * {
+        text-shadow: none;
+    }
+}
+
+/* Прозрачности и размытия — вкус, а не необходимость: при включённом
+   «уменьшении прозрачности» в системе отдаём читаемость. */
+@media (prefers-reduced-transparency: reduce) {
+    [data-theme="frutiger-aero"] .sidebar-drawer,
+    [data-theme="frutiger-aero"] header,
+    [data-theme="frutiger-aero"] .queue-item,
+    [data-theme="frutiger-aero"] .video-card,
+    [data-theme="frutiger-aero"] .subtitles-section,
+    [data-theme="frutiger-aero"] .description-box,
+    [data-theme="frutiger-aero"] .toolbar,
+    [data-theme="frutiger-aero"] #miniplayer-container {
+        background: rgba(10, 30, 45, 0.92) !important;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+}
+
+/* Анимации карточек и переходы фона отключаем, если система просит меньше
+   движения: подпрыгивающие карточки — частая причина укачивания. */
+@media (prefers-reduced-motion: reduce) {
+    [data-theme="frutiger-aero"] .video-card,
+    [data-theme="frutiger-aero"] .video-card:hover,
+    [data-theme="frutiger-aero"] .download-btn:hover,
+    [data-theme="frutiger-aero"] .btn-primary:hover,
+    [data-theme="frutiger-aero"] .action-btn:hover {
+        transform: none;
+        transition: none;
     }
 }

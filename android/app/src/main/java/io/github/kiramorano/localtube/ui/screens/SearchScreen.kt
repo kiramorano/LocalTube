@@ -57,7 +57,9 @@ fun SearchScreen(
                 VideoGrid(
                     items = results,
                     onOpen = onOpenVideo,
-                    favorites = userData.favorites.toSet()
+                    favorites = userData.favorites.toSet(),
+                    // Без коллбэка VideoCard вообще не рисует звёздочку.
+                    onToggleFavorite = vm::toggleFavorite
                 )
             }
             else -> EmptyBox("Введите название видео или имя канала")

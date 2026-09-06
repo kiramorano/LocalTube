@@ -3,8 +3,11 @@
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
+const { requireTestServer } = require('./require-test-server.cjs');
 
-const BASE = 'http://127.0.0.1:5000';
+// Порт по умолчанию — тестовый сервер (serve_test.py), а не рабочие 5000:
+// проверки скрывают каналы и чистят список, то есть меняют данные пользователя.
+const BASE = process.env.LT_BASE || 'http://127.0.0.1:5004';
 const SHOTS = path.join(__dirname, 'shots');
 if (!fs.existsSync(SHOTS)) fs.mkdirSync(SHOTS, { recursive: true });
 
@@ -15,6 +18,7 @@ function check(name, ok, detail) {
 }
 
 (async () => {
+  await requireTestServer(BASE, ['userdata']);
   const browser = await chromium.launch();
   const page = await (await browser.newContext()).newPage();
   const errors = [];
@@ -98,9 +102,17 @@ function check(name, ok, detail) {
   check('сетка видима без ожидания запроса', visibility === 'visible', visibility);
 
   // ---------- 5. Возврат канала через сайдбар ----------
-  // Сайдбар — выдвижная панель за левым краем экрана, её нужно открыть.
-  await page.locator('#sidebarToggle').click();
-  await page.waitForTimeout(500);
+  // На широком экране панель закреплена и уже видна: нажатие кнопки её,
+  // наоборот, сворачивает, и клик по «Показать» становится невозможен.
+  // Открываем только если панель действительно скрыта за краем экрана.
+  const drawerHidden = await page.evaluate(() => {
+    const drawer = document.getElementById('sidebarDrawer');
+    return drawer ? drawer.getBoundingClientRect().right <= 1 : false;
+  });
+  if (drawerHidden) {
+    await page.locator('#sidebarToggle').click();
+    await page.waitForTimeout(500);
+  }
 
   const unhideBtn = page.locator('#hiddenChannelsList .unhide-btn').first();
   if (await unhideBtn.count()) {

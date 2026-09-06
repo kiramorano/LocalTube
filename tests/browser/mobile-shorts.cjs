@@ -1,7 +1,7 @@
 const path = require('path');
 const SHOTS = path.join(__dirname, 'shots');
 const { chromium, devices } = require('playwright');
-const BASE = 'http://127.0.0.1:5000';
+const BASE = process.env.LT_BASE || 'http://127.0.0.1:5000';
 const SHORT_ID = 'r-kf2mm4vfY';
 
 (async () => {

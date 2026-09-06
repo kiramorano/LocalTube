@@ -1,7 +1,7 @@
 const path = require('path');
 const SHOTS = path.join(__dirname, 'shots');
 const { chromium } = require('playwright');
-const BASE = 'http://127.0.0.1:5000';
+const BASE = process.env.LT_BASE || 'http://127.0.0.1:5000';
 const SHORT_ID = 'r-kf2mm4vfY';
 const CHANNEL = '/channel/' + encodeURIComponent('ANATA CARS');
 
@@ -113,7 +113,7 @@ async function main() {
     });
 
     // hover wrapper to open slider
-    await page.hover('.short-vol-wrapper');
+    await page.locator('.short-vol-wrapper').first().hover();
     await page.waitForTimeout(500);
     const opened = await page.evaluate(() => {
       const c = document.querySelector('.short-vol-slider-container');
@@ -130,7 +130,9 @@ async function main() {
     });
 
     // Drag the slider using mouse: because it is rotated -90deg, use keyboard as robust check too
-    const box = await page.locator('.short-vol-slider').boundingBox();
+    // .first(): в ленте шортсов ползунок есть у каждого видео, а проверяем
+    // мы первый — тот же, что берут querySelector выше.
+    const box = await page.locator('.short-vol-slider').first().boundingBox();
     let dragResult = null;
     if (box) {
       // Click near the "high" end of the rotated slider (top of visual column = max)
@@ -147,7 +149,7 @@ async function main() {
     }
 
     // Keyboard control check
-    await page.locator('.short-vol-slider').focus();
+    await page.locator('.short-vol-slider').first().focus();
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
     await page.waitForTimeout(250);
@@ -185,7 +187,7 @@ async function main() {
     });
 
     // Mute button toggle
-    await page.click('.short-mute-btn');
+    await page.locator('.short-mute-btn').first().click();
     await page.waitForTimeout(250);
     const afterMuteClick = await page.evaluate(() => {
       const v = document.querySelector('.short-video');

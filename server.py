@@ -49,7 +49,10 @@ class PoServerManager:
                 if resp.status_code == 200:
                     self._server_url = url
                     return True
-            except:
+            # Недоступный адрес — штатная ситуация при переборе кандидатов.
+            # Голый except заодно съедал KeyboardInterrupt, из-за чего Ctrl+C
+            # во время перебора (по 2 с на адрес) не срабатывал.
+            except requests.RequestException:
                 continue
         return False
 
@@ -65,7 +68,8 @@ class PoServerManager:
                 if resp.status_code == 200:
                     self._server_url = url
                     return url
-            except:
+            # См. выше: перебор адресов, недоступность ожидаема.
+            except requests.RequestException:
                 continue
         return None
 
@@ -87,9 +91,11 @@ class PoServerManager:
             for pid in pids:
                 try:
                     subprocess.run(f'taskkill /PID {pid} /F', shell=True, capture_output=True)
-                    logger.info(f"Убит процесс {pid}, занимавший порт {port}")
-                except:
-                    pass
+                    logger.info(f"Убит процесс {pid}, освобождён порт {port}")
+                # Процесс мог завершиться сам между поиском и taskkill —
+                # это не ошибка. Голый except прятал и KeyboardInterrupt.
+                except (OSError, subprocess.SubprocessError) as e:
+                    logger.warning(f"Не удалось снять процесс {pid}: {e}")
             return True
         except Exception as e:
             logger.warning(f"Не удалось убить процесс на порту {port}: {e}")

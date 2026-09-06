@@ -1,7 +1,7 @@
 const path = require('path');
 const SHOTS = path.join(__dirname, 'shots');
 const { chromium } = require('playwright');
-const BASE = 'http://127.0.0.1:5000';
+const BASE = process.env.LT_BASE || 'http://127.0.0.1:5000';
 
 async function main() {
   const browser = await chromium.launch();
@@ -29,7 +29,19 @@ async function main() {
         shortsDur: grab('#shortsGrid .duration'),
         featuredMeta: grab('.featured-card .meta'),
         featuredDur: grab('.featured-card .duration'),
-        aboutMeta: grab('.about-meta div'),
+        // Данные канала переехали из .about-meta в плитки .fact.
+        aboutMeta: grab('.fact'),
+        banner: (() => {
+          const el = document.querySelector('.banner');
+          if (!el) return null;
+          const box = el.getBoundingClientRect();
+          return {
+            hasImage: el.classList.contains('has-image'),
+            image: getComputedStyle(el).backgroundImage,
+            width: Math.round(box.width),
+            height: Math.round(box.height),
+          };
+        })(),
         tabs: grab('.tab'),
         images: imgs,
         emptyPanels: [...document.querySelectorAll('.panel')].map(p => ({ id: p.id, active: p.classList.contains('active'), display: getComputedStyle(p).display })),
@@ -81,6 +93,12 @@ async function main() {
       return { docScroll: document.documentElement.scrollWidth > innerWidth + 1, tabsScrollable: n.scrollWidth > n.clientWidth + 1 };
     });
 
+    // Шапка занимает всю ширину контента и не схлопывается по высоте.
+    const bannerBad = !data.banner
+      || data.banner.height < 100
+      || data.banner.width < 300
+      || (data.banner.hasImage && data.banner.image === 'none');
+
     const rawDatePattern = /\b20\d{6}\b/;
     const allText = [...data.videosMeta, ...data.shortsMeta, ...data.featuredMeta, ...data.aboutMeta].join(' | ');
     const badDur = [...data.videosDur, ...data.shortsDur, ...data.featuredDur].filter(d => { const p = d.split(':'); return p.length === 2 && parseInt(p[0], 10) > 59; });
@@ -90,9 +108,9 @@ async function main() {
       author, theme,
       pass: !rawDatePattern.test(allText) && badDur.length === 0 && brokenImages.length === 0
             && tabChecks.every(t => t.ok) && stillBroken.length === 0 && !tabsScroll.docScroll && aboutViaButton.visible.length === 1 && aboutViaButton.visible[0] === 'about'
-            && errors.length === 0,
+            && !bannerBad && errors.length === 0,
       rawDateLeak: rawDatePattern.test(allText) ? allText.match(rawDatePattern) : null,
-      badDur, brokenImages, stillBroken, tabsScroll, tabChecks: tabChecks.filter(t => !t.ok), aboutViaButton, shortsSort,
+      badDur, brokenImages, stillBroken, tabsScroll, tabChecks: tabChecks.filter(t => !t.ok), aboutViaButton, shortsSort, bannerBad,
       data, errors,
     });
     await page.screenshot({ path: path.join(SHOTS, `chan-${theme}-${author.replace(/\s+/g, '_')}.png`), fullPage: true });

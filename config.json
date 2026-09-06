@@ -3,5 +3,20 @@
   "avatars_dir": "avas",
   "thumbnails_dir": "thumbnails",
   "playlists_dir": "playlists",
-  "subtitles_dir": "subtitles"
+  "subtitles_dir": "subtitles",
+  "youtube_auth": {
+    "player_client": "",
+    "po_token": "bgutil:http",
+    "bgutil_base_url": "http://127.0.0.1:4416"
+  },
+  "downloads": {
+    "audio_langs": [
+      "ru"
+    ],
+    "subtitle_langs": [
+      "ru"
+    ],
+    "subtitles_enabled": false,
+    "subtitles_auto": true
+  }
 }

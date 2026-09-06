@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 download_thumbnails.py – создаёт превью (thumbnail) для всех видео, у которых его нет.
-Требуется ffmpeg (установите отдельно или укажите путь в переменной FFMPEG_PATH).
+Требуется ffmpeg: берётся встроенный в сборку, иначе из PATH, иначе --ffmpeg PATH.
 Использование:
     python download_thumbnails.py [--force] [--ffmpeg PATH]
 """
@@ -15,20 +15,24 @@ from pathlib import Path
 
 # Добавляем путь к проекту для импорта utils
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import paths
+from proc import NO_WINDOW as _NO_WINDOW
 from utils import safe_name
 
 # ========== ЗАГРУЗКА КОНФИГА ==========
 def load_config():
     default = {"video_dir": "videos"}
-    config_file = os.path.join(os.path.dirname(__file__), "config.json")
+    config_file = paths.data_path("config.json")
     if os.path.exists(config_file):
+        # Голый except глотал KeyboardInterrupt/SystemExit; битый конфиг
+        # оставляет значения по умолчанию.
         try:
             with open(config_file, 'r', encoding='utf-8') as f:
                 cfg = json.load(f)
                 if "video_dir" in cfg:
                     default["video_dir"] = cfg["video_dir"]
-        except:
-            pass
+        except (OSError, ValueError) as e:
+            print(f"[warn] не удалось прочитать {config_file}: {e}")
     return default
 
 # ========== ПОИСК ВСЕХ ВИДЕО ==========
@@ -71,6 +75,9 @@ def get_thumbnail_from_json(video_path):
                 break
         else:
             return None
+    # AttributeError и TypeError здесь реальны, а не теоретические: в metadata
+    # элементы thumbnails иногда оказываются строками, а не объектами, и тогда
+    # t.get падает. Голый except это скрывал вместе с KeyboardInterrupt.
     try:
         with open(json_path, 'r', encoding='utf-8') as jf:
             meta = json.load(jf)
@@ -80,7 +87,8 @@ def get_thumbnail_from_json(video_path):
         # Выбираем превью с наибольшим разрешением
         best = max(thumbnails, key=lambda t: t.get('width', 0) * t.get('height', 0))
         return best.get('url')
-    except:
+    except (OSError, ValueError, AttributeError, TypeError) as e:
+        print(f"[warn] не удалось выбрать превью из {json_path}: {e}")
         return None
 
 # ========== СКАЧИВАНИЕ ПРЕВЬЮ ПО URL ==========
@@ -105,28 +113,35 @@ def download_thumbnail_from_url(url, output_path):
     return None
 
 # ========== ИЗВЛЕЧЕНИЕ КАДРА ЧЕРЕЗ FFMPEG ==========
-def extract_thumbnail_ffmpeg(video_path, output_path, ffmpeg_path='ffmpeg'):
+def extract_thumbnail_ffmpeg(video_path, output_path, ffmpeg_path=None):
     """Извлекает кадр на 1-й секунде видео."""
     # Выходной файл будет .jpg
     out_file = output_path + '.jpg'
-    cmd = [ffmpeg_path, '-i', video_path, '-ss', '00:00:01', '-vframes', '1', '-q:v', '2', out_file, '-y']
+    cmd = [ffmpeg_path or paths.ffmpeg_path(), '-i', video_path, '-ss', '00:00:01',
+           '-vframes', '1', '-q:v', '2', out_file, '-y']
+    # check=True даёт CalledProcessError, отсутствие ffmpeg — OSError.
+    # Голый except заодно перехватывал KeyboardInterrupt, поэтому прервать
+    # долгий проход по библиотеке во время работы ffmpeg не получалось.
     try:
-        subprocess.run(cmd, check=True, capture_output=True)
+        subprocess.run(cmd, check=True, capture_output=True, **_NO_WINDOW)
         if os.path.exists(out_file):
             return out_file
-    except:
-        pass
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"[warn] ffmpeg не смог извлечь кадр из {video_path}: {e}")
     return None
 
 # ========== ОСНОВНАЯ ФУНКЦИЯ ==========
-def main():
+def main(argv=None):
+    """Точка входа. argv передаётся явно: вызов из приложения не должен читать
+    sys.argv сервера, иначе argparse завершит процесс на чужом ключе."""
     parser = argparse.ArgumentParser(description="Генерация превью для видео")
     parser.add_argument("--force", action="store_true", help="Перезаписать существующие превью")
-    parser.add_argument("--ffmpeg", default="ffmpeg", help="Путь к ffmpeg (по умолчанию ffmpeg)")
-    args = parser.parse_args()
+    parser.add_argument("--ffmpeg", default=None,
+                        help="Путь к ffmpeg (по умолчанию встроенный или из PATH)")
+    args = parser.parse_args(argv)
 
     config = load_config()
-    video_dir = os.path.join(os.path.dirname(__file__), config["video_dir"])
+    video_dir = paths.user_path(config["video_dir"])
     if not os.path.isdir(video_dir):
         print(f"Папка с видео не найдена: {video_dir}")
         return
@@ -149,7 +164,8 @@ def main():
                 continue
         # Если не вышло – через ffmpeg
         print("  Превью из метаданных не получено, извлекаю кадр через ffmpeg...")
-        result = extract_thumbnail_ffmpeg(vpath, base_name, args.ffmpeg)
+        result = extract_thumbnail_ffmpeg(vpath, base_name,
+                                         args.ffmpeg or paths.ffmpeg_path())
         if result:
             print(f"  ✓ Кадр сохранён: {result}")
             success += 1

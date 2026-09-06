@@ -1,21 +1,26 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="dark">
+<html lang="{{ ui_lang }}" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{ meta.get('title', 'Видео') }} - LocalTube</title>
-    <link id="theme-style" rel="stylesheet" href="">
     <link id="fonts-link" rel="stylesheet" href="/static/css/fonts.css">
-    <link rel="stylesheet" href="/static/css/mobile.css">
+    <!-- mobile.js подключён и здесь: страница имеет тот же сайдбар-драйвер, но
+         скрипта не было, поэтому закрытие по Escape и возврат фокуса работали
+         на всех страницах, кроме этой. -->
+    <script src="/static/js/mobile.js" defer></script>
     <style>
+        /* --yt-bg-solid — непрозрачная версия фона. Нужна там, где фон служит
+           цветом текста (инверсия на активных элементах): в frutiger-aero
+           --yt-bg равен transparent, и такой текст становился невидимым. */
         :root[data-theme="dark"] {
-            --yt-bg: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa;
+            --yt-bg: #0f0f0f; --yt-bg-solid: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa;
             --yt-spec-border: #3f3f3f; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: #272727;
             --yt-button-hover: #3f3f3f; --yt-header-height: 56px; --yt-search-bg: #121212;
             --yt-modal-bg: #212121;
         }
         :root[data-theme="light"] {
-            --yt-bg: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060;
+            --yt-bg: #ffffff; --yt-bg-solid: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060;
             --yt-spec-border: #e5e5e5; --yt-spec-icon-inactive: #030303; --yt-button-bg: #f2f2f2;
             --yt-button-hover: #e0e0e0; --yt-header-height: 56px; --yt-search-bg: #f8f8f8;
             --yt-modal-bg: #ffffff;
@@ -138,6 +143,26 @@
         .hide-channel-btn:hover { background-color: var(--yt-button-hover); }
         .hide-channel-btn svg { width: 18px; height: 18px; fill: currentColor; transition: fill 0.3s ease; }
 
+        /* Сохранение видео в свой плейлист. Стилем повторяет кнопку скрытия
+           канала: обе стоят в одном ряду под названием видео. */
+        .save-btn { background: none; border: none; cursor: pointer; padding: 6px 12px; border-radius: 20px; background-color: var(--yt-button-bg); color: var(--yt-spec-text-primary); font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; }
+        .save-btn:hover { background-color: var(--yt-button-hover); }
+        .save-btn svg { width: 18px; height: 18px; fill: currentColor; }
+        .collection-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1500; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+        .collection-modal.active { opacity: 1; pointer-events: all; }
+        .collection-modal-box { background: var(--yt-modal-bg); width: 90%; max-width: 420px; max-height: 80vh; overflow-y: auto; border-radius: 12px; padding: 20px; border: 1px solid var(--yt-spec-border); }
+        .collection-modal-box h3 { margin-bottom: 14px; font-size: 18px; }
+        .collection-option { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .collection-option:hover { background: var(--yt-button-hover); }
+        .collection-option input { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
+        .collection-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .collection-new { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--yt-spec-border); }
+        .collection-new input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--yt-spec-border); background: var(--yt-bg); color: var(--yt-spec-text-primary); font-family: inherit; font-size: 14px; }
+        .collection-new button { padding: 9px 14px; border: none; border-radius: 8px; background: #3ea6ff; color: #000; cursor: pointer; font-family: inherit; font-size: 14px; }
+        .collection-modal-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 16px; }
+        .collection-modal-actions button { padding: 8px 14px; border: none; border-radius: 18px; background: var(--yt-button-bg); color: var(--yt-spec-text-primary); cursor: pointer; font-family: inherit; font-size: 14px; }
+        #collectionModalStatus { font-size: 13px; color: var(--yt-spec-text-secondary); min-height: 18px; margin-top: 10px; }
+
         .description-box { background-color: var(--yt-button-bg); border-radius: 12px; padding: 12px; font-size: 14px; line-height: 20px; color: var(--yt-spec-text-primary); white-space: pre-wrap; margin-bottom: 16px; transition: background-color 0.5s ease, color 0.5s ease; }
         .subtitles-section { background-color: var(--yt-button-bg); border-radius: 12px; padding: 12px; margin-bottom: 20px; transition: background-color 0.5s ease; }
         .subtitles-section h3 { margin-bottom: 12px; font-size: 16px; transition: color 0.5s ease; }
@@ -153,7 +178,7 @@
         .related-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; }
         .related-tab { background-color: var(--yt-button-bg); border: none; color: var(--yt-spec-text-primary); padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: background 0.3s ease, color 0.5s ease; }
         .related-tab:hover { background-color: var(--yt-button-hover); }
-        .related-tab.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg); }
+        .related-tab.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg-solid, #0f0f0f); }
         .related-list { display: flex; flex-direction: column; gap: 8px; }
         .related-card { display: flex; gap: 8px; text-decoration: none; cursor: pointer; border-radius: 8px; padding: 4px; transition: background 0.3s ease; }
         .related-card:hover { background-color: var(--yt-button-hover); }
@@ -172,7 +197,12 @@
         .settings-menu-header { padding: 10px 16px; font-weight: 500; cursor: pointer; border-bottom: 1px solid var(--yt-spec-border); margin-bottom: 4px; transition: border-color 0.5s ease; }
         .settings-menu-item { padding: 10px 16px; cursor: pointer; border-radius: 8px; transition: background 0.3s ease; }
         .settings-menu-item:hover { background-color: var(--yt-button-hover); }
-        .settings-menu-item.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg); }
+        .settings-menu-item.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg-solid, #0f0f0f); }
+        /* Меню качества насчитывает 11 ступеней (оригинал, 2160p...144p и два
+           улучшайзера) и в высоту не влезает в плеер: верхние пункты выезжали за
+           его край, попадали под содержимое страницы и не нажимались. Ограничение
+           по высоте плеера с прокруткой держит меню внутри. */
+        #playerQualityMenu #qualityOptionsList { max-height: min(50vh, 320px); overflow-y: auto; }
         .quality-option { padding: 8px 16px; cursor: pointer; border-radius: 6px; transition: background 0.3s ease; }
         .quality-option:hover { background-color: var(--yt-button-hover); }
         .quality-option.active { background-color: #3ea6ff; color: #000; }
@@ -196,12 +226,7 @@
             .edit-buttons .edit-btn, .hide-channel-btn { flex: 0 0 auto; min-height: 36px; }
             .related-thumb { width: 40%; height: auto; aspect-ratio: 16 / 9; }
             .related-card { min-width: 0; }
-            .player-controls { padding-inline: 6px; }
-            .controls-left, .controls-right { gap: 0; min-width: 0; }
-            .control-btn { width: 38px; height: 34px; }
-            .time-display { margin-left: 2px; font-size: 12px; white-space: nowrap; }
             .volume-slider { display: none; }
-            .controls-right .control-btn:nth-child(1), .controls-right .control-btn:nth-child(2) { display: none; }
             #toast-container { inset-inline: 12px; bottom: 12px; }
             .toast { width: 100%; }
             .page-content.theater-mode-active .yt-player-container { height: auto; aspect-ratio: 16 / 9; }
@@ -212,6 +237,26 @@
             .related-title { -webkit-line-clamp: 2; }
         }
     </style>
+    <!-- Файл темы после инлайновых стилей: специфичность :root[data-theme]
+         одинаковая, иначе токены шаблона перебивают midnight/glass/aero. -->
+    <link id="theme-style" rel="stylesheet">
+    <!-- ui.css после инлайновых стилей и до mobile.css: специфичность равная,
+         поэтому побеждает объявленный последним, а мобильные правки должны
+         оставаться сверху. -->
+    <link rel="stylesheet" href="/static/css/ui.css">
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    <!-- Синхронно, после ссылки на файл темы и до разметки: иначе
+         applyStylesheet не находит элемент, а тема встаёт после первой
+         отрисовки. -->
+    <!-- Перевод строк, которые собирает клиентский код. До theme.js:
+         t() должна быть готова к первому вызову. -->
+    {# Словарь идёт вместе со страницей: отдельный запрос приходил позже
+       первой отрисовки, и подписи из скриптов оставались русскими. #}
+    {% if ui_strings %}<script>
+        window.LT_I18N = {{ ui_strings|tojson }};
+    </script>{% endif %}
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/theme.js"></script>
 </head>
 <body>
     <!-- Фоновые слои -->
@@ -240,15 +285,15 @@
             <a href="/" class="logo"><svg viewBox="0 0 24 24"><path d="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5s-6.25,0-7.81,0.42c-0.88,0.23-1.54,0.89-1.77,1.77 C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42 c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19z M10,15V9l5.2,3L10,15z"/></svg>LocalTube</a>
         </div>
         <div class="header-right">
-            <a href="/" class="user-profile-btn"><span class="user-name-display" id="headerUsername">Гость</span><div class="user-avatar-placeholder" id="headerAvatar">Г</div></a>
+            <a href="/" class="user-profile-btn"><span class="user-name-display" id="headerUsername">{{ 'Гость'|t }}</span><div class="user-avatar-placeholder" id="headerAvatar">{{ ('Гость'|t)[:1] }}</div></a>
         </div>
     </header>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <aside class="sidebar-drawer" id="sidebarDrawer">
-        <a href="/" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg><span>На главную</span></a>
+        <a href="/" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg><span>{{ 'На главную'|t }}</span></a>
         <div class="sidebar-divider"></div>
-        <a href="/" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>Настройки профиля</span></a>
+        <a href="/" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>{{ 'Настройки профиля'|t }}</span></a>
     </aside>
 
     <div class="page-content" id="pageContent">
@@ -283,7 +328,7 @@
                     <video class="short-video" src="{{ url_for('media', filename=s.url) }}" loop playsinline></video>
                     <div class="short-overlay">
                         <div class="short-title">{{ s.title }}</div>
-                        <div class="short-author">{{ s.author }} • {{ s.size_mb }} МБ</div>
+                        <div class="short-author">{{ s.author }} • {{ s.size_mb }} {{ 'МБ'|t }}</div>
                     </div>
                     <div class="short-controls-row">
                         <button class="short-btn short-speed-btn">1x</button>
@@ -291,6 +336,7 @@
                             <div class="short-vol-slider-container"><input type="range" class="short-vol-slider" min="0" max="1" step="0.05" value="0.5"></div>
                             <button class="short-btn short-mute-btn"><svg viewBox="0 0 24 24"><use href="#icon-vol-high"></use></svg></button>
                         </div>
+                        {% if is_owner|default(true) %}<button class="short-btn short-save-btn" data-video-id="{{ s.id }}" title="{{ 'Сохранить в плейлист'|t }}">🔖</button>{% endif %}
                     </div>
                 </div>
             </div>
@@ -301,11 +347,14 @@
                     const shortSpeeds = [0.5, 1, 1.5, 2];
                     let globalShortVol = 0.5, globalShortMute = true;
                     const shortWatchedSent = new Set();
+                    // Гость из локальной сети историю владельца не пополняет.
+                    const shortsOwner = {{ 'true' if is_owner|default(true) else 'false' }};
                     function markShortWatched(id) {
                         if (!id || shortWatchedSent.has(id)) return;
                         // Наблюдатель срабатывает при каждой прокрутке — отправляем
                         // отметку один раз на сессию.
                         shortWatchedSent.add(id);
+                        if (!shortsOwner) return;
                         fetch(`/api/userdata/watched/${encodeURIComponent(id)}`, { method: 'POST' })
                             .catch(err => console.error('Не удалось отметить просмотр:', err));
                     }
@@ -389,8 +438,8 @@
                 {% if video_url %}
                 <div class="yt-player-container" id="playerContainer">
                     <video id="videoElement" autoplay src="{{ video_url }}" type="{{ mime_type }}"></video>
-                    <div class="seek-animation seek-left" id="seekLeftAnim"><svg viewBox="0 0 24 24"><use href="#icon-rewind-left"></use></svg><span>-10 сек</span></div>
-                    <div class="seek-animation seek-right" id="seekRightAnim"><svg viewBox="0 0 24 24"><use href="#icon-rewind-right"></use></svg><span>+10 сек</span></div>
+                    <div class="seek-animation seek-left" id="seekLeftAnim"><svg viewBox="0 0 24 24"><use href="#icon-rewind-left"></use></svg><span>{{ '-10 сек'|t }}</span></div>
+                    <div class="seek-animation seek-right" id="seekRightAnim"><svg viewBox="0 0 24 24"><use href="#icon-rewind-right"></use></svg><span>{{ '+10 сек'|t }}</span></div>
                     <div class="player-gradient"></div>
                     <div class="player-controls">
                         <div class="progress-container" id="progressContainer"><div class="progress-loaded" id="progressLoaded"></div><div class="progress-fill" id="progressFill"></div><div class="progress-scrubber" id="progressScrubber"></div><div class="seek-preview" id="seekPreview"><div class="seek-preview-image" id="seekPreviewImage"></div><span class="seek-preview-time" id="seekPreviewTime">0:00</span></div></div>
@@ -402,85 +451,96 @@
                             </div>
                             <div class="controls-right">
                                 <button class="control-btn" id="speedBtn" style="font-size: 14px; font-weight: bold; width: auto; padding: 0 8px;">1x</button>
-                                <button class="control-btn" id="subtitlesBtn" title="Субтитры"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6v-2zm4 0h8v2h-8v-2zm0 4h6v2h-6v-2z"/></svg></button>
+                                <button class="control-btn" id="subtitlesBtn" title="{{ 'Субтитры'|t }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6v-2zm4 0h8v2h-8v-2zm0 4h6v2h-6v-2z"/></svg></button>
                                 <button class="control-btn" id="pipBtn"><svg viewBox="0 0 24 24"><use href="#icon-pip"></use></svg></button>
                                  <button class="control-btn" id="theaterBtn"><svg viewBox="0 0 24 24"><use href="#icon-theater"></use></svg></button>
-                                 <button class="control-btn" id="settingsBtn" title="Настройки (Качество/Шакализатор/Улучшайзер)"><svg viewBox="0 0 24 24"><use href="#icon-settings"></use></svg></button>
+                                 <button class="control-btn" id="settingsBtn" title="{{ 'Настройки (Качество/Шакализатор/Улучшайзер)'|t }}"><svg viewBox="0 0 24 24"><use href="#icon-settings"></use></svg></button>
                                  <button class="control-btn" id="fullscreenBtn"><svg viewBox="0 0 24 24" id="fullscreenIconSvg"><use href="#icon-fullscreen"></use></svg></button>
                              </div>
                          </div>
 
                           <!-- Меню качества (Шакализатор / Улучшайзер) -->
                           <div id="playerSettingsMenu" class="player-settings-menu">
-                              <div class="settings-menu-header" onclick="document.getElementById('playerSettingsMenu').style.display='none'">⚙️ Настройки</div>
-                              <div class="settings-menu-item" id="menuQualityBtn">Качество <span id="currentQualityLabel" style="color:#aaa;">Оригинал</span></div>
-                              <div class="settings-menu-item" id="menuEqualizerBtn">Шакализатор</div>
-                              <div class="settings-menu-item" id="menuBassBoosterBtn">Улучшайзер (Басы)</div>
+                              <div class="settings-menu-header" onclick="document.getElementById('playerSettingsMenu').style.display='none'">{{ '⚙️ Настройки'|t }}</div>
+                              <div class="settings-menu-item" id="menuQualityBtn">{{ 'Качество'|t }} <span id="currentQualityLabel" style="color:#aaa;">{{ 'Оригинал'|t }}</span></div>
+                              <div class="settings-menu-item" id="menuEqualizerBtn">{{ 'Шакализатор'|t }}</div>
+                              <div class="settings-menu-item" id="menuBassBoosterBtn">{{ 'Улучшайзер (Басы)'|t }}</div>
                           </div>
                           <div id="playerQualityMenu" class="player-settings-menu" style="display:none;">
-                              <div class="settings-menu-header" id="backToSettingsBtn">← Назад к настройкам</div>
+                              <div class="settings-menu-header" id="backToSettingsBtn">{{ '← Назад к настройкам'|t }}</div>
                              <div id="qualityOptionsList"></div>
                           </div>
                           <!-- Меню шакализатора -->
                           <div id="playerEqualizerMenu" class="player-settings-menu" style="display:none; max-width: 240px;">
-                              <div class="settings-menu-header" onclick="showPlayerSettingsMenu()">← Назад к настройкам</div>
+                              <div class="settings-menu-header" onclick="showPlayerSettingsMenu()">{{ '← Назад к настройкам'|t }}</div>
                               <div id="equalizerPresets" style="padding: 8px;">
-                                  <div class="quality-option" onclick="setEqualizerPreset('flat')">🔊 Плоский (выключен)</div>
-                                  <div class="quality-option" onclick="setEqualizerPreset('pop')">🎤 Поп</div>
-                                  <div class="quality-option" onclick="setEqualizerPreset('rock')">🎸 Рок</div>
-                                  <div class="quality-option" onclick="setEqualizerPreset('bass')">🎵 Басы в унисон</div>
-                                  <div class="quality-option" onclick="setEqualizerPreset('dance')">💃 Танцы</div>
-                                  <div class="quality-option" onclick="setEqualizerPreset('acoustic')">🎸 Акустика</div>
-                                  <div class="quality-option" onclick="setEqualizerPreset('classical')">🎼 Классика</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('flat')">{{ '🔊 Плоский (выключен)'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('pop')">{{ '🎤 Поп'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('rock')">{{ '🎸 Рок'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('bass')">{{ '🎵 Басы в унисон'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('dance')">{{ '💃 Танцы'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('acoustic')">{{ '🎸 Акустика'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('classical')">{{ '🎼 Классика'|t }}</div>
                               </div>
                           </div>
                           <!-- Меню улучшайзера -->
                           <div id="playerBassMenu" class="player-settings-menu" style="display:none; max-width: 220px;">
-                              <div class="settings-menu-header" onclick="showPlayerSettingsMenu()">← Назад к настройкам</div>
+                              <div class="settings-menu-header" onclick="showPlayerSettingsMenu()">{{ '← Назад к настройкам'|t }}</div>
                               <div id="bassBoostOptions" style="padding: 8px;">
-                                  <div class="quality-option" onclick="setBassBoost(0)">🔊 Выключен</div>
-                                  <div class="quality-option" onclick="setBassBoost(3)">🔊 Слабый (+3 дБ)</div>
-                                  <div class="quality-option" onclick="setBassBoost(6)">🔊 Средний (+6 дБ)</div>
-                                  <div class="quality-option" onclick="setBassBoost(10)">🔊 Сильный (+10 дБ)</div>
+                                  <div class="quality-option" onclick="setBassBoost(0)">{{ '🔊 Выключен'|t }}</div>
+                                  <div class="quality-option" onclick="setBassBoost(3)">{{ '🔊 Слабый (+3 дБ)'|t }}</div>
+                                  <div class="quality-option" onclick="setBassBoost(6)">{{ '🔊 Средний (+6 дБ)'|t }}</div>
+                                  <div class="quality-option" onclick="setBassBoost(10)">{{ '🔊 Сильный (+10 дБ)'|t }}</div>
                               </div>
                           </div>
                       </div>
                  </div>
-                <a href="{{ video_url }}" download class="download-file-btn">📥 Скачать видео (исходный файл)</a>
+                {% if is_owner|default(true) %}<a href="{{ video_url }}" download class="download-file-btn">{{ '📥 Скачать видео (исходный файл)'|t }}</a>{% endif %}
                 {% else %}
-                <div style="height: 50vh; display:flex; align-items:center; justify-content:center; color:#aaa; margin-bottom: 24px;">Видеофайл не найден</div>
+                <div style="height: 50vh; display:flex; align-items:center; justify-content:center; color:#aaa; margin-bottom: 24px;">{{ 'Видеофайл не найден'|t }}</div>
                 {% endif %}
                 <div class="content-wrapper">
                     <h1>{{ meta.get('title', folder) }}</h1>
                     <div class="meta-row">
                         <div class="channel-info">
                             <div class="channel-avatar">{% if author_avatar %}<img src="{{ author_avatar }}" alt="{{ author }}">{% else %}{{ meta.get('uploader', author)[:1]|upper if meta.get('uploader', author) else 'U' }}{% endif %}</div>
-                            <div class="channel-details"><span class="channel-name" id="channelName">{{ meta.get('uploader', author) }}</span><span class="channel-subscribers">LocalTube • {{ file_size_mb }} МБ{% if publish_date %} • <span class="publish-date">📅 {{ publish_date }}</span>{% endif %}</span></div>
-                            <button class="hide-channel-btn" id="hideChannelBtn" title="Скрыть канал"><svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg><span id="hideChannelText">Скрыть канал</span></button>
-                            {% if meta.get('source') == 'user' %}<div class="edit-buttons"><button class="edit-btn" onclick="window.location.href='/edit/{{ meta.id }}'">✏️ Редактировать</button><button class="edit-btn delete-btn" onclick="deleteUserVideo('{{ meta.id }}', '{{ meta.get('uploader', author) }}')">🗑️ Удалить</button></div>{% endif %}
+                            <div class="channel-details"><span class="channel-name" id="channelName">{{ meta.get('uploader', author) }}</span><span class="channel-subscribers">LocalTube • {{ file_size_mb }} {{ 'МБ'|t }}{% if publish_date %} • <span class="publish-date">📅 {{ publish_date }}</span>{% endif %}</span></div>
+                            {# Скрытие канала, плейлисты и правка — только владельцу. #}
+                            {% if is_owner|default(true) %}
+                            <button class="hide-channel-btn" id="hideChannelBtn" title="{{ 'Скрыть канал'|t }}"><svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg><span id="hideChannelText">{{ 'Скрыть канал'|t }}</span></button>
+                            <button type="button" class="save-btn" id="saveToCollectionBtn" title="{{ 'Сохранить в плейлист'|t }}"><svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zM2 16h8v-2H2v2zm19.5-4.5L23 13l-6.99 7-4.51-4.5L13 14l3.01 3 5.49-5.5z"/></svg><span>{{ 'Сохранить'|t }}</span></button>
+                            {% if meta.get('source') == 'user' %}<div class="edit-buttons"><button class="edit-btn" onclick="window.location.href='/edit/{{ meta.id }}'">{{ '✏️ Редактировать'|t }}</button><button class="edit-btn delete-btn" onclick="deleteUserVideo('{{ meta.id }}', '{{ meta.get('uploader', author) }}')">{{ '🗑️ Удалить'|t }}</button></div>{% endif %}
+                            {% endif %}
                         </div>
                     </div>
                     <div class="description-box">{{ meta.get('description') or 'Нет описания' }}</div>
 
                     <div class="subtitles-section" id="subtitlesSection">
-                        <h3>📝 Субтитры и аудио</h3>
+                        <h3>{{ '📝 Субтитры и аудио'|t }}</h3>
                         <div id="subtitleList" class="subtitle-list"></div>
+                        {# Загрузка субтитров и MP3 пишет файлы на диск владельца:
+                           гостю показываем только уже готовые дорожки. #}
+                        {% if is_owner|default(true) %}
                         <div class="subtitle-actions">
-                            <input type="text" id="subtitleLang" placeholder="Код языка (ru, en)" value="ru" size="5">
+                            <input type="text" id="subtitleLang" placeholder="{{ 'Код языка (ru, en)'|t }}" value="ru" size="5">
                             <input type="file" id="subtitleFile" accept=".vtt,.srt" style="display:none;">
-                            <button id="uploadSubtitleBtn">📁 Загрузить свой файл</button>
-                            {% if video_source == 'youtube' %}<button id="downloadSubtitleBtn">⬇️ Скачать с YouTube</button>{% endif %}
-                            <button id="downloadAudioBtn">🎵 Скачать аудио (MP3)</button>
+                            <button id="uploadSubtitleBtn">{{ '📁 Загрузить свой файл'|t }}</button>
+                            {% if video_source == 'youtube' %}<button id="downloadSubtitleBtn">{{ '⬇️ Скачать с YouTube'|t }}</button>{% endif %}
+                            <button id="downloadAudioBtn">{{ '🎵 Скачать аудио (MP3)'|t }}</button>
                         </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
             <div class="secondary-column">
-                <div class="related-tabs"><button class="related-tab active" onclick="filterRelated('all', this)">Все видео</button><button class="related-tab" onclick="filterRelated('author', this)">От автора</button></div>
+                {# data-filter, а не подпись кнопки: раньше активная вкладка
+                   определялась сравнением textContent с «Все видео», и перевод
+                   интерфейса сбрасывал бы фильтр на «От автора». #}
+                <div class="related-tabs"><button class="related-tab active" data-filter="all" onclick="filterRelated('all', this)">{{ 'Все видео'|t }}</button><button class="related-tab" data-filter="author" onclick="filterRelated('author', this)">{{ 'От автора'|t }}</button></div>
                 <div class="related-list" id="relatedList">
                     {% for rv in recommended_videos %}
                     <a href="{{ url_for('watch', vid_id=rv.id) }}" class="related-card" data-author="{{ rv.author }}">
-                        <div class="related-thumb">{% if rv.thumb %}<img src="{{ url_for('media', filename=rv.author ~ '/' ~ rv.folder ~ '/' ~ rv.thumb) }}" loading="lazy">{% else %}<div style="background:#272727; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">Нет</div>{% endif %}</div>
+                        <div class="related-thumb">{% if rv.thumb %}<img src="{{ url_for('media', filename=rv.author ~ '/' ~ rv.folder ~ '/' ~ rv.thumb) }}" loading="lazy">{% else %}<div style="background:#272727; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет'|t }}</div>{% endif %}</div>
                         <div class="related-info"><div class="related-title">{{ rv.title }}</div><div class="related-author">{{ rv.author }}</div></div>
                     </a>
                     {% endfor %}
@@ -505,124 +565,22 @@
         {% endif %}
     </div>
 
+    {# В ленте Shorts панели нет: ролик занимает весь экран, а его кнопки стоят
+       у нижнего края и оказались бы под навигацией. #}
+    {% if not is_short %}
+    {% include '_mobile_nav.html' with context %}
+    {% endif %}
+
     <div id="toast-container"></div>
 
     <script>
-        // ========== ТЕМЫ И КРОССФЕЙД ==========
-        let activeBgLayer = 2;
-        let bgTimer = null;
-
-        function setBackgroundImage(url) {
-            const layer1 = document.getElementById('bg-layer-1');
-            const layer2 = document.getElementById('bg-layer-2');
-            let targetLayer, otherLayer;
-            if (activeBgLayer === 2) {
-                targetLayer = layer1;
-                otherLayer = layer2;
-            } else {
-                targetLayer = layer2;
-                otherLayer = layer1;
-            }
-            targetLayer.style.backgroundImage = `url('${url}')`;
-            targetLayer.style.opacity = 0;
-            requestAnimationFrame(() => {
-                targetLayer.style.opacity = 1;
-                otherLayer.style.opacity = 0;
-            });
-            setTimeout(() => {
-                activeBgLayer = (activeBgLayer === 2) ? 1 : 2;
-                otherLayer.style.backgroundImage = 'none';
-            }, 1600);
-        }
-
-        async function loadThemeBackground(theme) {
-            const layer1 = document.getElementById('bg-layer-1');
-            const layer2 = document.getElementById('bg-layer-2');
-            if (theme !== 'frutiger-aero') {
-                layer1.style.backgroundImage = 'none';
-                layer2.style.backgroundImage = 'none';
-                layer1.style.opacity = 0;
-                layer2.style.opacity = 0;
-                if (bgTimer) clearInterval(bgTimer);
-                bgTimer = null;
-                return;
-            }
-
-            try {
-                const response = await fetch(`/api/theme-backgrounds/${theme}`);
-                const images = await response.json();
-                if (images.length === 0) {
-                    layer1.style.backgroundImage = 'none';
-                    layer2.style.backgroundImage = 'none';
-                    layer1.style.opacity = 0;
-                    layer2.style.opacity = 0;
-                    return;
-                }
-                const randomIndex = Math.floor(Math.random() * images.length);
-                const imageName = images[randomIndex];
-                const screenW = window.innerWidth;
-                const screenH = window.innerHeight;
-                const imageUrl = `/static/images/themes/${theme}/${encodeURIComponent(imageName)}?w=${screenW}&h=${screenH}`;
-                setBackgroundImage(imageUrl);
-
-                if (bgTimer) clearInterval(bgTimer);
-                bgTimer = setInterval(async () => {
-                    const resp = await fetch(`/api/theme-backgrounds/${theme}`);
-                    const newImages = await resp.json();
-                    if (newImages.length === 0) return;
-                    const idx = Math.floor(Math.random() * newImages.length);
-                    const newName = newImages[idx];
-                    const newW = window.innerWidth;
-                    const newH = window.innerHeight;
-                    const newUrl = `/static/images/themes/${theme}/${encodeURIComponent(newName)}?w=${newW}&h=${newH}`;
-                    setBackgroundImage(newUrl);
-                }, 30000);
-
-            } catch (e) {
-                console.error('Ошибка загрузки фона:', e);
-                layer1.style.backgroundImage = 'none';
-                layer2.style.backgroundImage = 'none';
-                layer1.style.opacity = 0;
-                layer2.style.opacity = 0;
-            }
-        }
-
-        function loadTheme(theme) {
-            const link = document.getElementById('theme-style');
-            const fontsLink = document.getElementById('fonts-link');
-            if (!theme || theme === 'dark' || theme === 'light') {
-                link.href = '';
-                document.documentElement.setAttribute('data-theme', theme || 'dark');
-                if (fontsLink) fontsLink.disabled = false;
-                document.documentElement.style.fontFamily = "'Roboto', Arial, sans-serif";
-                if (bgTimer) clearInterval(bgTimer);
-                bgTimer = null;
-                document.getElementById('bg-layer-1').style.backgroundImage = 'none';
-                document.getElementById('bg-layer-2').style.backgroundImage = 'none';
-                document.getElementById('bg-layer-1').style.opacity = 0;
-                document.getElementById('bg-layer-2').style.opacity = 0;
-            } else {
-                link.href = '/static/css/themes/' + theme + '.css';
-                document.documentElement.setAttribute('data-theme', theme);
-                if (fontsLink) fontsLink.disabled = false;
-                if (theme === 'frutiger-aero') {
-                    document.documentElement.style.fontFamily = "'Aero_03', Arial, sans-serif";
-                } else {
-                    document.documentElement.style.fontFamily = "'Roboto', Arial, sans-serif";
-                }
-                loadThemeBackground(theme);
-            }
-            localStorage.setItem('lt_theme', theme || 'dark');
-        }
-
-        // Инициализация темы
-        const savedTheme = localStorage.getItem('lt_theme') || 'dark';
-        loadTheme(savedTheme);
+        // Тема, стиль и обои — /static/js/theme.js (единая реализация для всех
+        // страниц). Раньше здесь была своя копия на 110 строк.
 
         // ========== ПРОФИЛЬ ==========
-        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"username":"Гость", "avatar":""}');
+        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"avatar":""}');
         function applyProfileUI() {
-            const username = userSettings.username || 'Гость';
+            const username = userSettings.username || t('Гость');
             const usernameEl = document.getElementById('headerUsername');
             const avatarBox = document.getElementById('headerAvatar');
             if (usernameEl) usernameEl.textContent = username;
@@ -631,7 +589,7 @@
             if (userSettings.avatar) {
                 const image = document.createElement('img');
                 image.src = userSettings.avatar;
-                image.alt = 'Аватар';
+                image.alt = t('Аватар');
                 avatarBox.append(image);
             } else {
                 avatarBox.textContent = username.charAt(0).toUpperCase();
@@ -640,14 +598,12 @@
         applyProfileUI();
 
         // ========== САЙДБАР ==========
-        const sidebarToggle = document.getElementById('sidebarToggle');
-        const sidebarDrawer = document.getElementById('sidebarDrawer');
-        const sidebarOverlay = document.getElementById('sidebarOverlay');
-        function toggleSidebar() { sidebarDrawer.classList.toggle('active'); sidebarOverlay.classList.toggle('active'); }
-        sidebarToggle.addEventListener('click', toggleSidebar);
-        sidebarOverlay.addEventListener('click', toggleSidebar);
+        // Переключение панели живёт в /static/js/mobile.js (общий слой).
 
         // ========== СКРЫТЫЕ КАНАЛЫ ==========
+        // Владелец или гость из локальной сети. Гость только смотрит: его
+        // просмотры не попадают в историю владельца.
+        const IS_OWNER = {{ 'true' if is_owner|default(true) else 'false' }};
         // Список хранится на сервере; здесь держим локальную копию для
         // мгновенной реакции интерфейса.
         let hiddenChannels = [];
@@ -657,12 +613,16 @@
         function refreshHiddenChannelUI(channelName) {
             updateHideChannelButton(channelName);
             const activeTab = document.querySelector('.related-tab.active');
-            filterRelated(activeTab?.textContent.trim() === 'Все видео' ? 'all' : 'author', activeTab);
+            filterRelated(activeTab?.dataset.filter || 'all', activeTab);
         }
 
         let hiddenChannelsReady = null;
 
         async function toggleHideChannel(channelName) {
+            // Скрытие каналов — настройка владельца. Кнопка гостю не показана,
+            // но защита нужна и здесь: иначе при сбое запроса список владельца
+            // перезаписался бы из браузера гостя.
+            if (!IS_OWNER) return;
             // Ждём загрузки списка: иначе он пуст и сервер сделает обратное.
             await hiddenChannelsReady;
             const shouldHide = !hiddenChannels.includes(channelName);
@@ -693,11 +653,14 @@
                 try {
                     localStorage.setItem('lt_hidden_channels', JSON.stringify(hiddenChannels));
                 } catch (e) { console.error('Локальное сохранение не удалось:', e); }
-                showToast('Сервер недоступен, изменение сохранено локально');
+                showToast(t('Сервер недоступен, изменение сохранено локально'));
             }
         }
 
         async function loadHiddenChannels() {
+            // Скрытые каналы — настройка владельца. Гостю сервер их уже
+            // отфильтровал, а /api/userdata для него закрыт.
+            if (!IS_OWNER) { hiddenChannels = []; return; }
             try {
                 const res = await fetch('/api/userdata');
                 if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -712,8 +675,8 @@
             const btn = document.getElementById('hideChannelBtn');
             const textSpan = document.getElementById('hideChannelText');
             if (!btn || !textSpan) return;
-            if (isChannelHidden(channelName)) { textSpan.innerText = 'Показать канал'; btn.title = 'Показать канал'; }
-            else { textSpan.innerText = 'Скрыть канал'; btn.title = 'Скрыть канал'; }
+            if (isChannelHidden(channelName)) { textSpan.innerText = t('Показать канал'); btn.title = t('Показать канал'); }
+            else { textSpan.innerText = t('Скрыть канал'); btn.title = t('Скрыть канал'); }
         }
         {% if not is_short %}
         const currentChannelName = {{ meta.get('uploader', author)|tojson }};
@@ -728,6 +691,18 @@
         (function markCurrentVideoWatched() {
             const videoId = {{ video_id|tojson }};
             if (!videoId) return;
+            if (!IS_OWNER) {
+                // Гость ведёт свою историю в своём же браузере, и в отдельном
+                // ключе: lt_history читает перенос старых данных на сервер, так
+                // что при входе по PIN история гостя уехала бы к владельцу.
+                try {
+                    const key = 'lt_guest_history';
+                    const local = JSON.parse(localStorage.getItem(key) || '[]');
+                    const next = [videoId].concat(local.filter(x => x !== videoId)).slice(0, 500);
+                    localStorage.setItem(key, JSON.stringify(next));
+                } catch (err) { console.error('Не удалось сохранить историю локально:', err); }
+                return;
+            }
             fetch(`/api/userdata/watched/${encodeURIComponent(videoId)}`, { method: 'POST' })
                 .catch(err => console.error('Не удалось отметить просмотр:', err));
         })();
@@ -934,41 +909,167 @@
                     }
                 }
             }
+            // ===== Выбор качества: 144p-2160p =====
+            // Скачанный файл лежит в одном качестве. Остальные ступени сервер
+            // пересобирает через ffmpeg и складывает рядом с исходником, поэтому
+            // готовое качество открывается сразу, а новое — после пересборки.
+            const QUALITY_VIDEO_ID = {{ video_id|tojson }};
+            // Текущее качество держим отдельно от подписи: подпись переводится,
+            // а сравнивать нужно ключ.
+            let currentQuality = 'original';
+            let qualityPollTimer = null;
+
+            function setQualityLabel(text) {
+                const label = document.getElementById('currentQualityLabel');
+                if (label) label.textContent = text;
+            }
+
             async function fetchQualityOptions() {
                 if (!qualityOptionsList) return;
-                qualityOptionsList.innerHTML = '<div style="padding: 8px 16px; color: var(--yt-spec-text-secondary);">Загрузка...</div>';
+                qualityOptionsList.innerHTML = '<div style="padding: 8px 16px; color: var(--yt-spec-text-secondary);">'
+                    + t('Загрузка') + '...</div>';
                 try {
-                    const res = await fetch('/api/direct_formats', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url: '{{ video_url }}' })
-                    });
+                    const res = await fetch('/api/quality/' + encodeURIComponent(QUALITY_VIDEO_ID));
                     const data = await res.json();
-                    if (!data.formats || data.formats.length === 0) {
-                        qualityOptionsList.innerHTML = '<div style="padding: 8px 16px; color: #ff4d4d;">Нет доступных форматов</div>';
+                    if (!data.qualities) {
+                        qualityOptionsList.innerHTML = '<div style="padding: 8px 16px; color: #ff4d4d;">'
+                            + t('Ошибка загрузки') + '</div>';
                         return;
                     }
-                    let html = '';
-                    data.formats.forEach(f => {
-                        const resLabel = f.resolution || 'Авто';
-                        const label = `<span class="quality-res">${resLabel}</span> <span class="quality-codec" style="color: var(--yt-spec-text-secondary); font-size: 12px;">${f.codec || 'лучший'}</span>`;
-                        html += `<div class="quality-option" data-format="${f.format_id || ''}" onclick="selectQuality('${f.format_id || ''}', this)">${label}</div>`;
-                    });
-                    qualityOptionsList.innerHTML = html;
+                    renderQualityOptions(data);
+                    // Пересборка, начатая раньше, продолжается на сервере:
+                    // подхватываем её прогресс, а не показываем «Пересобрать».
+                    if (Object.keys(data.tasks || {}).length) scheduleQualityPoll();
                 } catch(e) {
-                    qualityOptionsList.innerHTML = '<div style="padding: 8px 16px; color: #ff4d4d;">Ошибка загрузки</div>';
+                    qualityOptionsList.innerHTML = '<div style="padding: 8px 16px; color: #ff4d4d;">'
+                        + t('Ошибка загрузки') + '</div>';
                 }
             }
-            let selectedQuality = '';
-            window.selectQuality = function(formatId, element) {
-                document.querySelectorAll('.quality-option').forEach(el => el.classList.remove('active'));
-                element.classList.add('active');
-                selectedQuality = formatId;
-                if (menuQualityBtn) {
-                    const labelSpan = menuQualityBtn.querySelector('span:last-child');
-                    if (labelSpan) labelSpan.textContent = element.querySelector('.quality-res').textContent;
+
+            function renderQualityOptions(data) {
+                if (!qualityOptionsList) return;
+                // Порядок берём из ответа: перебор ключей JSON-объекта даёт
+                // алфавитный порядок, и 1080p оказывался ниже 144p.
+                const order = data.order || Object.keys(data.qualities);
+                const tasks = data.tasks || {};
+                qualityOptionsList.innerHTML = '';
+                order.forEach(key => {
+                    const item = data.qualities[key];
+                    if (!item) return;
+                    const row = document.createElement('div');
+                    row.className = 'quality-option' + (key === currentQuality ? ' active' : '');
+                    row.dataset.quality = key;
+
+                    const name = document.createElement('span');
+                    name.className = 'quality-res';
+                    name.textContent = t(item.label);
+                    row.appendChild(name);
+
+                    const note = document.createElement('span');
+                    note.className = 'quality-codec';
+                    note.style.color = 'var(--yt-spec-text-secondary)';
+                    note.style.fontSize = '12px';
+                    const progress = tasks[key];
+                    if (progress !== undefined && progress >= 0 && progress < 100) {
+                        note.textContent = t('Пересобираем: {percent}%').replace('{percent}', progress);
+                    } else if (progress === -1) {
+                        note.textContent = t('Не удалось пересобрать');
+                    } else if (!item.available && IS_OWNER) {
+                        note.textContent = t('Пересобрать');
+                    }
+                    row.appendChild(note);
+
+                    // Гостю пересборка закрыта (/api/convert отвечает 403):
+                    // готовые качества он смотрит, недоступные не предлагаем —
+                    // кнопка с гарантированной ошибкой хуже её отсутствия.
+                    if (!item.available && !IS_OWNER) return;
+                    row.addEventListener('click', () => {
+                        if (item.available && item.url) applyQuality(key, item.url, t(item.label));
+                        else startQualityConversion(key);
+                    });
+                    qualityOptionsList.appendChild(row);
+                });
+                if (IS_OWNER) {
+                    const hint = document.createElement('div');
+                    hint.style.padding = '8px 16px';
+                    hint.style.color = 'var(--yt-spec-text-secondary)';
+                    hint.style.fontSize = '12px';
+                    hint.textContent = t('Пересборка занимает время: файл готовится один раз и потом открывается сразу.');
+                    qualityOptionsList.appendChild(hint);
                 }
-                showToast('Качество выбрано. Перезагрузите страницу для применения.');
+            }
+
+            function applyQuality(key, url, label) {
+                // Смена src сбрасывает плеер: позиция уходит в ноль, скорость
+                // возвращается к 1x, а атрибут autoplay запускает
+                // воспроизведение заново, даже если стояла пауза. Поэтому
+                // состояние снимается до переключения и возвращается после
+                // загрузки метаданных.
+                const wasPlaying = !video.paused;
+                const position = video.currentTime;
+                const rate = video.playbackRate;
+                // Громкость и выбранные субтитры переживают смену src сами:
+                // элементы <track> остаются в DOM, восстанавливать их не нужно.
+                currentQuality = key;
+                video.src = url;
+                video.addEventListener('loadedmetadata', function restore() {
+                    video.removeEventListener('loadedmetadata', restore);
+                    if (position > 0) video.currentTime = position;
+                    // Скорость возвращаем всегда: кнопка продолжала показывать
+                    // «2x», пока плеер уже играл на обычной скорости.
+                    video.playbackRate = rate;
+                    // Пауза сохраняется: с атрибутом autoplay браузер иначе
+                    // начинал играть остановленный ролик.
+                    if (wasPlaying) video.play();
+                    else video.pause();
+                });
+                video.load();
+                setQualityLabel(label);
+                if (playerQualityMenu) playerQualityMenu.style.display = 'none';
+            }
+
+            async function startQualityConversion(key) {
+                try {
+                    const res = await fetch('/api/convert/' + encodeURIComponent(QUALITY_VIDEO_ID), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ quality: key })
+                    });
+                    const data = await res.json();
+                    if (data.error) {
+                        showToast(data.error);
+                        return;
+                    }
+                    scheduleQualityPoll();
+                } catch(e) {
+                    showToast(t('Ошибка загрузки'));
+                }
+            }
+
+            function scheduleQualityPoll() {
+                if (qualityPollTimer) return;
+                qualityPollTimer = setTimeout(pollQuality, 2000);
+            }
+
+            async function pollQuality() {
+                qualityPollTimer = null;
+                try {
+                    const res = await fetch('/api/quality/' + encodeURIComponent(QUALITY_VIDEO_ID));
+                    const data = await res.json();
+                    if (!data.qualities) return;
+                    if (playerQualityMenu && playerQualityMenu.style.display !== 'none') {
+                        renderQualityOptions(data);
+                    }
+                    // Опрос продолжаем, пока есть незавершённые задачи:
+                    // пересборка идёт минутами, и без опроса пункт замирал бы
+                    // на «Пересобрать» до перезагрузки страницы.
+                    const running = Object.values(data.tasks || {})
+                        .some(p => p >= 0 && p < 100);
+                    if (running) qualityPollTimer = setTimeout(pollQuality, 2000);
+                } catch(e) {
+                    // Сеть моргнула: пробуем ещё раз, задача на сервере не пропала.
+                    qualityPollTimer = setTimeout(pollQuality, 5000);
+                }
             }
 
             // ========== Шакализатор и улучшайзер ==========
@@ -1029,7 +1130,7 @@
                 if (!audioContext) initAudioEffects();
                 currentPreset = preset;
                 applyAudioEffects();
-                showToast('Шакализатор: ' + preset);
+                showToast(t('Шакализатор') + ': ' + preset);
             }
 
             window.setEqualizerPreset = function(preset) {
@@ -1041,7 +1142,7 @@
                 if (!audioContext) initAudioEffects();
                 bassBoostGain = gain;
                 applyAudioEffects();
-                showToast(gain > 0 ? 'Улучшайзер: +' + gain + ' дБ' : 'Улучшайзер выключен');
+                showToast(gain > 0 ? t('Улучшайзер: +{gain} дБ').replace('{gain}', gain) : t('Улучшайзер выключен'));
                 if (playerBassMenu) playerBassMenu.style.display = 'none';
             }
 
@@ -1058,11 +1159,15 @@
                 initAudioEffects();
             }, { once: true });
             document.addEventListener('click', (e) => {
-                if (!settingsBtn || !settingsBtn.contains(e.target)) {
-                    if (playerSettingsMenu && !playerSettingsMenu.contains(e.target)) {
-                        playerSettingsMenu.style.display = 'none';
-                        playerQualityMenu.style.display = 'none';
-                    }
+                if (settingsBtn && settingsBtn.contains(e.target)) return;
+                // Меню качества лежит рядом с меню настроек, а не внутри него:
+                // без отдельной проверки клик по ступени качества считался
+                // «кликом снаружи» и закрывал меню сразу после выбора — прогресс
+                // пересборки становилось не видно.
+                if (playerQualityMenu && playerQualityMenu.contains(e.target)) return;
+                if (playerSettingsMenu && !playerSettingsMenu.contains(e.target)) {
+                    playerSettingsMenu.style.display = 'none';
+                    playerQualityMenu.style.display = 'none';
                 }
             });
             document.addEventListener('keydown', (e) => {
@@ -1084,15 +1189,15 @@
         }
 
         async function deleteUserVideo(videoId, authorName) {
-            if (!confirm('Вы уверены, что хотите безвозвратно удалить это видео?')) return;
-            const username = userSettings.username || 'Гость';
-            if (authorName !== username) { showToast('Вы не можете удалить чужое видео'); return; }
+            if (!confirm(t('Вы уверены, что хотите безвозвратно удалить это видео?'))) return;
+            const username = userSettings.username || t('Гость');
+            if (authorName !== username) { showToast(t('Вы не можете удалить чужое видео')); return; }
             try {
                 const response = await fetch(`/api/user_video/delete/${videoId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: username }) });
                 const data = await response.json();
-                if (response.ok) { showToast('Видео удалено'); setTimeout(() => window.location.href = '/', 1500); }
-                else showToast('Ошибка: ' + (data.error || 'Не удалось удалить'));
-            } catch(err) { showToast('Ошибка соединения'); }
+                if (response.ok) { showToast(t('Видео удалено')); setTimeout(() => window.location.href = '/', 1500); }
+                else showToast(t('Ошибка') + ': ' + (data.error || t('Не удалось удалить')));
+            } catch(err) { showToast(t('Ошибка соединения')); }
         }
 
         const videoId = "{{ video_id }}";
@@ -1105,47 +1210,47 @@
                 if (!container) return;
                 if (data.subtitles && data.subtitles.length > 0) {
                     let html = '';
-                    for (let s of data.subtitles) html += `<div class="subtitle-item"><span>${s.label} (${s.lang})</span><button onclick="deleteSubtitle('${s.lang}')" title="Удалить">🗑️</button></div>`;
+                    for (let s of data.subtitles) html += `<div class="subtitle-item"><span>${s.label} (${s.lang})</span><button onclick="deleteSubtitle('${s.lang}')" title="${t('Удалить')}">🗑️</button></div>`;
                     container.innerHTML = html;
                 } else container.innerHTML = '<div style="color: #aaa;">Нет субтитров</div>';
             } catch(e) { console.error(e); }
         }
         async function deleteSubtitle(lang) {
-            if (!confirm(`Удалить субтитры (${lang})?`)) return;
+            if (!confirm(t('Удалить субтитры ({lang})?').replace('{lang}', lang))) return;
             try {
                 const res = await fetch(`/api/subtitles/${videoId}/${lang}?source=${videoSource}`, { method: 'DELETE' });
                 const data = await res.json();
-                if (res.ok) { showToast('Субтитры удалены'); await loadSubtitles(); if (typeof updateSubtitlesTrack === 'function') await updateSubtitlesTrack(); }
-                else showToast('Ошибка: ' + data.error);
-            } catch(e) { showToast('Ошибка соединения'); }
+                if (res.ok) { showToast(t('Субтитры удалены')); await loadSubtitles(); if (typeof updateSubtitlesTrack === 'function') await updateSubtitlesTrack(); }
+                else showToast(t('Ошибка') + ': ' + data.error);
+            } catch(e) { showToast(t('Ошибка соединения')); }
         }
         async function uploadSubtitle(file, lang) {
             const formData = new FormData(); formData.append('source', videoSource); formData.append('lang', lang); formData.append('file', file);
             try {
                 const res = await fetch(`/api/subtitles/upload/${videoId}`, { method: 'POST', body: formData });
                 const data = await res.json();
-                if (res.ok) { showToast('Субтитры загружены'); await loadSubtitles(); if (typeof updateSubtitlesTrack === 'function') await updateSubtitlesTrack(); }
-                else showToast('Ошибка: ' + data.error);
-            } catch(e) { showToast('Ошибка соединения'); }
+                if (res.ok) { showToast(t('Субтитры загружены')); await loadSubtitles(); if (typeof updateSubtitlesTrack === 'function') await updateSubtitlesTrack(); }
+                else showToast(t('Ошибка') + ': ' + data.error);
+            } catch(e) { showToast(t('Ошибка соединения')); }
         }
         async function downloadSubtitle(lang) {
             try {
                 const res = await fetch(`/api/subtitles/download/${videoId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: videoSource, lang: lang }) });
                 const data = await res.json();
-                if (res.ok) { showToast('Субтитры скачаны'); await loadSubtitles(); if (typeof updateSubtitlesTrack === 'function') await updateSubtitlesTrack(); }
-                else showToast('Ошибка: ' + data.error);
-            } catch(e) { showToast('Ошибка соединения'); }
+                if (res.ok) { showToast(t('Субтитры скачаны')); await loadSubtitles(); if (typeof updateSubtitlesTrack === 'function') await updateSubtitlesTrack(); }
+                else showToast(t('Ошибка') + ': ' + data.error);
+            } catch(e) { showToast(t('Ошибка соединения')); }
         }
         document.getElementById('uploadSubtitleBtn')?.addEventListener('click', () => {
             const lang = document.getElementById('subtitleLang').value.trim();
-            if (!lang) { showToast('Введите код языка'); return; }
+            if (!lang) { showToast(t('Введите код языка')); return; }
             const fileInput = document.getElementById('subtitleFile');
             fileInput.onchange = (e) => { if (e.target.files.length) uploadSubtitle(e.target.files[0], lang); fileInput.value = ''; };
             fileInput.click();
         });
         document.getElementById('downloadSubtitleBtn')?.addEventListener('click', () => {
             const lang = document.getElementById('subtitleLang').value.trim();
-            if (!lang) { showToast('Введите код языка'); return; }
+            if (!lang) { showToast(t('Введите код языка')); return; }
             downloadSubtitle(lang);
         });
         document.getElementById('downloadAudioBtn')?.addEventListener('click', () => { window.location.href = `/api/audio/download/${videoId}?source=${videoSource}`; });
@@ -1174,17 +1279,234 @@
             const videoEl = document.getElementById('videoElement');
             subtitlesBtn.addEventListener('click', () => {
                 const tracks = videoEl.textTracks;
-                if (tracks.length === 0) { showToast('Нет доступных субтитров'); return; }
+                if (tracks.length === 0) { showToast(t('Нет доступных субтитров')); return; }
                 let anyShowing = false;
                 for (let i = 0; i < tracks.length; i++) {
-                    if (tracks[i].mode === 'showing') { tracks[i].mode = 'disabled'; anyShowing = true; showToast('Субтитры выключены'); break; }
+                    if (tracks[i].mode === 'showing') { tracks[i].mode = 'disabled'; anyShowing = true; showToast(t('Субтитры выключены')); break; }
                 }
-                if (!anyShowing && tracks.length > 0) { tracks[0].mode = 'showing'; showToast(`Субтитры: ${tracks[0].label}`); }
+                if (!anyShowing && tracks.length > 0) { tracks[0].mode = 'showing'; showToast(t('Субтитры: {label}').replace('{label}', tracks[0].label)); }
             });
         }
         updateSubtitlesTrack();
         loadSubtitles();
         {% endif %}
+
+        // ===== Просмотр плейлиста по порядку =====
+        // Страница открыта из своего плейлиста (?collection=<id>): после конца
+        // ролика переходим к следующему, сохраняя тот же параметр.
+        const PLAYLIST_ID = {{ collection_id|tojson }};
+        const PLAYLIST_ORDER = {{ collection_order|tojson }};
+
+        // Полосу показываем и для списка из одного видео: ссылка «К плейлисту»
+        // полезна всегда, а переход просто не на что вешать.
+        if (PLAYLIST_ID && PLAYLIST_ORDER.length) {
+            const player = document.getElementById('videoElement');
+            const at = PLAYLIST_ORDER.indexOf({{ video_id|tojson }});
+            const nextId = at !== -1 ? PLAYLIST_ORDER[at + 1] : null;
+            if (player && nextId) {
+                player.addEventListener('ended', () => {
+                    window.location.href = `/watch/${encodeURIComponent(nextId)}`
+                        + `?collection=${encodeURIComponent(PLAYLIST_ID)}`;
+                });
+            }
+            // Показываем, где мы в списке, и даём вернуться к плейлисту.
+            const strip = document.createElement('div');
+            strip.id = 'playlistStrip';
+            strip.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:12px;'
+                + 'padding:10px 14px;border-radius:10px;background:var(--yt-button-bg);font-size:14px;';
+            const info = document.createElement('span');
+            info.textContent = at !== -1
+                ? t('Плейлист: {current} из {total}').replace('{current}', at + 1).replace('{total}', PLAYLIST_ORDER.length)
+                : t('Плейлист: {count} видео').replace('{count}', PLAYLIST_ORDER.length);
+            const back = document.createElement('a');
+            back.href = '/collection/' + encodeURIComponent(PLAYLIST_ID);
+            back.textContent = t('К плейлисту');
+            back.style.cssText = 'color:#3ea6ff;text-decoration:none;';
+            strip.append(info, back);
+            const anchor = document.querySelector('.content-wrapper h1');
+            if (anchor) anchor.before(strip);
+        }
+
+        // ===== Сохранение в свой плейлист =====
+        // Своя коллекция — это ссылки на уже скачанные видео, к плейлистам,
+        // скачанным с YouTube, отношения не имеет.
+        // Разметку окна вставляем из скрипта: он выполняется по месту, а держать
+        // её ниже закрывающего тега скрипта нельзя — getElementById вернул бы null.
+        // Внимание: буквальная последовательность закрывающего тега в тексте
+        // скрипта обрывает его прямо там, поэтому здесь она не написана словами.
+        document.body.insertAdjacentHTML('beforeend', `
+            <div class="collection-modal" id="collectionModal">
+                <div class="collection-modal-box">
+                    <h3>${t('Сохранить в плейлист')}</h3>
+                    <div id="collectionList"></div>
+                    <div class="collection-new">
+                        <input type="text" id="collectionNewTitle" placeholder="${t('Название нового плейлиста')}" maxlength="100">
+                        <button type="button" id="collectionCreate">${t('Создать')}</button>
+                    </div>
+                    <p id="collectionModalStatus"></p>
+                    <div class="collection-modal-actions">
+                        <button type="button" id="watchLaterBtn">🕒 ${t('Смотреть позже')}</button>
+                        <button type="button" id="collectionModalClose">${t('Закрыть')}</button>
+                    </div>
+                </div>
+            </div>`);
+        const collectionModal = document.getElementById('collectionModal');
+        const collectionList = document.getElementById('collectionList');
+        const collectionStatus = document.getElementById('collectionModalStatus');
+        // Какое видео сохраняем. На обычной странице это одно видео, а в ленте
+        // Shorts кнопка есть у каждого ролика, поэтому id задаётся при открытии.
+        let collectionTargetId = {{ video_id|tojson }};
+
+        function openCollectionModal(videoId) {
+            collectionTargetId = videoId;
+            collectionModal.classList.add('active');
+            collectionStatus.textContent = '';
+            loadCollections();
+        }
+
+        function closeCollectionModal() {
+            collectionModal.classList.remove('active');
+        }
+
+        async function loadCollections() {
+            collectionList.textContent = t('Загрузка…');
+            try {
+                const res = await fetch('/api/collections');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                renderCollections(data.collections || []);
+            } catch (err) {
+                collectionList.textContent = t('Не удалось загрузить плейлисты.');
+            }
+        }
+
+        function renderCollections(items) {
+            collectionList.textContent = '';
+            if (!items.length) {
+                const note = document.createElement('div');
+                note.style.cssText = 'color: var(--yt-spec-text-secondary); font-size: 14px;';
+                note.textContent = t('Плейлистов пока нет. Создайте первый ниже.');
+                collectionList.append(note);
+                return;
+            }
+            // Через DOM, а не строкой: название плейлиста задаёт пользователь,
+            // и кавычка в нём сломала бы разметку.
+            for (const item of items) {
+                const label = document.createElement('label');
+                label.className = 'collection-option';
+                const box = document.createElement('input');
+                box.type = 'checkbox';
+                box.checked = (item.videos || []).includes(collectionTargetId);
+                box.dataset.collection = item.id;
+                box.addEventListener('change', () => toggleInCollection(item.id, box));
+                const text = document.createElement('span');
+                text.textContent = item.count ? `${item.title} (${item.count})` : item.title;
+                label.append(box, text);
+                collectionList.append(label);
+            }
+        }
+
+        async function toggleInCollection(collectionId, box) {
+            const wanted = box.checked;
+            box.disabled = true;
+            collectionStatus.textContent = '';
+            try {
+                const url = `/api/collections/${encodeURIComponent(collectionId)}/videos`;
+                const res = wanted
+                    ? await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ video_id: collectionTargetId }),
+                    })
+                    : await fetch(`${url}/${encodeURIComponent(collectionTargetId)}`, { method: 'DELETE' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось сохранить.'));
+                showToast(wanted ? t('Видео добавлено в плейлист') : t('Видео убрано из плейлиста'));
+                // Счётчик рядом с названием должен сойтись с новым состоянием.
+                const text = box.parentElement.querySelector('span');
+                if (text && data.collection) {
+                    text.textContent = data.collection.count
+                        ? `${data.collection.title} (${data.collection.count})`
+                        : data.collection.title;
+                }
+            } catch (err) {
+                // Возвращаем галочку: иначе интерфейс показывал бы состояние,
+                // которого нет на сервере.
+                box.checked = !wanted;
+                collectionStatus.textContent = err.message;
+            } finally {
+                box.disabled = false;
+            }
+        }
+
+        document.getElementById('saveToCollectionBtn')?.addEventListener('click', () => {
+            openCollectionModal({{ video_id|tojson }});
+        });
+
+        // Кнопки в ленте Shorts: у каждого ролика свой id в data-атрибуте.
+        document.querySelectorAll('.short-save-btn').forEach(button => {
+            button.addEventListener('click', event => {
+                event.stopPropagation();
+                openCollectionModal(button.dataset.videoId);
+            });
+        });
+        document.getElementById('collectionModalClose')?.addEventListener('click', closeCollectionModal);
+        collectionModal?.addEventListener('click', event => {
+            // Клик по затемнению закрывает окно, по самому окну — нет.
+            if (event.target === collectionModal) closeCollectionModal();
+        });
+
+        document.getElementById('watchLaterBtn')?.addEventListener('click', async event => {
+            const button = event.currentTarget;
+            button.disabled = true;
+            try {
+                const res = await fetch('/api/collections/watch-later/videos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ video_id: collectionTargetId }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось сохранить.'));
+                showToast(t('Добавлено в «Смотреть позже»'));
+                loadCollections();
+            } catch (err) {
+                collectionStatus.textContent = err.message;
+            } finally {
+                button.disabled = false;
+            }
+        });
+
+        document.getElementById('collectionCreate')?.addEventListener('click', async () => {
+            const input = document.getElementById('collectionNewTitle');
+            const title = input.value.trim();
+            if (!title) { collectionStatus.textContent = t('Введите название плейлиста.'); return; }
+            const button = document.getElementById('collectionCreate');
+            button.disabled = true;
+            try {
+                const res = await fetch('/api/collections', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось создать плейлист.'));
+                // Сразу кладём видео в новый плейлист: кнопку нажали, чтобы
+                // сохранить именно это видео.
+                await fetch(`/api/collections/${encodeURIComponent(data.collection.id)}/videos`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ video_id: collectionTargetId }),
+                });
+                input.value = '';
+                collectionStatus.textContent = '';
+                showToast(t('Плейлист «{title}» создан').replace('{title}', data.collection.title));
+                loadCollections();
+            } catch (err) {
+                collectionStatus.textContent = err.message;
+            } finally {
+                button.disabled = false;
+            }
+        });
     </script>
 </body>
 </html>

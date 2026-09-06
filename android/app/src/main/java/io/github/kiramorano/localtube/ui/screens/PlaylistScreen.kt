@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -28,6 +28,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.kiramorano.localtube.data.PlaylistEntry
 import io.github.kiramorano.localtube.ui.components.AsyncThumb
 import io.github.kiramorano.localtube.ui.components.EmptyBox
+import io.github.kiramorano.localtube.ui.components.LoadingBox
 import io.github.kiramorano.localtube.vm.PlaylistViewModel
 
 @Composable
@@ -50,7 +51,9 @@ fun PlaylistScreen(
             Text("Плейлист", style = MaterialTheme.typography.titleMedium)
         }
         if (p == null) {
-            EmptyBox("Плейлист не найден")
+            // Индикатор во время сканирования: раньше на первом кадре всегда
+            // мигало «Плейлист не найден».
+            if (vm.loading) LoadingBox() else EmptyBox("Плейлист не найден")
         } else {
             Column(Modifier.fillMaxWidth().padding(12.dp)) {
                 Text(p.title, style = MaterialTheme.typography.titleLarge)
@@ -61,8 +64,10 @@ fun PlaylistScreen(
                 EmptyBox("В плейлисте нет видео")
             } else {
                 LazyColumn(Modifier.weight(1f)) {
-                    items(p.entries, key = { it.id }) { e ->
-                        PlaylistEntryRow(e, onClick = { onOpenVideo(e.id) })
+                    // Ключ по индексу: id в playlist.json может быть пустым, а
+                    // два пустых ключа роняли LazyColumn.
+                    itemsIndexed(p.entries, key = { index, e -> "$index:${e.id}" }) { _, e ->
+                        PlaylistEntryRow(e, onClick = { if (e.id.isNotBlank()) onOpenVideo(e.id) })
                     }
                 }
             }
@@ -74,6 +79,9 @@ fun PlaylistScreen(
 private fun PlaylistEntryRow(e: PlaylistEntry, onClick: () -> Unit) {
     androidx.compose.material3.Card(
         onClick = onClick,
+        // Нескачанное видео не открываем: плеер показал бы чёрный экран с
+        // надписью «Видео не найдено».
+        enabled = e.videoPath != null && e.id.isNotBlank(),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
         Row(Modifier.padding(8.dp)) {

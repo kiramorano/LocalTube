@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="dark">
+<html lang="{{ ui_lang }}" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{ playlist.title }} - LocalTube</title>
     <style>
         :root[data-theme="dark"] {
@@ -117,8 +117,19 @@
         }
     </style>
     <link id="fonts-link" rel="stylesheet" href="/static/css/fonts.css">
-    <link id="theme-style-link" rel="stylesheet" href="">
+    <link id="theme-style-link" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/ui.css">
     <link rel="stylesheet" href="/static/css/mobile.css">
+    <!-- Синхронно и до разметки, чтобы тема встала до первой отрисовки. -->
+    <!-- Перевод строк, которые собирает клиентский код. До theme.js:
+         t() должна быть готова к первому вызову. -->
+    {# Словарь идёт вместе со страницей: отдельный запрос приходил позже
+       первой отрисовки, и подписи из скриптов оставались русскими. #}
+    {% if ui_strings %}<script>
+        window.LT_I18N = {{ ui_strings|tojson }};
+    </script>{% endif %}
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/theme.js"></script>
     <script src="/static/js/mobile.js" defer></script>
 </head>
 <body>
@@ -131,14 +142,14 @@
             <a href="/" class="logo"><svg viewBox="0 0 24 24"><path d="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5s-6.25,0-7.81,0.42c-0.88,0.23-1.54,0.89-1.77,1.77 C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42 c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19z M10,15V9l5.2,3L10,15z"/></svg>LocalTube</a>
         </div>
         <div class="header-right">
-            <a class="icon-btn" id="themeToggleHeader" href="/settings" title="Настройки"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg></a>
-            <a class="user-profile-btn" href="/settings"><span class="user-name-display" id="headerUsername">Гость</span><div class="user-avatar-placeholder" id="headerAvatar">Г</div></a>
+            <a class="icon-btn" id="themeToggleHeader" href="/settings" title="{{ 'Настройки'|t }}"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg></a>
+            <a class="user-profile-btn" href="/settings"><span class="user-name-display" id="headerUsername">{{ 'Гость'|t }}</span><div class="user-avatar-placeholder" id="headerAvatar">{{ ('Гость'|t)[:1] }}</div></a>
         </div>
     </header>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <aside class="sidebar-drawer" id="sidebarDrawer">
-        <a href="/" class="sidebar-item" data-nav="all" onclick="location.href='/'"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg><span>На главную</span></a>
+        <a href="/" class="sidebar-item" data-nav="all" onclick="location.href='/'"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg><span>{{ 'На главную'|t }}</span></a>
         <div class="sidebar-divider"></div>
         {% for author in authors %}
         <span class="sidebar-item" onclick="filterNavAuthor('{{ author.name }}')">
@@ -147,14 +158,14 @@
         </span>
         {% endfor %}
         <div class="sidebar-divider"></div>
-        <div class="sidebar-title">Скрытые каналы</div>
+        <div class="sidebar-title">{{ 'Скрытые каналы'|t }}</div>
         <div id="hiddenChannelsList"></div>
         <div class="sidebar-divider"></div>
-        <a href="/settings" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>Настройки</span></a>
+        <a href="/settings" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>{{ 'Настройки'|t }}</span></a>
     </aside>
 
     <div class="page-content">
-        <button class="sidebar-item" onclick="window.location.href='/'" style="margin-bottom: 20px; display: inline-flex;">← На главную</button>
+        <button class="sidebar-item" onclick="window.location.href='/'" style="margin-bottom: 20px; display: inline-flex;">{{ '← На главную'|t }}</button>
         <div class="playlist-header">
             {% if playlist.thumbnail %}
                 <img class="playlist-thumb" src="{{ playlist.thumbnail }}" alt="{{ playlist.title }}">
@@ -176,7 +187,7 @@
                     {% if v.thumb %}
                         <img src="{{ url_for('media', filename=v.author ~ '/' ~ v.thumb) }}" alt="Превью: {{ v.title }}" loading="lazy">
                     {% else %}
-                        <div style="background:#272727; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">Нет</div>
+                        <div style="background:#272727; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет'|t }}</div>
                     {% endif %}
                 </div>
                 <div class="video-details">
@@ -188,35 +199,13 @@
         </div>
     </div>
 
+    {# Нижняя навигация: на телефоне разделы должны быть в один тап. #}
+    {% include '_mobile_nav.html' with context %}
+
     <script>
-        let bgTimer = null;
-        function loadThemeBackground(theme) {
-            const layer1 = document.getElementById('bg-layer-1');
-            const layer2 = document.getElementById('bg-layer-2');
-            if (bgTimer) clearInterval(bgTimer);
-            bgTimer = null;
-            if (theme !== 'frutiger-aero') {
-                layer1.style.backgroundImage = 'none';
-                layer2.style.backgroundImage = 'none';
-                layer1.style.opacity = 0;
-                layer2.style.opacity = 0;
-                return;
-            }
-            fetch(`/api/theme-backgrounds/${theme}`)
-                .then(response => response.json())
-                .then(images => {
-                    if (!Array.isArray(images) || images.length === 0) return;
-                    const setImage = image => {
-                        const url = `/static/images/themes/${theme}/${encodeURIComponent(image)}`;
-                        layer2.style.backgroundImage = `url('${url}')`;
-                        layer2.style.opacity = 1;
-                        layer1.style.opacity = 0;
-                    };
-                    setImage(images[Math.floor(Math.random() * images.length)]);
-                    bgTimer = setInterval(() => setImage(images[Math.floor(Math.random() * images.length)]), 30000);
-                })
-                .catch(() => {});
-        }
+        // Тема и обои — /static/js/theme.js. Здешняя копия вместо кроссфейда
+        // писала обои всегда в один и тот же слой (#bg-layer-2), поэтому смена
+        // картинки происходила рывком, а не плавно, как на остальных страницах.
 
         function filterNavAuthor(author) {
             const query = String(author || '').toLowerCase();
@@ -228,46 +217,11 @@
             document.getElementById('sidebarOverlay')?.classList.remove('active');
         }
 
-        function loadTheme(theme) {
-            const link = document.getElementById('theme-style-link') || document.getElementById('theme-style');
-            const fontsLink = document.getElementById('fonts-link');
-            if (!theme || theme === 'dark' || theme === 'light') {
-                link.href = '';
-                document.documentElement.setAttribute('data-theme', theme || 'dark');
-                if (fontsLink) fontsLink.disabled = false;
-                document.documentElement.style.fontFamily = "'Roboto', Arial, sans-serif";
-                if (bgTimer) clearInterval(bgTimer);
-                bgTimer = null;
-                document.getElementById('bg-layer-1').style.backgroundImage = 'none';
-                document.getElementById('bg-layer-2').style.backgroundImage = 'none';
-                document.getElementById('bg-layer-1').style.opacity = 0;
-                document.getElementById('bg-layer-2').style.opacity = 0;
-            } else {
-                link.href = '/static/css/themes/' + theme + '.css';
-                document.documentElement.setAttribute('data-theme', theme);
-                if (fontsLink) fontsLink.disabled = false;
-                if (theme === 'frutiger-aero') {
-                    document.documentElement.style.fontFamily = "'Aero_03', Arial, sans-serif";
-                } else {
-                    document.documentElement.style.fontFamily = "'Roboto', Arial, sans-serif";
-                }
-                loadThemeBackground(theme);
-            }
-            localStorage.setItem('lt_theme', theme || 'dark');
-        }
-        const savedTheme = localStorage.getItem('lt_theme') || 'dark';
-        loadTheme(savedTheme);
+        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"avatar":""}');
 
-        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"username":"Гость","avatar":""}');
-
-        const sidebarToggle = document.getElementById('sidebarToggle');
         const sidebarDrawer = document.getElementById('sidebarDrawer');
         const sidebarOverlay = document.getElementById('sidebarOverlay');
-        function toggleSidebar() { sidebarDrawer.classList.toggle('active'); sidebarOverlay.classList.toggle('active'); }
-        if (sidebarToggle && sidebarDrawer) {
-            sidebarToggle.addEventListener('click', toggleSidebar);
-            if (sidebarOverlay) sidebarOverlay.addEventListener('click', toggleSidebar);
-        }
+        // Переключение панели живёт в /static/js/mobile.js (общий слой).
 
         // Список скрытых каналов хранится на сервере.
         let hiddenChannels = [];
@@ -278,7 +232,7 @@
             if (hiddenChannels.length === 0) {
                 const empty = document.createElement('div');
                 empty.style.cssText = 'padding: 8px 12px; color: var(--yt-spec-text-secondary); font-size: 13px;';
-                empty.textContent = 'Нет скрытых каналов';
+                empty.textContent = t('Нет скрытых каналов');
                 container.append(empty);
                 return;
             }
@@ -293,7 +247,7 @@
                 const button = document.createElement('button');
                 button.className = 'unhide-btn';
                 button.type = 'button';
-                button.textContent = 'Показать';
+                button.textContent = t('Показать');
                 button.addEventListener('click', () => toggleHideChannel(channel));
                 item.append(label, button);
                 container.append(item);
@@ -332,7 +286,7 @@
                 try {
                     localStorage.setItem('lt_hidden_channels', JSON.stringify(hiddenChannels));
                 } catch (e) { console.error('Локальное сохранение не удалось:', e); }
-                showToast('Сервер недоступен, изменение сохранено локально');
+                showToast(t('Сервер недоступен, изменение сохранено локально'));
             }
         }
         hiddenChannelsReady = (async function loadHiddenChannels() {
@@ -350,7 +304,7 @@
         function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;')); }
         function showToast(msg) { const container = document.getElementById('toast-container'); if (container) { const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000); } }
         function applyProfileUI() {
-            const username = userSettings.username || 'Гость';
+            const username = userSettings.username || t('Гость');
             const usernameEl = document.getElementById('headerUsername');
             const avatarBox = document.getElementById('headerAvatar');
             if (usernameEl) usernameEl.textContent = username;
@@ -359,7 +313,7 @@
             if (userSettings.avatar) {
                 const image = document.createElement('img');
                 image.src = userSettings.avatar;
-                image.alt = 'Аватар';
+                image.alt = t('Аватар');
                 avatarBox.append(image);
             } else {
                 avatarBox.textContent = username.charAt(0).toUpperCase();

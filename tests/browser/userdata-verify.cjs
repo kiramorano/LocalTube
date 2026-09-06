@@ -3,8 +3,12 @@
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
+const { requireTestServer } = require('./require-test-server.cjs');
 
-const BASE = 'http://127.0.0.1:5000';
+// Порт по умолчанию — тестовый сервер (serve_test.py), а не рабочие 5000:
+// проверки чистят историю и избранное, и на рабочем сервере они стирали данные
+// пользователя. В его userdata.json так появилась лишняя запись истории.
+const BASE = process.env.LT_BASE || 'http://127.0.0.1:5004';
 const SHOTS = path.join(__dirname, 'shots');
 if (!fs.existsSync(SHOTS)) fs.mkdirSync(SHOTS, { recursive: true });
 
@@ -21,6 +25,7 @@ async function resetServerData(page) {
 }
 
 (async () => {
+  await requireTestServer(BASE, ['userdata']);
   const browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -250,6 +255,10 @@ async function resetServerData(page) {
 
   await page.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1000);
+  // Мои данные лежат в разделе «Профиль». Он открыт по умолчанию, но выбранный
+  // раздел запоминается, поэтому открываем явно: иначе порядок запуска
+  // скриптов решал бы, доступна кнопка очистки или скрыта.
+  await page.click('.tab-btn[data-tab="profile"]');
   const summary = await page.locator('#userdataSummary').textContent();
   check('настройки показывают счётчики данных',
     /избранном 1/.test(summary) && /истории 1/.test(summary), summary);

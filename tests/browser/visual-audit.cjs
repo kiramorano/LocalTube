@@ -3,6 +3,8 @@ const path = require('path');
 const OUT = path.join(__dirname, 'shots') + path.sep;
 const fs = require('fs');
 fs.mkdirSync(OUT, {recursive:true});
+// Порт берём из LT_BASE: рабочий сервер на 5000 держит старый код.
+const BASE = process.env.LT_BASE || 'http://127.0.0.1:5000';
 (async () => {
   const browser = await chromium.launch({headless:true});
   const report = [];
@@ -12,10 +14,10 @@ fs.mkdirSync(OUT, {recursive:true});
       const errors = [];
       page.on('console', m => { if (m.type()==='error') errors.push(m.text()); });
       page.on('pageerror', e => errors.push(e.message));
-      await page.goto('http://127.0.0.1:5000/', {waitUntil:'networkidle'});
+      await page.goto(BASE + '/', {waitUntil:'networkidle'});
       await page.evaluate(t => localStorage.setItem('lt_theme', t), theme);
       for (const path of ['/','/settings','/channel/ANATA%20CARS','/upload']) {
-        await page.goto('http://127.0.0.1:5000'+path, {waitUntil:'networkidle'});
+        await page.goto(BASE + path, {waitUntil:'networkidle'});
         const name = theme+'-'+vp.n+'-'+(path==='/'?'home':path.replace(/[^a-z]/gi,'')||'root');
         await page.screenshot({path: OUT+name+'.png', fullPage:true});
         const metrics = await page.evaluate(() => {

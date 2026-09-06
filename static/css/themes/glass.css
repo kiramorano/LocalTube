@@ -1,0 +1,117 @@
+/* ============================================================
+   GLASS — тёмный glassmorphism
+   ------------------------------------------------------------
+   Полупрозрачные размытые панели поверх мягкого градиента. От Frutiger Aero
+   отличается тем, что фон здесь рисует сам CSS (градиент на body), а не
+   слои обоев: картинок к теме не прилагается, поэтому /api/theme-backgrounds
+   её не знает и слои #bg-layer-* остаются пустыми.
+
+   Ключевое ограничение, которое уже стоило регрессий в aero: панели меню и
+   модальные окна должны оставаться почти непрозрачными. При 0.75 сквозь
+   настройки плеера просвечивало видео, и прочитать их было нельзя.
+   ============================================================ */
+
+:root[data-theme="glass"] {
+    /* Не transparent: фон рисует градиент на body, а прозрачное значение
+       делало бы var(--yt-bg) непригодным как цвет текста на инверсии. */
+    --yt-bg: #0d1220;
+    --yt-bg-solid: #0d1220;
+
+    /* Стекло: полупрозрачный белый поверх тёмного градиента. */
+    --yt-card-bg: rgba(255, 255, 255, .07);
+    --yt-search-bg: rgba(255, 255, 255, .09);
+    --yt-button-bg: rgba(255, 255, 255, .1);
+    --yt-button-hover: rgba(255, 255, 255, .17);
+    /* Панели почти непрозрачные: см. комментарий в шапке файла. */
+    --yt-modal-bg: rgba(23, 30, 48, .96);
+
+    --yt-spec-text-primary: #f2f5fb;
+    --yt-spec-text-secondary: #b3bdd2;
+    --yt-spec-icon-inactive: #f2f5fb;
+    /* Светлая полупрозрачная граница читается как край стекла. */
+    --yt-spec-border: rgba(255, 255, 255, .16);
+
+    --yt-header-height: 56px;
+    --yt-sidebar-width: 240px;
+    --video-card-min-width: 310px;
+
+    /* Второе семейство — для страницы настроек. */
+    --bg: #0d1220;
+    --text: #f2f5fb;
+    --muted: #b3bdd2;
+    --border: rgba(255, 255, 255, .16);
+    --card: rgba(255, 255, 255, .07);
+    --button: rgba(255, 255, 255, .1);
+
+    --lt-accent: #7cc4ff;
+    --lt-accent-strong: #a3d6ff;
+    --lt-accent-contrast: #071120;
+    --lt-shadow-1: 0 1px 2px rgba(0, 0, 0, .4), 0 4px 16px rgba(0, 0, 0, .3);
+    --lt-shadow-2: 0 8px 24px rgba(0, 0, 0, .5), 0 20px 48px rgba(0, 0, 0, .4);
+    /* Размытие в одном месте: панели должны выглядеть одинаково. */
+    --glass-blur: blur(18px) saturate(150%);
+}
+
+/* Фон темы: два мягких пятна поверх тёмной подложки. fixed — чтобы
+   градиент не уезжал при прокрутке длинного каталога. */
+[data-theme="glass"] body {
+    background-color: #0d1220;
+    background-image:
+        radial-gradient(1200px 600px at 12% -10%, rgba(64, 132, 255, .28), transparent 60%),
+        radial-gradient(900px 500px at 88% 0%, rgba(140, 90, 255, .22), transparent 60%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+}
+
+/* Стеклянные поверхности. -webkit-backdrop-filter обязателен: Safari и
+   WebView на iOS до сих пор без него не размывают. */
+[data-theme="glass"] header,
+[data-theme="glass"] .sidebar-drawer,
+[data-theme="glass"] .video-card,
+[data-theme="glass"] section,
+[data-theme="glass"] .queue-item {
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--yt-spec-border);
+}
+
+[data-theme="glass"] header {
+    background-color: rgba(13, 18, 32, .72);
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
+}
+
+[data-theme="glass"] .sidebar-drawer {
+    background-color: rgba(13, 18, 32, .82);
+    border-top: 0;
+    border-bottom: 0;
+    border-left: 0;
+}
+
+[data-theme="glass"] .video-card:hover {
+    background: rgba(255, 255, 255, .13);
+    transform: translateY(-2px);
+}
+
+/* Меню и модальные окна: размытие оставляем как эффект, но фон почти
+   непрозрачный — сквозь настройки плеера не должно просвечивать видео. */
+[data-theme="glass"] .modal-content,
+[data-theme="glass"] .settings-menu {
+    background-color: var(--yt-modal-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--yt-spec-border);
+}
+
+[data-theme="glass"] .chip.active {
+    background: var(--yt-spec-text-primary);
+    color: var(--yt-bg-solid);
+}
+
+[data-theme="glass"] option {
+    /* Список рисует система: полупрозрачный фон она не поддерживает, и без
+       непрозрачного значения раскрытый select был неразборчивым. */
+    background-color: #171e30;
+    color: var(--yt-spec-text-primary);
+}

@@ -7,16 +7,13 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Фоновое воспроизведение: сервис плеера объявляет тип mediaPlayback. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
-    <!-- Android TV: без required="false" лончер и Play считают приложение
-         несовместимым с телевизором. -->
-    <uses-feature
-        android:name="android.hardware.touchscreen"
-        android:required="false" />
-    <uses-feature
-        android:name="android.software.leanback"
-        android:required="false" />
+    <!-- Оборудование, которого может не быть ни на планшете, ни на телевизоре.
+         Признак leanback объявляется во флейворах: у mobile и tv он разный, а в
+         общем манифесте пришлось бы выбрать одно значение для обоих. -->
     <uses-feature
         android:name="android.hardware.microphone"
         android:required="false" />
@@ -29,6 +26,7 @@
         android:allowBackup="false"
         android:banner="@drawable/tv_banner"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="LocalTube"
         android:extractNativeLibs="true"
         android:supportsRtl="true"
@@ -46,8 +44,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-                <!-- Обязательная категория, иначе приложения не будет в лончере ТВ. -->
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
             <!-- Позволяет отправить ссылку YouTube в LocalTube через «Поделиться». -->
             <intent-filter>
@@ -61,5 +57,16 @@
             android:name=".data.DownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Плеер в фоне: MediaSessionService держит воспроизведение и отдаёт
+             управление системным панелям и наушникам. -->
+        <service
+            android:name=".data.PlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

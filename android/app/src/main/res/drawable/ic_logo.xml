@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Логотип LocalTube: тот же контур, что в веб-версии (там viewBox="0 0 24 24").
+
+  width/height обязаны повторять пропорции вьюпорта. Раньше стояло 30dp × 20dp
+  при вьюпорте 24 × 24, и знак растягивался по горизонтали в 1.5 раза: Compose
+  масштабирует картинку по intrinsic-размеру (30:20), а VectorDrawable потом
+  вписывает в него квадратный вьюпорт. Modifier.size(28.dp) от этого не спасал —
+  ContentScale.Fit сохраняет пропорции intrinsic-размера, а не вьюпорта.
+  Числа 30 × 20 были скопированы из веб-CSS, где растяжения не возникало:
+  у SVG действует preserveAspectRatio, он вписывает вьюпорт и не искажает его.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FF0000"
+        android:fillType="evenOdd"
+        android:pathData="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5S5.75,5,4.19,5.42C3.31,5.65,2.65,6.31,2.42,7.19C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19zM10,15V9l5.2,3L10,15z" />
+</vector>

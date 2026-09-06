@@ -291,3 +291,60 @@ def test_non_ascii_survives_roundtrip(tmp_path):
     path = str(tmp_path / "a.json")
     write_json_atomic(path, {"название": "Кэш-тест живьём"})
     assert read_json(path)["название"] == "Кэш-тест живьём"
+
+
+def test_replace_retries_on_locked_file(tmp_path, monkeypatch):
+    """На Windows os.replace падает с PermissionError, если файл открыт кем-то ещё.
+
+    Антивирус, индексатор поиска или открытый queue.json в редакторе держат файл
+    десятки миллисекунд. Без повторов запись теряла данные на ровном месте.
+    """
+    path = str(tmp_path / "a.json")
+    write_json_atomic(path, {"v": 1})
+
+    calls = {"n": 0}
+    real_replace = os.replace
+
+    def flaky_replace(src, dst):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise PermissionError(32, "файл занят другим процессом")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", flaky_replace)
+    monkeypatch.setattr("utils.REPLACE_DELAY", 0)
+    write_json_atomic(path, {"v": 2})
+
+    monkeypatch.undo()
+    assert read_json(path) == {"v": 2}
+    assert calls["n"] == 3, "повторов не было"
+
+
+def test_replace_gives_up_and_reports(tmp_path, monkeypatch):
+    """Если файл занят надолго, вызывающий код должен узнать о неудаче.
+
+    Тихий возврат означал бы «сохранено», а данных на диске не было бы.
+    """
+    path = str(tmp_path / "a.json")
+
+    def always_locked(src, dst):
+        raise PermissionError(32, "файл занят другим процессом")
+
+    monkeypatch.setattr(os, "replace", always_locked)
+    monkeypatch.setattr("utils.REPLACE_DELAY", 0)
+    with pytest.raises(JsonWriteError):
+        write_json_atomic(path, {"v": 1})
+
+
+def test_no_temp_file_left_after_locked_replace(tmp_path, monkeypatch):
+    """После неудачи .tmp не должен оставаться рядом с данными."""
+    path = str(tmp_path / "a.json")
+
+    monkeypatch.setattr(os, "replace",
+                        lambda src, dst: (_ for _ in ()).throw(PermissionError(32, "занят")))
+    monkeypatch.setattr("utils.REPLACE_DELAY", 0)
+    with pytest.raises(JsonWriteError):
+        write_json_atomic(path, {"v": 1})
+
+    monkeypatch.undo()
+    assert not os.path.exists(path + ".tmp")

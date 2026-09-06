@@ -1,7 +1,7 @@
 """Диагностика и повторная синхронизация каналов (без обращения к сети)."""
 import os
+import threading
 import time
-
 import pytest
 
 
@@ -129,7 +129,7 @@ def test_auto_retry_respects_cooldown(channel_assets, test_author, monkeypatch,
         started_at=time.time(), finished_at=time.time(), success=False,
     )
     calls = []
-    monkeypatch.setattr(channel_assets, "sync_channel", lambda a, url=None: calls.append(a))
+    monkeypatch.setattr(channel_assets, "sync_channel", lambda a, url=None, already_claimed=False: calls.append(a))
 
     try_fetch(test_author)
     assert calls == []
@@ -196,12 +196,17 @@ def local_author(app_module, channel_assets, tmp_path, monkeypatch):
         pytest.skip("в библиотеке нет видео с channel_url")
     monkeypatch.setattr(channel_assets, "META_DIR", str(tmp_path / "meta"))
     os.makedirs(channel_assets.META_DIR, exist_ok=True)
-    return author
+    yield author
+    # Слот _fetching теперь занимает сам эндпоинт (до запуска потока), а тесты
+    # подменяют sync_channel заглушками, которые его не освобождают. Без чистки
+    # автор остаётся «синхронизируемым» и роняет следующий тест.
+    with channel_assets._fetch_lock:
+        channel_assets._fetching.discard(author)
 
 
 def test_sync_endpoint_starts_background_job(client, app_module, channel_assets, local_author, monkeypatch):
     calls = []
-    monkeypatch.setattr(channel_assets, "sync_channel", lambda a, url=None: calls.append((a, url)))
+    monkeypatch.setattr(channel_assets, "sync_channel", lambda a, url=None, already_claimed=False: calls.append((a, url)))
 
     res = client.post(f"/api/channel/{local_author}/sync")
     for _ in range(20):
@@ -223,3 +228,97 @@ def test_channel_page_renders_sync_panel(client, local_author):
     assert 'id="syncStatus"' in html
     assert 'id="syncButton"' in html
     assert "initialSyncStatus" in html
+
+
+def test_successful_sync_is_not_repeated_without_banner(channel_assets, test_author,
+                                                       monkeypatch, real_try_fetch_if_missing):
+    """Канал без баннера не должен синхронизироваться при каждом открытии.
+
+    Иначе статус постоянно висит в checking, и кнопка «Скачать остальные
+    видео» отказывается работать.
+    """
+    # Метаданные записаны текущей схемой: иначе канал считается устаревшим и
+    # пересинхронизируется один раз, чтобы получить шапку.
+    channel_assets.save_channel_assets(test_author, {"description": "desc"})
+    channel_assets.update_sync_status(test_author, "success", error="",
+                                      finished_at=time.time(), success=True)
+    monkeypatch.setattr(channel_assets, "get_banner_url", lambda author: None)
+    calls = []
+    monkeypatch.setattr(channel_assets, "sync_channel", lambda a, url=None, already_claimed=False: calls.append(a))
+
+    real_try_fetch_if_missing(test_author)
+
+    assert calls == []
+
+
+def test_missing_metadata_still_triggers_sync(channel_assets, test_author,
+                                              monkeypatch, real_try_fetch_if_missing):
+    monkeypatch.setattr(channel_assets, "get_banner_url", lambda author: None)
+    calls = []
+    monkeypatch.setattr(channel_assets, "sync_channel", lambda a, url=None, already_claimed=False: calls.append(a))
+
+    real_try_fetch_if_missing(test_author)
+
+    assert calls == [test_author]
+
+
+def test_sync_endpoint_claims_slot_before_starting_thread(client, app_module, channel_assets,
+                                                          local_author, monkeypatch):
+    """Проверка «уже синхронизируется» и захват слота должны быть атомарны.
+
+    Раньше лок отпускался до старта потока, а sync_channel регистрировался в
+    _fetching уже внутри потока. Два одновременных запроса успевали пройти
+    проверку и поднимали две загрузки метаданных одного канала.
+    """
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_sync(author, url=None, already_claimed=False):
+        # Слот должен быть занят ДО входа в функцию — это и есть суть фикса.
+        with channel_assets._fetch_lock:
+            claimed = author in channel_assets._fetching
+        started.set()
+        release.wait(timeout=5)
+        if already_claimed:
+            with channel_assets._fetch_lock:
+                channel_assets._fetching.discard(author)
+        slow_sync.claimed_on_entry = claimed
+
+    slow_sync.claimed_on_entry = None
+    monkeypatch.setattr(channel_assets, "sync_channel", slow_sync)
+
+    try:
+        first = client.post(f"/api/channel/{local_author}/sync")
+        assert first.status_code == 200
+        assert started.wait(timeout=5), "поток синхронизации не запустился"
+
+        # Второй запрос, пока первый ещё в работе, должен получить отказ.
+        second = client.post(f"/api/channel/{local_author}/sync")
+        assert second.status_code == 200
+        assert "уже выполняется" in second.get_json()["message"]
+    finally:
+        release.set()
+        time.sleep(0.2)
+        with channel_assets._fetch_lock:
+            channel_assets._fetching.discard(local_author)
+
+    assert slow_sync.claimed_on_entry is True, (
+        "слот _fetching не был занят до запуска потока: гонка сохранилась"
+    )
+
+
+def test_sync_channel_releases_slot_when_url_missing(channel_assets, monkeypatch):
+    """Если слот занят вызывающим, а URL канала не найден, sync_channel обязан
+    освободить слот: иначе канал навсегда останется в состоянии «checking»."""
+    author = "__claimed_no_url__"
+    monkeypatch.setattr(channel_assets, "_find_channel_url_from_videos", lambda a: None)
+    with channel_assets._fetch_lock:
+        channel_assets._fetching.add(author)
+    try:
+        with pytest.raises(RuntimeError):
+            channel_assets.sync_channel(author, already_claimed=True)
+        with channel_assets._fetch_lock:
+            assert author not in channel_assets._fetching, "слот не освобождён"
+    finally:
+        with channel_assets._fetch_lock:
+            channel_assets._fetching.discard(author)

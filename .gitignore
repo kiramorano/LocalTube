@@ -60,6 +60,10 @@ static/images/cache/
 .pytest_cache/
 .coverage
 
+# ===== Провайдер PO Token (внешние исходники + node_modules) =====
+tools/bgutil-ytdlp-pot-provider-*/
+tools/*.zip
+
 # ===== IDE =====
 .vscode/
 .idea/
@@ -79,6 +83,9 @@ config.json
 cookies.txt
 queue.json
 userdata.json
+# PIN доступа из локальной сети и секрет для подписи ключей устройств:
+# в репозиторий такое попадать не должно.
+access.json
 
 # ===== Резервные копии от атомарной записи JSON =====
 *.json.bak

@@ -2,6 +2,7 @@ package io.github.kiramorano.localtube.data
 
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 
 /**
  * Безопасное чтение и запись JSON.
@@ -13,11 +14,21 @@ import java.io.File
  */
 object JsonStore {
 
-    fun read(file: File): JSONObject? {
-        readOrNull(file)?.let { return it }
+    /**
+     * Замок на каждый путь. Без него два потока (например, UI, отменяющий
+     * задачу, и воркер, обновляющий прогресс) писали в один и тот же .tmp и
+     * переименовывали в основной файл перемешанный мусор.
+     */
+    private val locks = HashMap<String, Any>()
+
+    private fun lockFor(file: File): Any = synchronized(locks) {
+        locks.getOrPut(file.absolutePath) { Any() }
+    }
+
+    fun read(file: File): JSONObject? = synchronized(lockFor(file)) {
+        readOrNull(file)?.let { return@synchronized it }
         // Основной файл повреждён или отсутствует: пробуем резервную копию.
-        val backup = File(file.parentFile, file.name + ".bak")
-        return readOrNull(backup)
+        readOrNull(File(file.parentFile, file.name + ".bak"))
     }
 
     private fun readOrNull(file: File): JSONObject? {
@@ -30,9 +41,17 @@ object JsonStore {
         }
     }
 
-    fun write(file: File, json: JSONObject): Boolean {
+    fun write(file: File, json: JSONObject): Boolean = synchronized(lockFor(file)) {
         val parent = file.parentFile
-        if (parent != null && !parent.exists() && !parent.mkdirs()) return false
+        if (parent != null && !parent.exists() && !parent.mkdirs()) return@synchronized false
+
+        // Текст готовим до любых операций с файлами: сбой сериализации не
+        // должен трогать уже сохранённые данные.
+        val text = try {
+            json.toString(2)
+        } catch (e: Exception) {
+            return@synchronized false
+        }
 
         if (file.exists()) {
             try {
@@ -43,14 +62,17 @@ object JsonStore {
         }
 
         val tmp = File(parent, file.name + ".tmp")
-        return try {
-            tmp.writeText(json.toString(2))
-            if (file.exists() && !file.delete()) {
-                tmp.delete()
-                return false
+        return@synchronized try {
+            // fsync перед переименованием: иначе rename попадёт в журнал
+            // раньше самих данных и после сбоя питания останется пустой файл.
+            FileOutputStream(tmp).use { out ->
+                out.write(text.toByteArray(Charsets.UTF_8))
+                out.flush()
+                out.fd.sync()
             }
+            // rename на Android заменяет существующий файл, поэтому удалять
+            // его заранее нельзя: в этом окне файла не существует вовсе.
             if (!tmp.renameTo(file)) {
-                // renameTo может не сработать: копируем и убираем временный файл.
                 tmp.copyTo(file, overwrite = true)
                 tmp.delete()
             }

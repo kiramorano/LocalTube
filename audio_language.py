@@ -2,6 +2,9 @@ import os
 import json
 import subprocess
 from flask import Blueprint, jsonify, request, send_file, abort, send_from_directory
+
+import paths
+from proc import NO_WINDOW as _NO_WINDOW
 from subtitles import get_available_subtitles, download_youtube_subtitles, upload_subtitle_file, delete_subtitle
 
 bp = Blueprint('audio_language', __name__)
@@ -23,11 +26,32 @@ def init(base_dir, sub_dir, logger_inst, get_v_map, get_uv_map, build_v_map):
     _build_video_map = build_v_map
 
 def find_file(folder, exts):
+    # OSError, а не голый except: голый перехватывал и KeyboardInterrupt.
     try:
         for f in os.listdir(folder):
             if any(f.lower().endswith(e) for e in exts): return f
-    except: pass
+    except OSError:
+        pass
     return None
+
+
+def _read_youtube_id(folder):
+    """Достаёт YouTube ID из info.json в папке видео.
+
+    Общий helper на два маршрута: раньше это был скопированный блок, и в обеих
+    копиях стоял encoding='utf-8' вместо utf-8-sig (файл с BOM не читался) и
+    голый except, скрывавший причину.
+    """
+    m_file = find_file(folder, ['info.json', '.info.json'])
+    if not m_file:
+        return None
+    try:
+        with open(os.path.join(folder, m_file), 'r', encoding='utf-8-sig') as f:
+            data = json.load(f)
+        return data.get('id') if isinstance(data, dict) else None
+    except (OSError, ValueError) as e:
+        if _logger: _logger.warning(f"Не удалось прочитать {m_file}: {e}")
+        return None
 
 def get_video_dir_and_file(vid_id):
     v_map = _get_video_map()
@@ -49,7 +73,7 @@ def download_audio_file(vid_id):
     output_path = os.path.join(vdir, os.path.splitext(vfile)[0] + '.mp3')
     if not os.path.exists(output_path):
         try:
-            subprocess.run(['ffmpeg', '-y', '-i', input_path, '-q:a', '0', '-map', 'a', output_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            subprocess.run([paths.ffmpeg_path(), '-y', '-i', input_path, '-q:a', '0', '-map', 'a', output_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, **_NO_WINDOW)
         except Exception as e:
             if _logger: _logger.error(f"Ошибка извлечения аудио: {e}")
             return "Ошибка при конвертации аудио. Убедитесь, что установлен ffmpeg.", 500
@@ -71,17 +95,16 @@ def api_get_subtitles(video_id):
 
 @bp.route('/api/subtitles/download/<video_id>', methods=['POST'])
 def api_download_subtitles(video_id):
-    lang, source = request.json.get('lang', 'ru'), request.json.get('source', 'youtube')
+    # get_json(silent=True): request.json без Content-Type поднимает 415 и
+    # отдаёт HTML-страницу вместо JSON, на котором клиент падает.
+    payload = request.get_json(silent=True) or {}
+    lang, source = payload.get('lang', 'ru'), payload.get('source', 'youtube')
     if source != 'youtube': return jsonify({"error": "Только вручную"}), 400
     v = _get_video_map().get(video_id)
     if not v: return jsonify({"error": "Видео не найдено"}), 404
     y_id = v.get('youtube_id')
     if not y_id:
-        m_file = find_file(os.path.join(_BASE_VIDEO_DIR, v['author'], v['folder']), ['info.json', '.info.json'])
-        if m_file:
-            try:
-                with open(os.path.join(_BASE_VIDEO_DIR, v['author'], v['folder'], m_file), 'r', encoding='utf-8') as f: y_id = json.load(f).get('id')
-            except: pass
+        y_id = _read_youtube_id(os.path.join(_BASE_VIDEO_DIR, v['author'], v['folder']))
     if not y_id: return jsonify({"error": "Нет YouTube ID"}), 400
     if download_youtube_subtitles(f"https://youtu.be/{y_id}", video_id, lang): return jsonify({"status": "ok"})
     return jsonify({"error": "Ошибка скачивания"}), 500
@@ -100,7 +123,9 @@ def api_delete_subtitle(video_id, lang):
 
 @bp.route('/api/subtitles/download_all', methods=['POST'])
 def api_download_all_subtitles():
-    lang = (request.get_json() or {}).get('lang', 'ru')
+    # silent=True: без него request.get_json() на запросе без заголовка
+    # Content-Type поднимает 415 ещё до `or {}` и отдаёт HTML вместо JSON.
+    lang = (request.get_json(silent=True) or {}).get('lang', 'ru')
     _build_video_map()
     v_map = _get_video_map()
     count = 0
@@ -108,10 +133,6 @@ def api_download_all_subtitles():
         if not any(s['lang'] == lang for s in get_available_subtitles(vid, 'youtube')):
             y_id = v.get('youtube_id')
             if not y_id:
-                m_file = find_file(os.path.join(_BASE_VIDEO_DIR, v['author'], v['folder']), ['info.json', '.info.json'])
-                if m_file:
-                    try:
-                        with open(os.path.join(_BASE_VIDEO_DIR, v['author'], v['folder'], m_file), 'r', encoding='utf-8') as f: y_id = json.load(f).get('id')
-                    except: pass
+                y_id = _read_youtube_id(os.path.join(_BASE_VIDEO_DIR, v['author'], v['folder']))
             if y_id and download_youtube_subtitles(f"https://youtu.be/{y_id}", vid, lang): count += 1
     return jsonify({"status": "ok", "downloaded": count, "total": len(v_map)})

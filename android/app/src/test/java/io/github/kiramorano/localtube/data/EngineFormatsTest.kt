@@ -117,6 +117,141 @@ class EngineFormatsTest {
         assertEquals("22", Engine.formatSelector("22"))
     }
 
+    // ---------- контейнер ----------
+
+    @Test
+    fun `known containers are kept`() {
+        // Тот же список, что в диалоге канала веб-версии.
+        assertEquals(listOf("mp4", "mkv", "webm"), Engine.MERGE_FORMATS)
+        Engine.MERGE_FORMATS.forEach {
+            assertEquals(it, Engine.normalizeMergeFormat(it))
+        }
+        assertEquals("mkv", Engine.normalizeMergeFormat("MKV"))
+        assertEquals("webm", Engine.normalizeMergeFormat("  webm "))
+    }
+
+    @Test
+    fun `unknown container falls back to mp4`() {
+        // Значение уходит в командную строку yt-dlp: произвольную строку туда
+        // пускать нельзя.
+        assertEquals("mp4", Engine.DEFAULT_MERGE_FORMAT)
+        assertEquals("mp4", Engine.normalizeMergeFormat("avi"))
+        assertEquals("mp4", Engine.normalizeMergeFormat(""))
+        assertEquals("mp4", Engine.normalizeMergeFormat(null))
+        assertEquals("mp4", Engine.normalizeMergeFormat("mp4; rm -rf /"))
+    }
+
+    // ---------- повторы ----------
+
+    @Test
+    fun `retry sleep uses a syntax yt-dlp accepts`() {
+        // Раньше здесь стоял список "1,10". yt-dlp считает его синтаксической
+        // ошибкой и завершается до начала загрузки, из-за чего падала любая
+        // задача. Допустимы только exp=, linear= или одно число.
+        val v = Engine.RETRY_SLEEP
+        assertFalse("список через запятую yt-dlp не принимает", v.contains(","))
+        assertTrue(
+            "ожидается exp=/linear=/число, получено: $v",
+            v.matches(Regex("""^(exp|linear)=\d+(\.\d+)?(:\d+(\.\d+)?){0,2}$""")) ||
+                v.matches(Regex("""^\d+(\.\d+)?$"""))
+        )
+    }
+
+    // ---------- язык аудиодорожки ----------
+    // Случаи повторяют tests/test_download_prefs.py: селектор на телефоне и на
+    // сервере должен получаться один и тот же, иначе один и тот же ролик
+    // окажется в общей библиотеке с разной озвучкой.
+
+    @Test
+    fun `audio selector untouched without langs`() {
+        assertEquals(
+            "bestvideo+bestaudio/best",
+            Engine.audioFormatSelector("bestvideo+bestaudio/best", emptyList())
+        )
+    }
+
+    @Test
+    fun `audio selector adds language filter`() {
+        // Фильтр вешается на аудиочасть: у видеопотока поля language нет.
+        val out = Engine.audioFormatSelector("bestvideo+bestaudio/best", listOf("ru"))
+        assertTrue(out, out.startsWith("bestvideo+bestaudio[language^=ru]/"))
+    }
+
+    @Test
+    fun `audio selector keeps original as fallback`() {
+        // У большинства видео одна дорожка и вообще без языка: без запаса
+        // не скачалось бы ничего.
+        val out = Engine.audioFormatSelector("bestvideo+bestaudio/best", listOf("ru"))
+        assertTrue(out, out.endsWith("bestvideo+bestaudio/best"))
+    }
+
+    @Test
+    fun `audio selector respects language order`() {
+        // Порядок в настройках — это приоритет: сначала русская, потом английская.
+        val out = Engine.audioFormatSelector("bestvideo+bestaudio/best", listOf("ru", "en"))
+        assertTrue(out, out.indexOf("language^=ru") < out.indexOf("language^=en"))
+    }
+
+    @Test
+    fun `audio selector uses prefix match`() {
+        // ru должен подходить и для ru-RU: точного совпадения YouTube не даёт.
+        val out = Engine.audioFormatSelector("bestvideo+bestaudio/best", listOf("ru"))
+        assertTrue("строгое равенство отсекает ru-RU", out.contains("language^=ru"))
+        assertFalse("нужен ^=, а не =", out.contains("language=ru"))
+    }
+
+    @Test
+    fun `audio selector handles audio only`() {
+        // Выбор «Только звук» тоже должен уметь язык.
+        val out = Engine.audioFormatSelector("bestaudio/best", listOf("en"))
+        assertTrue(out, out.startsWith("bestaudio[language^=en]/"))
+    }
+
+    @Test
+    fun `audio selector handles numeric video format`() {
+        val out = Engine.audioFormatSelector("137+bestaudio/137", listOf("en"))
+        assertTrue(out, out.contains("137+bestaudio[language^=en]"))
+    }
+
+    @Test
+    fun `audio selector skips single stream selector`() {
+        // У TikTok селектор «best»: фильтр языка сделал бы формат недостижимым
+        // («Requested format is not available»).
+        assertEquals("best", Engine.audioFormatSelector("best", listOf("ru")))
+        assertEquals("worst", Engine.audioFormatSelector("worst", listOf("ru")))
+    }
+
+    @Test
+    fun `audio selector survives empty selector`() {
+        assertEquals("", Engine.audioFormatSelector("", listOf("ru")))
+    }
+
+    @Test
+    fun `audio selector ignores blank langs`() {
+        // Поле настроек пишется на каждый символ, поэтому «ru,» и « » — обычное
+        // состояние. Пустой код дал бы «bestaudio[language^=]» и отказ загрузки.
+        assertEquals(
+            "bestvideo+bestaudio/best",
+            Engine.audioFormatSelector("bestvideo+bestaudio/best", listOf(" ", ""))
+        )
+    }
+
+    @Test
+    fun `audio selector skips selector without audio part`() {
+        // Числовой формат без bestaudio: вешать фильтр некуда, а исходный
+        // селектор терять нельзя.
+        assertEquals("22", Engine.audioFormatSelector("22", listOf("ru")))
+    }
+
+    @Test
+    fun `tiktok selector keeps single stream with audio language set`() {
+        // Сквозная проверка: настройка языка не должна портить TikTok, как и
+        // test_ydl_opts_skip_audio_language_for_tiktok на сервере.
+        val url = "https://www.tiktok.com/@a/video/123"
+        val selector = Engine.audioFormatSelector(Engine.formatSelector("best", url), listOf("ru"))
+        assertEquals("best", selector)
+    }
+
     // ---------- скорость ----------
 
     @Test
@@ -129,4 +264,5 @@ class EngineFormatsTest {
     fun `speed is empty when line has none`() {
         assertEquals("", Engine.parseSpeed("[download] Destination: video.mp4"))
     }
+
 }
