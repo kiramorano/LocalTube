@@ -13,6 +13,8 @@ class Repository(app: Application) {
     val subtitles = SubtitleManager(app, library, settings)
     val channels = ChannelSync(app, library, settings, downloads)
     val lan = LanSharing(app, library, userData, settings)
+    // Экспорт и импорт каналов в tar.gz — аналог /api/channel/<author>/export и /api/channel/import.
+    val channelExportImport = ChannelExportImport(app, library)
 
     companion object {
         /**

@@ -1,6 +1,9 @@
 package io.github.kiramorano.localtube.ui
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -34,12 +37,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,9 +82,11 @@ import io.github.kiramorano.localtube.ui.screens.SearchScreen
 import io.github.kiramorano.localtube.ui.screens.SettingsScreen
 import io.github.kiramorano.localtube.ui.screens.ShortsScreen
 import io.github.kiramorano.localtube.ui.screens.SubtitlesScreen
+import io.github.kiramorano.localtube.data.ImportResult
 import io.github.kiramorano.localtube.ui.theme.LtBreakpoints
 import io.github.kiramorano.localtube.ui.theme.LtTheme
 import io.github.kiramorano.localtube.vm.HomeViewModel
+import kotlinx.coroutines.launch
 
 /** Экраны на весь экран: без шапки и меню. */
 internal val fullScreenRoutes = setOf(
@@ -168,6 +177,19 @@ fun AppRoot(
         ?.filterNot { userData.hiddenChannels.contains(it.name) }
         .orEmpty()
 
+    // Импорт канала из боковой панели: выбор tar.gz и диалог результата.
+    val scope = rememberCoroutineScope()
+    var importResult by remember { mutableStateOf<ImportResult?>(null) }
+    var importResultDialog by remember { mutableStateOf(false) }
+    val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                importResult = homeVm.importChannel(uri)
+                importResultDialog = true
+            }
+        }
+    }
+
     LaunchedEffect(sharedUrl) {
         if (!sharedUrl.isNullOrBlank()) {
             pendingUrl = sharedUrl
@@ -206,6 +228,7 @@ fun AppRoot(
                             navController.navigate("channel/${name.encode()}")
                         },
                         onUnhideChannel = { name -> homeVm.setChannelHidden(name, false) },
+                        onImportClick = { importPicker.launch(arrayOf("application/gzip", "application/gzip-compressed", "application/x-gzip")) },
                         onDonateClick = {},
                         onDonateUnavailable = { go("settings") }
                     )
@@ -267,11 +290,47 @@ fun AppRoot(
                             navController.navigate("channel/${name.encode()}")
                         },
                         onUnhideChannel = { name -> homeVm.setChannelHidden(name, false) },
+                        onImportClick = { importPicker.launch(arrayOf("application/gzip", "application/gzip-compressed", "application/x-gzip")) },
                         onDonateClick = { drawerOpen = false },
                         onDonateUnavailable = { go("settings") }
                     )
                 }
             }
+        }
+
+        // Диалог результата импорта: какие каналы добавлены и сколько видео.
+        // Должен быть за пределами if (!permanentSidebar), чтобы показываться
+        // на планшетах и ТВ, где сайдбар постоянный. Раньше он лежал внутри
+        // условия и импорт на больших экранах проходил в тишину.
+        if (importResultDialog && importResult != null) {
+            AlertDialog(
+                onDismissRequest = { importResultDialog = false; importResult = null },
+                title = {
+                    Text(if (importResult?.error != null) "Ошибка импорта" else "Импорт завершён")
+                },
+                text = {
+                    Column {
+                        importResult?.error?.let { error ->
+                            Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        } ?: run {
+                            Text(
+                                "Импортировано каналов: ${importResult!!.channels.size}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                "Видеофайлов: ${importResult!!.imported}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            importResult!!.channels.forEach { ch ->
+                                Text("  • $ch", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { importResultDialog = false; importResult = null }) { Text("ОК") }
+                }
+            )
         }
     }
 }

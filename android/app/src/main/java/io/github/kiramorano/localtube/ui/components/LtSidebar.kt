@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
@@ -78,6 +79,7 @@ fun LtSidebar(
     onNavigate: (String) -> Unit,
     onOpenChannel: (String) -> Unit,
     onUnhideChannel: (String) -> Unit,
+    onImportClick: () -> Unit,
     onDonateClick: () -> Unit,
     onDonateUnavailable: () -> Unit,
     modifier: Modifier = Modifier
@@ -152,6 +154,12 @@ fun LtSidebar(
             icon = Icons.Filled.Settings,
             selected = currentRoute == "settings",
             onClick = { onNavigate("settings") }
+        )
+        SidebarItem(
+            label = "Импорт канала",
+            icon = Icons.Filled.CloudUpload,
+            selected = false,
+            onClick = { onImportClick() }
         )
         // Поддержка автора: как в веб-версии ссылка в сайдбаре и в настройках.
         // На ТВ браузера может не быть — тогда коллбек сообщает об этом, и

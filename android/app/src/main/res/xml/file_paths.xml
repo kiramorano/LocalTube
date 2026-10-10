@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Экспортированный tar.gz лежит в cacheDir, чтобы FileProvider мог отдать его через Intent. -->
+    <cache-path name="export" path="." />
+</paths>

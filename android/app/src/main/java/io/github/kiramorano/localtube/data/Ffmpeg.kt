@@ -338,6 +338,28 @@ object Ffmpeg {
         }.getOrDefault(false)
     }
 
+    /**
+     * Перекодирует видео для экспорта канала. Те же параметры, что и на сервере
+     * (app.py api_channel_export): CRF 23, libx264, preset slow, aac 128k.
+     * Используется при экспорте с галочкой «перекодировать» для переноса между
+     * устройствами в совместимые форматы.
+     */
+    suspend fun reEncodeForExport(ctx: Context, source: File, dest: File): Result {
+        if (!source.isFile) return Result(false, "Исходный файл не найден")
+        runCatching { dest.delete() }
+        val args = listOf(
+            "-y",
+            "-i", source.absolutePath,
+            "-c:v", "libx264",
+            "-crf", "23",
+            "-preset", "slow",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            dest.absolutePath
+        )
+        return run(ctx, args)
+    }
+
     /** Верхняя граница на одну операцию: битый файл не должен висеть вечно. */
     private const val PROCESS_TIMEOUT_MIN = 90L
 }

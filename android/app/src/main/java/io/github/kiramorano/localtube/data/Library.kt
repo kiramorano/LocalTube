@@ -410,6 +410,20 @@ class Library(context: Context, storageRoot: File? = null) {
         JsonStore.write(File(metaRoot, safeName(author) + ".json"), json)
     }
 
+    /**
+     * Удаляет meta-файл канала — аналог channel_assets.clear_channel_meta на ПК.
+     * Используется при импорте: чтобы не смешать описание и подписчики из чужого
+     * канала с теми же имя. Удаляем основной файл и резервную копию (.json.bak,
+     * которую создаёт JsonStore.write).
+     */
+    fun clearChannelMeta(author: String) {
+        val safe = safeName(author)
+        for (name in listOf("$safe.json", "$safe.json.bak")) {
+            val f = File(metaRoot, name)
+            if (f.isFile) f.delete()
+        }
+    }
+
     /** Файл аватара канала для записи: расширение берём из адреса. */
     fun avatarTarget(author: String, url: String): File =
         File(avatarsRoot, safeName(author) + "." + imageExtOf(url))

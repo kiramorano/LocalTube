@@ -15,7 +15,10 @@ import io.github.kiramorano.localtube.data.ChannelAssets
 import io.github.kiramorano.localtube.data.CollectionResult
 import io.github.kiramorano.localtube.data.DownloadTask
 import io.github.kiramorano.localtube.data.Engine
+import io.github.kiramorano.localtube.data.ExportProgress
+import io.github.kiramorano.localtube.data.ExportResult
 import io.github.kiramorano.localtube.data.Ffmpeg
+import io.github.kiramorano.localtube.data.ImportResult
 import io.github.kiramorano.localtube.data.FormatOption
 import io.github.kiramorano.localtube.data.LanSharing
 import io.github.kiramorano.localtube.data.MediaTask
@@ -127,6 +130,30 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             load(force = true)
         }
     }
+
+    /**
+     * Импорт канала из tar.gz по Uri. Доступен из боковой панели.
+     * Копирует Uri во временный файл, извлекает через channelExportImport,
+     * после успеха перезагружает каталог.
+     */
+    suspend fun importChannel(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
+        val ctx = getApplication<Application>()
+        val lib = repo(ctx).library
+        val tmpFile = File(lib.tmpRoot, "import_${System.currentTimeMillis()}.tar.gz")
+        try {
+            ctx.contentResolver.openInputStream(uri)?.use { input ->
+                tmpFile.outputStream().use { output -> input.copyTo(output) }
+            } ?: return@withContext ImportResult(error = "Не удалось открыть файл")
+
+            val result = repo(ctx).channelExportImport.importChannel(tmpFile)
+            if (result.error == null) load(force = true)
+            result
+        } catch (e: Exception) {
+            ImportResult(error = "Ошибка импорта: ${e.message ?: "неизвестно"}")
+        } finally {
+            tmpFile.delete()
+        }
+    }
 }
 
 class ChannelViewModel(app: Application) : AndroidViewModel(app) {
@@ -223,6 +250,49 @@ class ChannelViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Адрес канала: без него синхронизация невозможна, и кнопку надо гасить. */
     fun channelUrl(): String? = repo(getApplication()).library.channelUrlOf(author)
+
+    // ---------- экспорт и импорт канала ----------
+
+    /**
+     * Экспорт текущего канала в tar.gz. При [reencode] видео перекодируются
+     * через ffmpeg для переноса между устройствами (CRF 23, как на сервере).
+     * [onProgress] вызывается после каждого перекодированного файла.
+     * Возвращает результат экспорта или ошибку.
+     */
+    suspend fun exportChannel(
+        reencode: Boolean,
+        onProgress: ((ExportProgress) -> Unit)? = null
+    ): ExportResult =
+        repo(getApplication()).channelExportImport.exportChannel(author, reencode, onProgress)
+
+    /**
+     * Импорт канала из tar.gz по Uri. Копирует Uri во временный файл, извлекает,
+     * патчит info.json и считает видео. После успешного импорта перечитывает
+     * текущий канал.
+     */
+    suspend fun importChannel(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
+        val ctx = getApplication<Application>()
+        val tmpRoot = repo(ctx).library.tmpRoot
+        val tmpFile = File(tmpRoot, "import_${System.currentTimeMillis()}.tar.gz")
+        try {
+            ctx.contentResolver.openInputStream(uri)?.use { input ->
+                tmpFile.outputStream().use { output -> input.copyTo(output) }
+            } ?: return@withContext ImportResult(error = "Не удалось открыть файл")
+
+            val result = repo(ctx).channelExportImport.importChannel(tmpFile)
+            if (result.error == null) load(author)
+            result
+        } catch (e: Exception) {
+            ImportResult(error = "Ошибка импорта: ${e.message ?: "неизвестно"}")
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    /** Очищает meta-файл канала — чтобы не смешать данные при импорте. */
+    fun clearChannelMeta() {
+        repo(getApplication()).library.clearChannelMeta(author)
+    }
 }
 
 class SearchViewModel(app: Application) : AndroidViewModel(app) {

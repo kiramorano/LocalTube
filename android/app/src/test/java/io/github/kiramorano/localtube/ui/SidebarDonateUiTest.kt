@@ -47,6 +47,7 @@ class SidebarDonateUiTest {
                         onNavigate = {},
                         onOpenChannel = {},
                         onUnhideChannel = {},
+                        onImportClick = {},
                         onDonateClick = { donateClicks++ },
                         onDonateUnavailable = { unavailable++ }
                     )

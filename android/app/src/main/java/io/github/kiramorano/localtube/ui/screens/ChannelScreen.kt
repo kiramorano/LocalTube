@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -64,6 +65,15 @@ import io.github.kiramorano.localtube.ui.components.VideoGrid
 import io.github.kiramorano.localtube.ui.theme.LtRadius
 import io.github.kiramorano.localtube.ui.theme.LtTap
 import io.github.kiramorano.localtube.vm.ChannelViewModel
+import android.content.Context
+import android.content.Intent
+import android.widget.Toast
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import io.github.kiramorano.localtube.data.ExportResult
+import java.io.File
+import kotlinx.coroutines.launch
 
 /**
  * Страница канала: аватар, число видео, вкладки «Видео» и «Shorts», кнопка
@@ -84,6 +94,13 @@ fun ChannelScreen(
     var aboutOpen by remember { mutableStateOf(false) }
     var syncOpen by remember { mutableStateOf(false) }
     var mergeFormat by remember { mutableStateOf(Engine.DEFAULT_MERGE_FORMAT) }
+
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var exportChoiceDialog by remember { mutableStateOf(false) }
+    // Прогресс экспорта: 0 = не начато, 0..1 = в процессе, -1 = завершено/ошибка.
+    var exportProgress by remember { mutableStateOf(0f) }
+    var exportInProgress by remember { mutableStateOf(false) }
 
     LaunchedEffect(author) { vm.load(author) }
 
@@ -197,6 +214,25 @@ fun ChannelScreen(
         // Раньше здесь был Button с outlinedButtonColors: заливка получалась
         // прозрачной, а рамки у Button нет, и кнопка «Скрыть канал» была почти
         // не видна. Теперь для каждого состояния свой тип кнопки.
+        // Экспорт канала: аналог /api/channel/<author>/export на сервере.
+        // Импорт доступен только в боковой панели.
+        // Кнопка активна всегда: экспорт не требует channel_url — достаточно
+        // папки с видео. Раньше enabled = channelUrl != null блокировал экспорт
+        // каналов без channel_url (TikTok, импортированные и т.п.).
+        OutlinedButton(
+            onClick = {
+                exportChoiceDialog = true
+                exportProgress = 0f
+            },
+            enabled = !exportInProgress,
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+        ) {
+            Icon(Icons.Filled.CloudUpload, contentDescription = null)
+            Text("  Экспорт канала", modifier = Modifier.padding(start = 4.dp))
+        }
+
         val buttonModifier = Modifier
             .padding(horizontal = 16.dp)
             .fillMaxWidth()
@@ -285,6 +321,102 @@ fun ChannelScreen(
             }
         )
     }
+
+    // Запуск экспорта: диалог закрывается после завершения — либо подшарить
+    // архив, либо показать ошибку. Во время работы диалог с прогрессом остаётся.
+    fun startExport(reencode: Boolean) {
+        exportInProgress = true
+        exportProgress = 0f
+        scope.launch {
+            val result = vm.exportChannel(reencode) { progress ->
+                exportProgress = progress.fraction
+            }
+            exportInProgress = false
+            exportChoiceDialog = false
+            when (result) {
+                is ExportResult.Success -> shareArchive(ctx, result.file)
+                is ExportResult.PartialSuccess -> {
+                    shareArchive(ctx, result.file)
+                    Toast.makeText(
+                        ctx,
+                        "Экспорт завершён с предупреждениями:\n" + result.warnings.joinToString("\n"),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                is ExportResult.Error -> {
+                    Toast.makeText(ctx, "Ошибка экспорта: ${result.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    // Диалог выбора способа экспорта: перекодировать видео или просто скопировать.
+    if (exportChoiceDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!exportInProgress) exportChoiceDialog = false },
+            title = { Text("Экспорт канала") },
+            text = {
+                Column {
+                    Text(
+                        "С перекодировкой: видео перекодируются через ffmpeg (CRF 23, libx264, aac 128k).\n" +
+                        "Архив будет меньше, но экспорт займет дольше.\n\n" +
+                        "Без перекодировки: копируются оригиналы. Быстрее, но требуется поддержка " +
+                        "контейнеров на целевом устройстве.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    if (exportInProgress) {
+                        Text(
+                            "Идёт экспорт…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        LinearProgressIndicator(
+                            progress = { exportProgress.coerceIn(0f, 1f) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp, bottom = 4.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { startExport(reencode = true) },
+                    enabled = !exportInProgress
+                ) { Text("С перекодировкой") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(
+                        onClick = { startExport(reencode = false) },
+                        enabled = !exportInProgress
+                    ) { Text("Без перекодировки") }
+                    TextButton(
+                        onClick = { if (!exportInProgress) exportChoiceDialog = false },
+                        enabled = !exportInProgress
+                    ) { Text("Отмена") }
+                }
+            }
+        )
+    }
+}
+
+/**
+ * Делится tar.gz архивом через Intent: FileProvider отдаёт файл из cacheDir.
+ */
+private fun shareArchive(ctx: Context, file: File) {
+    val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+    val share = Intent().apply {
+        action = Intent.ACTION_SEND
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        type = "application/gzip"
+        putExtra(Intent.EXTRA_STREAM, uri)
+    }
+    ctx.startActivity(
+        Intent.createChooser(share, "Поделиться архивом канала").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    )
 }
 
 /**
