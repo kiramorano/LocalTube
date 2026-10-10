@@ -58,6 +58,86 @@ def test_export_contains_channel_files(client, channel_with_video):
            any("info.json" in n for n in names)
 
 
+def test_export_renames_webm_to_mp4_after_reencode(client, app_module, monkeypatch, tmp_path):
+    """Экспорт с перекодировкой переименовывает .webm в .mp4: контейнер изменился,
+    расширение должно соответствовать содержимому."""
+    video_dir = tmp_path / "videos"
+    author_dir = video_dir / "TestChan"
+    author_dir.mkdir(parents=True, exist_ok=True)
+
+    video_folder = author_dir / "vid1"
+    video_folder.mkdir()
+    (video_folder / "video.webm").write_bytes(b"fake webm content")
+    (video_folder / "info.json").write_text('{"id":"vid1","title":"Test"}')
+
+    monkeypatch.setattr(app_module, "BASE_VIDEO_DIR", str(video_dir))
+    monkeypatch.setattr(app_module, "VIDEO_MAP", {}, raising=False)
+    monkeypatch.setattr(app_module, "USER_VIDEO_MAP", {}, raising=False)
+    monkeypatch.setattr(app_module, "build_video_map", lambda: 0, raising=False)
+    monkeypatch.setattr(app_module, "build_user_video_map", lambda: 0, raising=False)
+
+    # Мокаем subprocess.run: ffmpeg -version проходит, re-encode создаёт .tmp.mp4.
+    import subprocess as sp
+    def mock_run(cmd, **kwargs):
+        if cmd[1] == '-version':
+            return sp.CompletedProcess(cmd, 0)
+        if '-c:v' in cmd:
+            out_path = cmd[-1]
+            with open(out_path, 'wb') as f:
+                f.write(b"\x00\x00\x00\x20ftypmp42")
+            return sp.CompletedProcess(cmd, 0)
+        return sp.CompletedProcess(cmd, 0)
+    monkeypatch.setattr(app_module.subprocess, "run", mock_run)
+
+    res = client.post("/api/channel/TestChan/export")
+    assert res.status_code == 200
+
+    with tarfile.open(fileobj=io.BytesIO(res.data), mode='r:gz') as tar:
+        names = tar.getnames()
+
+    # В архиве не должно остаться .webm — перекодированный файл стал .mp4.
+    assert not any(n.endswith(".webm") for n in names)
+    assert any(n.endswith("video.mp4") for n in names)
+
+
+def test_export_preserves_mp4_filename_after_reencode(client, app_module, monkeypatch, tmp_path):
+    """Экспорт .mp4 с перекодировкой сохраняет имя файла (только перезаписывает)."""
+    video_dir = tmp_path / "videos"
+    author_dir = video_dir / "TestChan"
+    author_dir.mkdir(parents=True, exist_ok=True)
+
+    video_folder = author_dir / "vid1"
+    video_folder.mkdir()
+    (video_folder / "clip.mp4").write_bytes(b"fake mp4 content")
+    (video_folder / "info.json").write_text('{"id":"vid1","title":"Test"}')
+
+    monkeypatch.setattr(app_module, "BASE_VIDEO_DIR", str(video_dir))
+    monkeypatch.setattr(app_module, "VIDEO_MAP", {}, raising=False)
+    monkeypatch.setattr(app_module, "USER_VIDEO_MAP", {}, raising=False)
+    monkeypatch.setattr(app_module, "build_video_map", lambda: 0, raising=False)
+    monkeypatch.setattr(app_module, "build_user_video_map", lambda: 0, raising=False)
+
+    import subprocess as sp
+    def mock_run(cmd, **kwargs):
+        if cmd[1] == '-version':
+            return sp.CompletedProcess(cmd, 0)
+        if '-c:v' in cmd:
+            out_path = cmd[-1]
+            with open(out_path, 'wb') as f:
+                f.write(b"\x00\x00\x00\x20ftypmp42")
+            return sp.CompletedProcess(cmd, 0)
+        return sp.CompletedProcess(cmd, 0)
+    monkeypatch.setattr(app_module.subprocess, "run", mock_run)
+
+    res = client.post("/api/channel/TestChan/export")
+    assert res.status_code == 200
+
+    with tarfile.open(fileobj=io.BytesIO(res.data), mode='r:gz') as tar:
+        names = tar.getnames()
+
+    assert any(n.endswith("clip.mp4") for n in names)
+
+
 def test_import_extracts_channel_archive(client, app_module, monkeypatch, tmp_path):
     """Импорт tar.gz создаёт папку канала с видео."""
     video_dir = tmp_path / "videos"

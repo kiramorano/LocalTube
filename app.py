@@ -1774,8 +1774,6 @@ def api_channel_remaining(author):
 @app.route('/api/channel/<author>/export', methods=['POST'])
 def api_channel_export(author):
     """Экспорт канала как tar.gz с перекодировкой видео в совместимые форматы (с потерями качества, CRF 23)."""
-    ensure_video_map()
-    build_user_video_map()
     author_path = os.path.join(BASE_VIDEO_DIR, safe_name(author))
     if not os.path.isdir(author_path):
         return jsonify({'error': 'Канал не найден'}), 404
@@ -1815,7 +1813,14 @@ def api_channel_export(author):
                         try:
                             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
                             if os.path.exists(tmp_out) and os.path.getsize(tmp_out) > 0:
-                                os.replace(tmp_out, video_file)
+                                # .webm перекодируется в .mp4: удаляем оригинал
+                                # и переименовываем .tmp.mp4 в .mp4, чтобы
+                                # расширение соответствовало формату контейнера.
+                                if video_file.lower().endswith('.webm'):
+                                    os.remove(video_file)
+                                    os.rename(tmp_out, os.path.splitext(video_file)[0] + '.mp4')
+                                else:
+                                    os.replace(tmp_out, video_file)
                             else:
                                 if os.path.exists(tmp_out):
                                     os.remove(tmp_out)
