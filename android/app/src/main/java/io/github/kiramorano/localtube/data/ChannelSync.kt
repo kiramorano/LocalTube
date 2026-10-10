@@ -4,8 +4,11 @@ import android.app.Application
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -50,6 +53,25 @@ class ChannelSync(
 
     private val _states = MutableStateFlow<Map<String, SyncState>>(emptyMap())
     val states: StateFlow<Map<String, SyncState>> = _states.asStateFlow()
+
+    /**
+     * Событие обновления оформления канала. Событие содержит имя автора:
+     * экран канала подписывается и перечитывает кэш только для своего канала,
+     * чтобы соседние не перезаписывали друг друга.
+     */
+    private val _assetsUpdated = MutableSharedFlow<String>()
+    val assetsUpdated: SharedFlow<String> = _assetsUpdated.asSharedFlow()
+
+    /**
+     * Сообщает подписчикам, что оформление канала изменилось. Вызывается после
+     * сохранения в библиотеку, чтобы экран канала перечитал кэш.
+     *
+     * tryEmit, а не emit: экран может быть закрыт, и тогда коллектора нет —
+     * событие просто теряется, а не виснет в ожидании.
+     */
+    fun emitAssetsUpdated(author: String) {
+        _assetsUpdated.tryEmit(author)
+    }
 
     private val busy = HashSet<String>()
     private val busyLock = Any()
@@ -182,6 +204,19 @@ class ChannelSync(
         }
     }
 
+    /**
+     * Ставит загрузку оформления канала в общую очередь загрузок.
+     *
+     * В отличие от fetchAssets, не скачивает сразу: задача попадает в очередь
+     * и обрабатывается воркером вместе с видео. Возвращает id задачи или null,
+     * если адрес канала неизвестен.
+     */
+    fun queueAssets(author: String, channelUrl: String? = null): String? {
+        val url = channelUrl?.takeIf { it.isNotBlank() } ?: library.channelUrlOf(author)
+        if (url.isNullOrBlank()) return null
+        return downloads.addChannelAssets(author, url)
+    }
+
     private suspend fun fetchAssetsInternal(author: String, channelUrl: String) {
         val assets = Engine.fetchChannelAssets(
             channelUrl = channelUrl,
@@ -199,6 +234,8 @@ class ChannelSync(
             }
             library.invalidateAvatars()
         }
+        // Уведомляем экран канала: аватарка и описание обновились на диске.
+        emitAssetsUpdated(author)
     }
 
     /**

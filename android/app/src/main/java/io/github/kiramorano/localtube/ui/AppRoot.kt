@@ -205,7 +205,9 @@ fun AppRoot(
                         onOpenChannel = { name ->
                             navController.navigate("channel/${name.encode()}")
                         },
-                        onUnhideChannel = { name -> homeVm.setChannelHidden(name, false) }
+                        onUnhideChannel = { name -> homeVm.setChannelHidden(name, false) },
+                        onDonateClick = {},
+                        onDonateUnavailable = { go("settings") }
                     )
                 }
             }
@@ -264,7 +266,9 @@ fun AppRoot(
                             drawerOpen = false
                             navController.navigate("channel/${name.encode()}")
                         },
-                        onUnhideChannel = { name -> homeVm.setChannelHidden(name, false) }
+                        onUnhideChannel = { name -> homeVm.setChannelHidden(name, false) },
+                        onDonateClick = { drawerOpen = false },
+                        onDonateUnavailable = { go("settings") }
                     )
                 }
             }

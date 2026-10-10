@@ -14,7 +14,7 @@ from pathlib import Path
 
 # Добавляем текущую директорию для импорта utils
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from utils import safe_name, is_shorts_video, cookiefile_for_ydl
+from utils import safe_name, is_shorts_video, cookiefile_for_ydl, apply_cookie_updates
 
 try:
     import yt_dlp
@@ -97,32 +97,39 @@ def download_media(url, format_id=None, is_playlist=False, callback_file=None):
             except (OSError, TypeError, ValueError):
                 pass
 
+    info = None
     try:
+        # Сначала только извлекаем метаданные: outtmpl зависит от канала/названия,
+        # а YDL читает его при инициализации, поэтому нельзя задать его заранее.
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Получаем информацию
             info = ydl.extract_info(url, download=False)
             if not info:
                 raise RuntimeError("yt-dlp не вернул информацию по указанной ссылке")
-            if is_playlist and 'entries' in info:
-                # Скачиваем весь плейлист
-                ydl.download([url])
-            else:
-                # Одиночное видео
-                channel = info.get('channel') or info.get('uploader') or 'unknown'
-                title = info.get('title', 'video')
-                author_folder = safe_name(channel)
-                video_folder = safe_name(title)
-                if is_shorts_video(info):
-                    video_folder += " #shorts"
-                output_dir = os.path.join(base_dir, author_folder, video_folder)
-                os.makedirs(output_dir, exist_ok=True)
+        # yt-dlp при close() сохраняет cookies в поток через truncate(0) без
+        # seek(0): без apply_cookie_updates второй YoutubeDL не прочитает
+        # cookies и упадёт с «does not look like a Netscape format cookies file».
+        apply_cookie_updates(ydl_opts)
 
-                # Устанавливаем шаблон вывода
-                ydl_opts['outtmpl'] = {'default': os.path.join(output_dir, '%(title)s.%(ext)s')}
-                # Создаём новый YDL с обновлённым outtmpl
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
-                    ydl2.download([url])
-            return True
+        # Теперь знаем канал и название — выставляем outtmpl и скачиваем.
+        is_playlist_info = is_playlist and info and 'entries' in info
+        channel = info.get('channel') or info.get('uploader') or 'unknown'
+        title = info.get('title', 'video')
+        author_folder = safe_name(channel)
+        if is_playlist_info:
+            output_dir = os.path.join(base_dir, author_folder)
+            ydl_opts['outtmpl'] = {'default': os.path.join(output_dir, '%(playlist_index)s - %(title)s.%(ext)s')}
+        else:
+            video_folder = safe_name(title)
+            if is_shorts_video(info):
+                video_folder += " #shorts"
+            output_dir = os.path.join(base_dir, author_folder, video_folder)
+            ydl_opts['outtmpl'] = {'default': os.path.join(output_dir, '%(title)s.%(ext)s')}
+        os.makedirs(output_dir, exist_ok=True)
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
+            ydl2.download([url])
+        apply_cookie_updates(ydl_opts)
+        return True
     except Exception as e:
         if callback_file:
             write_callback(callback_file, {"status": "error", "message": str(e)})

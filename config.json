@@ -6,17 +6,28 @@
   "subtitles_dir": "subtitles",
   "youtube_auth": {
     "player_client": "",
-    "po_token": "bgutil:http",
+    "po_token": "off",
     "bgutil_base_url": "http://127.0.0.1:4416"
   },
   "downloads": {
     "audio_langs": [
-      "ru"
+      "ru",
+      "en",
+      "uk",
+      "be",
+      "kk",
+      "de",
+      "fr"
     ],
     "subtitle_langs": [
-      "ru"
+      "ru",
+      "en",
+      "uk",
+      "be",
+      "kk",
+      "pl"
     ],
-    "subtitles_enabled": false,
+    "subtitles_enabled": true,
     "subtitles_auto": true
   }
 }

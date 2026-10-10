@@ -26,6 +26,9 @@
   };
   var ROTATE_MS = 30000;
   var FADE_MS = 1600;
+  // Запасные обои — лежат в той же папке, что и основные. Их использует
+  // backgroundUrl, и fetchImages применяет их в catch, если API недоступен.
+  var FALLBACK_IMAGES = ['aero-1.jpg', 'aero-2.jpg', 'aero-3.jpg', 'aero-4.jpg', 'aero-5.jpg', 'aero-6.jpg'];
 
   function readTheme() {
     try {
@@ -129,10 +132,14 @@
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
       })
-      .then(function (images) {
-        imagesCache = Array.isArray(images) ? images : [];
-        return imagesCache;
-      });
+       .then(function (images) {
+         imagesCache = Array.isArray(images) && images.length ? images : FALLBACK_IMAGES.slice();
+         return imagesCache;
+       }).catch(function (err) {
+         console.error('Не удалось загрузить обои темы:', err);
+         imagesCache = FALLBACK_IMAGES.slice();
+         return imagesCache;
+       });
   }
 
   function startBackground() {
@@ -144,12 +151,10 @@
       }
       var first = pickDifferent(images);
       if (first) {
-        // Ждём саму картинку: обои весят под 2 МБ, и без предзагрузки первый
-        // кадр появлялся рывком уже после проявления слоя.
-        var probe = new Image();
-        probe.onload = function () { setBackgroundImage(backgroundUrl(first)); };
-        probe.onerror = function () { setBackgroundImage(backgroundUrl(first)); };
-        probe.src = backgroundUrl(first);
+        // Показываем фон сразу: браузер отрисует прогрессивную JPEG по мере
+        // загрузки. Раньше дождались полной скачки (~2 МБ) через Image(), и
+        // первый кадр появлялся с задержкой в несколько секунд.
+        setBackgroundImage(backgroundUrl(first));
       }
       if (bgTimer) clearInterval(bgTimer);
       bgTimer = setInterval(function () {
@@ -203,6 +208,7 @@
     get: function () { return current; },
     apply: apply,
     THEMES: THEMES.slice(),
+    backgroundUrl: backgroundUrl,
   };
 
   // Совместимость: шаблоны исторически вызывают loadTheme(theme).

@@ -14,7 +14,7 @@ import subprocess
 from urllib.parse import quote
 
 import paths
-from utils import cookiefile_for_ydl
+from utils import cookiefile_for_ydl, apply_cookie_updates
 
 # Пытаемся импортировать yt-dlp (он уже есть в проекте)
 try:
@@ -137,9 +137,14 @@ def download_youtube_subtitles(video_url, video_id, lang='ru'):
                 # Если нет, пробуем автоматические
                 ydl_opts['writeautomaticsub'] = True
                 ydl_opts['writesubtitles'] = False
-            # Запускаем скачивание
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
-                ydl2.download([video_url])
+        # yt-dlp при close() сохраняет cookies в поток через truncate(0) без
+        # seek(0), и без apply_cookie_updates повторная загрузка из того же
+        # потока падает с «does not look like a Netscape format cookies file».
+        apply_cookie_updates(ydl_opts)
+        # Запускаем скачивание
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
+            ydl2.download([video_url])
+        apply_cookie_updates(ydl_opts)
         # После скачивания переименуем файл в lang.<ext> для единообразия
         # БАГФИКС: сохраняем исходное расширение — раньше .srt переименовывался
         # в .vtt, и плеер не мог разобрать формат

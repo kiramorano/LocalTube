@@ -15,7 +15,7 @@ import threading
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import paths
 from utils import (safe_name, write_json_atomic, read_json, JsonWriteError,
-                   cookiefile_for_ydl, is_tiktok_url)
+                   cookiefile_for_ydl, apply_cookie_updates, is_tiktok_url)
 from logger import logger
 # Страна, дата регистрации и внешние ссылки берутся со страницы /about: у
 # yt-dlp этих полей для канала нет.
@@ -216,8 +216,11 @@ def _extract_channel(channel_url):
 
     Выделено отдельно, чтобы разбор ответа можно было проверять без сети.
     """
-    with yt_dlp.YoutubeDL(_ydl_opts(True, channel_url)) as ydl:
-        return ydl.extract_info(channel_url, download=False)
+    opts = _ydl_opts(True, channel_url)
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(channel_url, download=False)
+    apply_cookie_updates(opts)
+    return info
 
 
 def fetch_channel_info(channel_url, raise_on_error=False):
@@ -397,6 +400,21 @@ def load_channel_meta(author):
     """
     data = read_json(_meta_path(author), default={})
     return data if isinstance(data, dict) else {}
+
+
+def clear_channel_meta(author):
+    """Удаляет сохранённый meta-файл канала, чтобы не было пересечения
+    с данными при импорте канала с тем же именем."""
+    # Путь считаем напрямую без _meta_path: очистка не должна создавать
+    # директории (боковой эффект _ensure_dirs в _meta_path), только удалять
+    # файлы по уже существующему пути.
+    path = os.path.join(META_DIR, safe_name(author) + '.json')
+    if os.path.exists(path):
+        os.remove(path)
+    # Очищаем и .bak
+    bak = path + '.bak'
+    if os.path.exists(bak):
+        os.remove(bak)
 
 
 def _meta_path(author):

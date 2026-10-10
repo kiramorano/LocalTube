@@ -4,16 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>LocalTube</title>
+    
+    <!-- Подключение оригинального шрифта Roboto -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
         /* --yt-bg-solid — непрозрачная версия фона. Нужна там, где фон служит
            цветом текста (инверсия на активных элементах): в frutiger-aero
            --yt-bg равен transparent, и такой текст становился невидимым. */
-        :root[data-theme="dark"] { --yt-bg: #0f0f0f; --yt-bg-solid: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa; --yt-spec-border: #3f3f3f; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: #272727; --yt-button-hover: #3f3f3f; --yt-header-height: 56px; --yt-search-bg: #121212; --yt-modal-bg: #212121; --yt-card-bg: #1f1f1f; }
-        :root[data-theme="light"] { --yt-bg: #ffffff; --yt-bg-solid: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060; --yt-spec-border: #e5e5e5; --yt-spec-icon-inactive: #030303; --yt-button-bg: #f2f2f2; --yt-button-hover: #e0e0e0; --yt-header-height: 56px; --yt-search-bg: #f8f8f8; --yt-modal-bg: #ffffff; --yt-card-bg: #ffffff; }
-        :root { --yt-sidebar-width: 240px; --video-card-min-width: 310px; --yt-font-family: 'Roboto', Arial, sans-serif; }
+        :root[data-theme="dark"] { --yt-bg: #0f0f0f; --yt-bg-solid: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa; --yt-spec-border: #303030; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: #272727; --yt-button-hover: #3f3f3f; --yt-header-height: 56px; --yt-search-bg: #121212; --yt-modal-bg: #212121; --yt-card-bg: transparent; }
+        :root[data-theme="light"] { --yt-bg: #ffffff; --yt-bg-solid: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060; --yt-spec-border: #cccccc; --yt-spec-icon-inactive: #030303; --yt-button-bg: #f2f2f2; --yt-button-hover: #e0e0e0; --yt-header-height: 56px; --yt-search-bg: #ffffff; --yt-modal-bg: #ffffff; --yt-card-bg: transparent; }
+        :root { --yt-sidebar-width: 240px; --video-card-min-width: 320px; }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; position: relative; transition: background-color 0.5s ease, color 0.5s ease; }
+        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; position: relative; transition: background-color 0.5s ease, color 0.5s ease; font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
         #bg-layer-1, #bg-layer-2 { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center center; background-repeat: no-repeat; transition: opacity 1.5s ease-in-out; pointer-events: none; z-index: -3; }
         #bg-layer-2 { z-index: -2; }
         body::after { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: rgba(0, 0, 0, 0.05); pointer-events: none; }
@@ -21,16 +27,17 @@
 
         header { position: fixed; top: 0; left: 0; right: 0; height: var(--yt-header-height); background-color: var(--yt-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 100; border-bottom: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; }
         .header-left { display: flex; align-items: center; gap: 16px; }
-        .menu-icon { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); cursor: pointer; transition: fill 0.3s ease; }
-        .logo { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 500; text-decoration: none; color: var(--yt-spec-text-primary); transition: color 0.3s ease; }
+        .menu-icon { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); cursor: pointer; transition: fill 0.3s ease; border-radius: 50%; padding: 0; }
+        .menu-icon:hover { background: var(--yt-button-hover); }
+        .logo { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 600; text-decoration: none; color: var(--yt-spec-text-primary); transition: color 0.3s ease; letter-spacing: -0.5px; }
         .logo svg { width: 30px; height: 20px; fill: #FF0000; }
         .header-center { display: flex; align-items: center; flex: 1; justify-content: center; padding: 0 12px; }
-        .search-container { display: flex; align-items: center; width: 100%; max-width: 732px; }
-        .url-input { flex: 1; min-width: 0; background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); border-radius: 24px 0 0 24px; padding: 0 16px; height: 40px; color: var(--yt-spec-text-primary); font-size: 16px; outline: none; }
-        .url-input:focus { border-color: #1c62b9; }
+        .search-container { display: flex; align-items: center; width: 100%; max-width: 650px; margin-left: 40px; }
+        .url-input { flex: 1; min-width: 0; background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); border-radius: 40px 0 0 40px; padding: 0 16px 0 24px; height: 40px; color: var(--yt-spec-text-primary); font-size: 16px; outline: none; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); }
+        .url-input:focus { border-color: #1c62b9; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1); }
         .url-quality { background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); border-left: none; height: 40px; padding: 0 8px; color: var(--yt-spec-text-primary); font-size: 13px; outline: none; cursor: pointer; }
-        .download-btn { background-color: var(--yt-button-hover); border: 1px solid var(--yt-spec-border); border-left: none; height: 40px; width: 52px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 0 24px 24px 0; transition: background-color 0.3s ease; }
-        .download-btn:hover { background-color: var(--yt-spec-border); }
+        .download-btn { background-color: var(--yt-button-bg); border: 1px solid var(--yt-spec-border); border-left: none; height: 40px; width: 64px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 0 40px 40px 0; transition: background-color 0.3s ease; }
+        .download-btn:hover { background-color: var(--yt-button-hover); }
         .download-btn[disabled] { cursor: progress; opacity: 0.6; }
         .download-btn svg { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); transition: fill 0.3s ease; }
         .header-right { display: flex; align-items: center; gap: 16px; }
@@ -42,81 +49,78 @@
         .user-avatar-placeholder img { width: 100%; height: 100%; object-fit: cover; }
         @media (min-width: 768px) { .user-name-display { display: block; } }
 
-        .sidebar-drawer { position: fixed; top: var(--yt-header-height); left: -240px; width: 240px; height: calc(100vh - var(--yt-header-height)); background: var(--yt-bg); z-index: 200; transition: left 0.3s ease; padding: 12px; overflow-y: auto; }
+        .sidebar-drawer { position: fixed; top: var(--yt-header-height); left: -240px; width: 240px; height: calc(100vh - var(--yt-header-height)); background: var(--yt-bg); z-index: 200; transition: left 0.3s ease; padding: 12px 0; overflow-y: auto; }
         .sidebar-drawer.active { left: 0; }
-        /* На широких экранах сайдбар закреплён: содержимое уже сдвинуто на
-           --yt-sidebar-width, и без этого слева оставалась пустая полоса 240px,
-           а пункт «Очередь» висел за краем экрана и не принимал клики. */
         @media (min-width: 1000px) {
             .sidebar-drawer { left: 0; }
             .sidebar-overlay.active { opacity: 0; pointer-events: none; }
         }
-        /* Уже сайдбара — сдвигать содержимое незачем: он выезжает поверх.
-           Раньше отступ 240px сбрасывался только на 600px, поэтому в диапазоне
-           601–999px слева оставалась пустая полоса. !important нужен потому,
-           что margin-left задан инлайн и иначе перебивает это правило. */
         @media (max-width: 999px) {
             #mainContent, #queueContainer { margin-left: 0 !important; }
         }
         .sidebar-overlay { position: fixed; top: var(--yt-header-height); left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
         .sidebar-overlay.active { opacity: 1; pointer-events: all; }
-        .sidebar-item { display: flex; align-items: center; gap: 16px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; text-decoration: none; transition: background 0.2s; }
+        .sidebar-item { display: flex; align-items: center; gap: 16px; padding: 10px 12px; margin: 0 12px 4px 12px; border-radius: 10px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; font-weight: 400; text-decoration: none; transition: background 0.2s; }
         .sidebar-item:hover { background-color: var(--yt-button-hover); }
+        .sidebar-item.active { background-color: var(--yt-button-bg); font-weight: 500; }
         .sidebar-item svg { width: 24px; height: 24px; fill: currentColor; }
         .sidebar-divider { height: 1px; background-color: var(--yt-spec-border); margin: 12px 0; }
-        .sidebar-title { padding: 8px 12px; font-size: 16px; font-weight: 500; margin-top: 8px; }
+        .sidebar-title { padding: 8px 24px; font-size: 16px; font-weight: 600; margin-top: 8px; color: var(--yt-spec-text-primary); }
 
         .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 24px; flex-wrap: wrap; background-color: var(--yt-bg); padding: 12px; border-radius: 12px; border: 1px solid var(--yt-spec-border); }
         .toolbar input, .toolbar select, .toolbar button { background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 8px 12px; border-radius: 8px; outline: none; cursor: pointer; }
 
-        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--video-card-min-width, 310px), 1fr)); gap: 20px; }
-        /* overflow:hidden — иначе прямоугольные углы превью выступают за
-           скруглённый край карточки; в теме frutiger-aero радиус карточки
-           доходит до 20px и щели по углам были особенно заметны. */
-        .video-card { display: block; text-decoration: none; border-radius: 12px; position: relative; cursor: pointer; overflow: hidden; }
-        .video-thumb { width: 100%; aspect-ratio: 16/9; background: #272727; border-radius: 12px; overflow: hidden; position: relative; }
-        /* Список: toggleView() навешивал класс .list-view, но правил для него не
-           было вовсе, поэтому кнопка переключения вида ничего не делала. */
-        .video-grid.list-view { display: flex; flex-direction: column; gap: 12px; }
-        .video-grid.list-view .video-card { display: flex; gap: 14px; align-items: flex-start; }
+        /* ===== ОБНОВЛЕННАЯ СЕТКА ВИДЕО ===== */
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--video-card-min-width, 320px), 1fr)); column-gap: 16px; row-gap: 40px; }
+        .video-card { display: flex; flex-direction: column; text-decoration: none; cursor: pointer; background: transparent; }
+        .video-thumb { width: 100%; aspect-ratio: 16/9; background: #272727; border-radius: 12px; overflow: hidden; position: relative; transition: border-radius 0.2s ease; }
+        .video-card:hover .video-thumb { border-radius: 4px; }
+        
+        .duration-badge { position: absolute; bottom: 6px; right: 6px; background: rgba(0,0,0,0.8); color: #fff; font-size: 12px; font-weight: 500; padding: 3px 4px; border-radius: 4px; line-height: 1; letter-spacing: 0.5px; }
+
+        .video-details { display: flex; gap: 12px; margin-top: 12px; padding: 0; align-items: flex-start; }
+        .video-author-avatar { width: 36px; height: 36px; border-radius: 50%; background-color: #5c6bc0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: 500; overflow: hidden; margin-top: 0; }
+        .video-author-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .video-info { display: flex; flex-direction: column; min-width: 0; }
+        .video-title { font-size: 16px; font-weight: 500; line-height: 22px; color: var(--yt-spec-text-primary); margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+        .video-meta { color: var(--yt-spec-text-secondary); font-size: 14px; line-height: 20px; }
+
+        .video-grid.list-view { display: flex; flex-direction: column; gap: 16px; }
+        .video-grid.list-view .video-card { display: flex; flex-direction: row; gap: 16px; align-items: flex-start; }
         .video-grid.list-view .video-thumb { width: min(360px, 42vw); flex-shrink: 0; }
-        .video-grid.list-view .video-details { flex: 1; padding: 4px 8px 4px 0; }
-        .video-grid.list-view .video-title { -webkit-line-clamp: 3; }
+        .video-grid.list-view .video-details { flex: 1; padding: 0; gap: 12px; margin-top: 0; }
+        .video-grid.list-view .video-title { -webkit-line-clamp: 3; font-size: 18px; line-height: 1.4; }
+        
         @media (max-width: 600px) {
-            .video-grid.list-view .video-card { flex-direction: column; }
+            .video-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+            .video-grid.list-view .video-card { flex-direction: column; gap: 12px; }
             .video-grid.list-view .video-thumb { width: 100%; }
         }
+
         .video-thumb img { width: 100%; height: 100%; object-fit: cover; }
-        .video-details { display: flex; gap: 12px; padding: 12px; }
-        .video-author-avatar { width: 36px; height: 36px; border-radius: 50%; background-color: #5c6bc0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: 500; overflow: hidden; }
-        .video-author-avatar img { width: 100%; height: 100%; object-fit: cover; }
-        .video-info { display: flex; flex-direction: column; width: 100%; min-width: 0; }
-        .video-title { font-size: 16px; font-weight: 500; line-height: 22px; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .video-meta { color: var(--yt-spec-text-secondary); font-size: 14px; }
-        .card-actions { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; opacity: 0; z-index: 10; }
-        .action-btn { background: rgba(0,0,0,0.8); border: none; border-radius: 4px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; fill: white; }
+        .card-actions { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; opacity: 0; z-index: 10; transition: opacity 0.2s; }
+        .action-btn { background: rgba(0,0,0,0.8); border: none; border-radius: 4px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; fill: white; transition: background 0.2s; }
+        .action-btn:hover { background: rgba(0,0,0,1); }
         .fav-active { fill: #FFD700 !important; }
-         .video-card:hover .card-actions, .video-card:focus-within .card-actions, .short-card:hover .card-actions, .short-card:focus-within .card-actions { opacity: 1; }
+        .video-card:hover .card-actions, .video-card:focus-within .card-actions, .short-card:hover .card-actions, .short-card:focus-within .card-actions { opacity: 1; }
 
-        .shorts-shelf-container { margin: 40px 0; padding: 24px 0; border-top: 4px solid var(--yt-button-hover); border-bottom: 4px solid var(--yt-button-hover); }
-        .shorts-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
-        .shorts-title h2 { font-size: 20px; }
-        .shorts-shelf { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 12px; }
-        .short-card { flex: 0 0 auto; width: 210px; text-decoration: none; position: relative; }
-        .short-thumb { width: 100%; aspect-ratio: 9/16; border-radius: 12px; overflow: hidden; background-color: #272727; }
+        /* ===== SHORTS ===== */
+        .shorts-shelf-container { margin: 32px 0 48px; padding: 24px 0 0 0; border-top: 4px solid var(--yt-spec-border); }
+        .shorts-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px; }
+        .shorts-title h2 { font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .shorts-shelf { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 16px; scrollbar-width: none; }
+        .shorts-shelf::-webkit-scrollbar { display: none; }
+        .short-card { flex: 0 0 auto; width: 210px; text-decoration: none; position: relative; display: flex; flex-direction: column; }
+        .short-thumb { width: 100%; aspect-ratio: 9/16; border-radius: 12px; overflow: hidden; background-color: #272727; margin-bottom: 12px; }
         .short-thumb img { width: 100%; height: 100%; object-fit: cover; }
-        .short-title { font-size: 16px; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .short-card:hover .card-actions { opacity: 1; }
+        .short-title { font-size: 16px; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 22px; margin-bottom: 4px; color: var(--yt-spec-text-primary); }
 
-        .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-        .chip { background-color: var(--yt-button-bg); padding: 8px 14px; border-radius: 20px; font-size: 14px; cursor: pointer; }
+        .chips { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+        .chip { background-color: var(--yt-button-bg); padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; color: var(--yt-spec-text-primary); transition: background 0.2s; }
         .chip:hover { background-color: var(--yt-button-hover); }
-        /* Цвет текста берём из отдельной переменной, а не из --yt-bg: в теме
-           frutiger-aero фон прозрачный, и текст активного фильтра пропадал —
-           оставалась пустая белая плашка. */
         .chip.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg-solid, #0f0f0f); }
 
-        .empty-message { padding: 36px 16px; text-align: center; border: 1px dashed var(--yt-spec-border); border-radius: 12px; color: var(--yt-spec-text-secondary); }
+        .empty-message { padding: 48px 16px; text-align: center; border: 1px dashed var(--yt-spec-border); border-radius: 12px; color: var(--yt-spec-text-secondary); margin-top: 24px; }
 
         #miniplayer-container { position: fixed; bottom: 20px; right: 20px; width: 350px; min-width: 250px; max-width: 800px; resize: horizontal; background: var(--yt-bg); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.6); border: 1px solid var(--yt-spec-border); z-index: 1000; display: none; flex-direction: column; overflow: hidden; }
         .mp-video-wrapper { width: 100%; aspect-ratio: 16/9; background: #000; cursor: pointer; }
@@ -149,42 +153,38 @@
         .progress-fill { height: 100%; width: 0%; background: #FF0000; transition: width 0.3s; }
 
         #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
-        .toast { background: var(--yt-button-hover); color: var(--yt-spec-text-primary); padding: 12px 20px; border-radius: 8px; animation: slideIn 0.3s ease forwards; border: 1px solid var(--yt-spec-border); min-width: 200px; }
+        .toast { background: var(--yt-button-hover); color: var(--yt-spec-text-primary); padding: 12px 20px; border-radius: 8px; animation: slideIn 0.3s ease forwards; border: 1px solid var(--yt-spec-border); min-width: 200px; font-weight: 500; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
         .playlist-item { padding: 8px; border-bottom: 1px solid var(--yt-spec-border); }
-        .hidden-channel-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 8px; }
+        .hidden-channel-item { display: flex; align-items: center; gap: 16px; padding: 10px 12px; margin: 0 12px 4px 12px; border-radius: 10px; cursor: default; color: var(--yt-spec-text-primary); font-size: 14px; font-weight: 400; transition: background 0.2s; }
         .hidden-channel-item:hover { background-color: var(--yt-button-hover); }
         .unhide-btn { background: none; border: none; color: var(--yt-spec-text-primary); cursor: pointer; padding: 4px 8px; border-radius: 16px; background-color: var(--yt-button-hover); font-size: 12px; }
 
         /* ===== Очередь ===== */
-         /* Пустая очередь рендерилась текстом без стилей: класс использовался в JS,
-            но правил для него не было ни в одном CSS-файле. */
          .queue-empty { padding: 48px 16px; text-align: center; color: var(--yt-spec-text-secondary); font-size: 15px; }
          .queue-header { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
          .queue-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
          .queue-toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-         .queue-filter-label { color: var(--yt-spec-text-secondary); font-size: 13px; }
+         .queue-filter-label { color: var(--yt-spec-text-secondary); font-size: 14px; font-weight: 500; }
          .queue-filter { color: var(--yt-spec-text-primary); background: var(--yt-button-bg); border: 1px solid var(--yt-spec-border); border-radius: 8px; padding: 8px 10px; }
-         .queue-summary { color: var(--yt-spec-text-secondary); font-size: 13px; margin-bottom: 16px; min-height: 18px; }
-        /* Пауза упоминалась только мелким серым текстом в сводке, поэтому
-           «очередь стоит» выглядело как сломанная загрузка. */
+         .queue-summary { color: var(--yt-spec-text-secondary); font-size: 14px; margin-bottom: 16px; min-height: 18px; font-weight: 500; }
         .queue-paused-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px;
             flex-wrap: wrap; margin-bottom: 16px; padding: 12px 16px; border-radius: 8px;
             background: rgba(255, 193, 7, 0.15); border: 1px solid #ffc107; color: var(--yt-spec-text-primary);
             font-size: 14px; }
          .queue-current-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--yt-spec-text-secondary); font-size: 12px; margin-top: 5px; }
          .queue-attempts { color: var(--yt-spec-text-secondary); font-size: 12px; }
-         .queue-priority { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-top: 4px; border: 1px solid var(--yt-spec-border); }
+         .queue-priority { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-top: 4px; border: 1px solid var(--yt-spec-border); font-weight: 500; }
          .queue-priority.priority-high { color: #ffb300; border-color: #ffb300; }
          .queue-priority.priority-low { color: var(--yt-spec-text-secondary); }
          .queue-priority-select { color: var(--yt-spec-text-primary); background: var(--yt-button-bg); border: 1px solid var(--yt-spec-border); border-radius: 16px; padding: 6px 10px; font-size: 12px; }
          .queue-priority-select option { color: #0f0f0f; }
-         .cancel-btn { background: var(--yt-button-bg); color: var(--yt-spec-text-primary); border: 1px solid var(--yt-spec-border); padding: 6px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; }
+         .cancel-btn { background: var(--yt-button-bg); color: var(--yt-spec-text-primary); border: 1px solid var(--yt-spec-border); padding: 6px 14px; border-radius: 16px; cursor: pointer; font-size: 13px; font-weight: 500; }
          .cancel-btn:hover { background: var(--yt-button-hover); }
          .status-cancelled { color: #ff9800; }
          .queue-clear-btn { background: #ff4d4d; border-color: #ff4d4d; color: #fff; }
-        .queue-item { display: flex; align-items: center; gap: 16px; background-color: var(--yt-card-bg); border: 1px solid var(--yt-spec-border); border-radius: 12px; padding: 14px 16px; }
+        .queue-item { display: flex; align-items: center; gap: 16px; background-color: var(--yt-button-bg); border: 1px solid var(--yt-spec-border); border-radius: 12px; padding: 16px; }
         .queue-item-info { flex: 1; min-width: 0; }
         .queue-item-title { font-size: 15px; font-weight: 500; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .queue-item-meta { font-size: 13px; color: var(--yt-spec-text-secondary); margin-bottom: 8px; }
@@ -196,33 +196,28 @@
         .status-error { background-color: rgba(255, 77, 77, 0.15); color: #ff4d4d; }
         .status-paused { background-color: var(--yt-button-hover); color: var(--yt-spec-text-secondary); }
         .queue-item-actions { display: flex; gap: 8px; flex-shrink: 0; }
-        .retry-btn, .remove-btn { background: none; border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 6px 12px; border-radius: 16px; cursor: pointer; font-size: 13px; }
+        .retry-btn, .remove-btn { background: none; border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 6px 12px; border-radius: 16px; cursor: pointer; font-size: 13px; font-weight: 500; }
         .retry-btn:hover, .remove-btn:hover { background-color: var(--yt-button-hover); }
-        .progress-bar { height: 6px; background-color: var(--yt-button-hover); border-radius: 3px; overflow: hidden; }
+        .progress-bar { height: 6px; background-color: var(--yt-button-hover); border-radius: 3px; overflow: hidden; margin-top: 4px; }
          .progress-fill-queue { height: 100%; background: linear-gradient(90deg, #3ea6ff, #7db4ff); border-radius: 3px; transition: width 0.4s ease; }
 
          @media (max-width: 760px) {
             header { padding: 0 12px; height: 56px; }
-            /* Раньше здесь стояло display: none, и на телефоне поле ввода
-               ссылки исчезало вместе со всей серединой хедера — скачать
-               видео было нечем. Оставляем поле, убираем только селект
-               качества: он занимает место, а по умолчанию берётся 1080p. */
-            .header-center { padding: 0 8px; min-width: 0; }
-            /* flex-shrink обязателен: без него середина хедера сжимала
-               гамбургер до нулевой ширины, и меню становилось некликабельным,
-               а логотип выезжал за край экрана. */
+            .header-center { padding: 0 8px; min-width: 0; margin-left: 0; }
             .header-left { gap: 8px; flex-shrink: 0; }
+            .search-container { margin-left: 0; }
             .menu-icon { flex-shrink: 0; }
             .url-quality { display: none; }
             .url-input { font-size: 14px; padding: 0 12px; }
             .header-right { gap: 8px; flex-shrink: 0; }
             .toolbar { flex-direction: column; align-items: stretch; }
-            .video-grid { grid-template-columns: repeat(2, 1fr); gap: 18px; }
-            /* Иконки в шапке — 24x24 рисунок в 40x40 области нажатия: по
-               24-пиксельной цели палец промахивался. */
+            .video-grid { grid-template-columns: repeat(2, 1fr); gap: 24px 12px; }
+            .video-details { padding: 8px 0 0 0; }
+            .video-title { font-size: 14px; line-height: 18px; }
             .icon-btn { width: 40px; height: 40px; padding: 8px; }
             .user-profile-btn { min-height: 44px; }
             .download-btn { width: 52px; }
+            main, #queueContainer { padding-left: 16px !important; padding-right: 16px !important; }
         }
     </style>
     <link id="theme-style-link" rel="stylesheet">
@@ -255,7 +250,7 @@
             <div class="search-container">
                 {# Скачивание — дело владельца: гостю поле ссылки не нужно. #}
                 {% if is_owner|default(true) %}
-                <input type="text" id="urlInput" class="url-input" placeholder="{{ 'Вставьте ссылку на YouTube или TikTok...'|t }}" autocomplete="off" aria-label="{{ 'Ссылка на видео, плейлист или профиль YouTube / TikTok'|t }}">
+                <input type="text" id="urlInput" class="url-input" placeholder="{{ 'Вставьте ссылку на видео...'|t }}" autocomplete="off" aria-label="{{ 'Ссылка на видео, плейлист или профиль'|t }}">
                 <select id="urlQuality" class="url-quality" aria-label="{{ 'Качество загрузки'|t }}">
                     <option value="best">{{ 'Максимум'|t }}</option>
                     <option value="2160">2160p</option>
@@ -299,8 +294,18 @@
         <a href="#" class="sidebar-item" id="createCollectionBtn"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg><span>{{ 'Создать плейлист'|t }}</span></a>
         {% endif %}
         <div class="sidebar-divider"></div>
+        {% if is_owner|default(true) %}
+        <div class="sidebar-divider"></div>
+        <div style="padding: 0 12px; margin-bottom: 4px;">
+            <label for="channelImportInput" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;cursor:pointer;color:var(--yt-spec-text-primary);transition:background 0.2s;" onmouseover="this.style.backgroundColor='var(--yt-button-hover)'" onmouseout="this.style.backgroundColor=''">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                <span>{{ 'Добавить канал'|t }}</span>
+                <input type="file" id="channelImportInput" accept=".tar.gz,application/gzip" style="display:none">
+            </label>
+        </div>
+        {% endif %}
         {% for author in authors %}
-        <a href="/channel/{{ author.name }}" class="sidebar-item">
+        <a href="/channel/{{ author.name|urlencode }}" class="sidebar-item">
             <div style="width:28px;height:28px;border-radius:50%;background:#8e24aa;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;overflow:hidden;">{% if author.avatar %}<img src="{{ author.avatar }}" style="width:100%;height:100%;object-fit:cover;">{% else %}{{ author.name[:1]|upper }}{% endif %}</div>
             <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ author.name }}</span>
         </a>
@@ -318,63 +323,90 @@
         {% if not all_videos and not user_videos and not shorts and not playlists %}
         <div class="empty-message"><h2>{{ 'Здесь пока нет видео'|t }}</h2><p>{{ 'Скачанные и добавленные вручную видео появятся здесь.'|t }}</p></div>
         {% else %}
+        
         {% if user_videos %}
         <div class="my-videos-section">
-            <h2>{{ '📹 Мои видео'|t }}</h2>
+            <h2 style="margin-bottom: 24px; font-weight: 600;">{{ '📹 Мои видео'|t }}</h2>
             <div class="video-grid" id="myVideosGrid">
                 {% for v in user_videos %}
                 <a href="/watch/{{ v.id }}" class="video-card" data-id="{{ v.id }}" data-title="{{ v.title|lower|e }}" data-author="{{ v.author }}" data-size="{{ v.size_mb }}" onclick="markHistory('{{ v.id }}')">
                     <div class="video-thumb">
                         {% if v.source == 'user' and v.thumb %}<img loading="lazy" src="/usermedia/{{ v.author }}/{{ v.folder }}/thumbnail.jpg" alt="">{% elif v.source != 'user' %}<img loading="lazy" src="/api/thumbnail/{{ v.id }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет превью'|t }}</div>{% endif %}
+                        {% if v.duration %}<span class="duration-badge">{{ "%d:%02d"|format(v.duration // 60, v.duration % 60) }}</span>{% endif %}
                         <div class="card-actions"><button class="action-btn" title="{{ 'Копировать ссылку'|t }}" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button><button class="action-btn fav-btn" title="{{ 'В избранное'|t }}" onclick="event.preventDefault(); event.stopPropagation(); toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button></div>
                     </div>
                     <div class="video-details">
                         <div class="video-author-avatar">{% if v.author_avatar %}<img src="{{ v.author_avatar }}">{% else %}{{ v.author[:1]|upper }}{% endif %}</div>
-                    <div class="video-info"><div class="video-title">{{ v.title }}</div><div class="video-meta">{{ v.author }} · {{ v.size_mb }} {{ 'МБ'|t }}{% if v.duration %} · {{ "%d:%02d"|format(v.duration // 60, v.duration % 60) }}{% endif %}</div></div>
-
+                        <div class="video-info">
+                            <div class="video-title">{{ v.title }}</div>
+                            <div class="video-meta">
+                                <div>{{ v.author }}</div>
+                                <div>{{ v.size_mb }} {{ 'МБ'|t }}</div>
+                            </div>
+                        </div>
                     </div>
                 </a>
                 {% endfor %}
             </div>
+        </div>
+        {% endif %}
+
+        {% if all_videos %}
+        <div class="video-grid" id="mainGrid">
+            {% for v in all_videos %}
+            <a href="{{ url_for('watch', vid_id=v.id) }}" class="video-card" data-size="{{ v.size_mb }}" data-author="{{ v.author }}" data-id="{{ v.id }}" data-title="{{ v.title|lower|e }}" onclick="markHistory('{{ v.id }}')">
+                <div class="video-thumb">
+                    {% if v.thumb %}<img loading="lazy" src="{{ url_for('media', filename=v.author ~ '/' ~ v.folder ~ '/' ~ v.thumb) }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет превью'|t }}</div>{% endif %}
+                    {% if v.duration %}<span class="duration-badge">{{ "%d:%02d"|format(v.duration // 60, v.duration % 60) }}</span>{% endif %}
+                    <div class="card-actions"><button class="action-btn" title="{{ 'Копировать ссылку'|t }}" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button><button class="action-btn fav-btn" title="{{ 'В избранное'|t }}" onclick="event.preventDefault(); event.stopPropagation(); toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button></div>
+                </div>
+                <div class="video-details">
+                    <div class="video-author-avatar">{% if v.author_avatar %}<img src="{{ v.author_avatar }}" style="width:100%;height:100%;object-fit:cover;">{% else %}{{ v.author[:1]|upper }}{% endif %}</div>
+                    <div class="video-info">
+                        <div class="video-title">{{ v.title }}</div>
+                        <div class="video-meta">
+                            <div>{{ v.author }}</div>
+                            <div>{{ v.size_mb }} {{ 'МБ'|t }}</div>
+                        </div>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
         </div>
         {% endif %}
 
         {% if shorts %}
         <div class="shorts-shelf-container">
-            <div class="shorts-title"><h2>📱 Shorts</h2><a href="/" onclick="filterNav('shorts'); return false;" style="color: var(--yt-spec-text-secondary); font-size: 14px;">{{ 'Показать все →'|t }}</a></div>
+            <div class="shorts-title">
+                <h2><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style="color: #ff0000; margin-right: 2px;"><path d="M17.77,10.32l-1.2-.5L18,9.06a3.74,3.74,0 0 0-3.5-6.62L6,6.94a3.74,3.74,0 0 0,.23,6.74l1.2.49L6,14.93a3.75,3.75,0 0 0,3.5,6.63l8.5-4.5a3.74,3.74,0 0 0-.23-6.74Z"/></svg> Shorts</h2>
+                <a href="/" onclick="filterNav('shorts'); return false;" style="color: var(--yt-spec-text-secondary); font-size: 14px; font-weight: 500; text-decoration: none;">{{ 'Показать все →'|t }}</a>
+            </div>
             <div class="shorts-shelf">
                 {% for s in shorts %}
                 <a href="/watch/{{ s.id }}" class="short-card" data-id="{{ s.id }}" data-title="{{ s.title|lower|e }}" data-author="{{ s.author }}" onclick="markHistory('{{ s.id }}')">
-                    <div class="short-thumb">{% if s.thumb %}<img loading="lazy" src="/api/thumbnail/{{ s.id }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет'|t }}</div>{% endif %}</div>
+                    <div class="short-thumb">
+                        {% if s.thumb %}<img loading="lazy" src="/api/thumbnail/{{ s.id }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет'|t }}</div>{% endif %}
+                        <div class="card-actions"><button class="action-btn" title="{{ 'Копировать ссылку'|t }}" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ s.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button></div>
+                    </div>
                     <div class="short-title">{{ s.title }}</div>
-                    <div class="video-meta">{{ s.author }} · {{ s.size_mb }} {{ 'МБ'|t }}</div>
+                    <div class="video-meta">
+                        <div>{{ s.author }}</div>
+                        <div>{{ s.size_mb }} {{ 'МБ'|t }}</div>
+                    </div>
                 </a>
                 {% endfor %}
             </div>
         </div>
         {% endif %}
 
-        <div class="video-grid" id="mainGrid">
-
-            {% for v in all_videos %}
-            <a href="{{ url_for('watch', vid_id=v.id) }}" class="video-card" data-size="{{ v.size_mb }}" data-author="{{ v.author }}" data-id="{{ v.id }}" data-title="{{ v.title|lower|e }}" onclick="markHistory('{{ v.id }}')">
-                <div class="video-thumb">{% if v.thumb %}<img loading="lazy" src="{{ url_for('media', filename=v.author ~ '/' ~ v.folder ~ '/' ~ v.thumb) }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет превью'|t }}</div>{% endif %}</div>
-                <div class="video-details">
-                    <div class="video-author-avatar">{% if v.author_avatar %}<img src="{{ v.author_avatar }}" style="width:100%;height:100%;object-fit:cover;">{% else %}{{ v.author[:1]|upper }}{% endif %}</div>
-                    <div class="video-info"><div class="video-title">{{ v.title }}</div><div class="video-meta">{{ v.author }} · {{ v.size_mb }} {{ 'МБ'|t }}{% if v.duration %} · {{ "%d:%02d"|format(v.duration // 60, v.duration % 60) }}{% endif %}</div></div>
-                </div>
-                <div class="card-actions"><button class="action-btn" title="{{ 'Копировать ссылку'|t }}" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button><button class="action-btn fav-btn" title="{{ 'В избранное'|t }}" onclick="event.preventDefault(); event.stopPropagation(); toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button></div>
-            </a>
-            {% endfor %}
-        </div>
-
         {% if playlists %}
-        <div class="chips" id="playlistChips" style="margin-top: 24px;">
+        <div class="chips" id="playlistChips" style="margin-top: 32px;">
             {% for p in playlists %}
             <span class="chip" style="cursor: default;">{{ p.title }} · {{ p.video_count }} {{ 'видео'|t }}</span>
             {% endfor %}
         </div>
         {% endif %}
+        
         {% endif %}
     </main>
 
@@ -581,6 +613,7 @@
         // Карточки скрытых каналов уже отфильтрованы сервером, список нужен
         // только для управления в сайдбаре.
         let hiddenChannels = {{ hidden_channels|default([])|tojson }};
+        const channelAuthors = {{ authors|default([])|tojson }};
 
         // Разовый перенос старых данных из localStorage на сервер.
         async function migrateLocalUserData() {
@@ -774,6 +807,28 @@
             }
         });
 
+        // Импорт канала
+        document.getElementById('channelImportInput')?.addEventListener('change', async event => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('archive', file);
+            try {
+                const res = await fetch('/api/channel/import', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || t('Ошибка импорта.'));
+                showToast(t('Импортировано видео:') + ' ' + data.imported);
+                setTimeout(() => location.reload(), 1500);
+            } catch (err) {
+                showToast(err.message || t('Ошибка импорта.'));
+            } finally {
+                event.target.value = '';
+            }
+        });
+
         loadSidebarCollections();
 
         function filterNav(nav) {
@@ -951,6 +1006,40 @@
                 applyFilters();
             }
         }
+        const hiddenChannelAvatarCache = new Map();
+
+        async function getHiddenChannelAvatar(channelName, knownAuthor) {
+            const key = channelName.trim().toLowerCase();
+            if (hiddenChannelAvatarCache.has(key)) return hiddenChannelAvatarCache.get(key);
+
+            // Пока канал видимый, его аватар уже есть в authors — используем его.
+            if (knownAuthor && knownAuthor.avatar) {
+                hiddenChannelAvatarCache.set(key, knownAuthor.avatar);
+                return knownAuthor.avatar;
+            }
+
+            // Для скрытого канала сервер убирает его из authors. Берём ту же
+            // страницу канала, где avatar_avatar всё ещё отдаётся сервером.
+            try {
+                const response = await fetch(`/channel/${encodeURIComponent(channelName)}`, {
+                    credentials: 'same-origin',
+                });
+                if (!response.ok) return '';
+                const html = await response.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const image = doc.querySelector('.channel-head .avatar img, .avatar img');
+                const src = image?.getAttribute('src') || '';
+                if (src) {
+                    const avatarUrl = new URL(src, window.location.origin).href;
+                    hiddenChannelAvatarCache.set(key, avatarUrl);
+                    return avatarUrl;
+                }
+            } catch (error) {
+                // Не ломаем список скрытых каналов, если страницу канала не удалось загрузить.
+            }
+            return '';
+        }
+
         function updateHiddenChannelsList() {
             const container = document.getElementById('hiddenChannelsList');
             if (!container) return;
@@ -965,15 +1054,49 @@
             hiddenChannels.forEach(channel => {
                 const item = document.createElement('div');
                 item.className = 'hidden-channel-item';
+
+                const channelName = String(channel);
+                const author = channelAuthors.find(a =>
+                    a && typeof a.name === 'string' &&
+                    a.name.trim().toLowerCase() === channelName.trim().toLowerCase()
+                );
+
+                const avatar = document.createElement('div');
+                avatar.style.cssText = 'width:28px;height:28px;border-radius:50%;background:#8e24aa;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;overflow:hidden;';
+                avatar.textContent = channelName.slice(0, 1).toUpperCase();
+
+                const applyAvatar = (avatarUrl) => {
+                    if (!avatarUrl || !item.isConnected) return;
+                    const img = document.createElement('img');
+                    img.src = avatarUrl;
+                    img.alt = '';
+                    img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+                    img.onerror = () => {
+                        img.remove();
+                        avatar.textContent = channelName.slice(0, 1).toUpperCase();
+                    };
+                    avatar.replaceChildren(img);
+                };
+
+                if (author && author.avatar) {
+                    applyAvatar(author.avatar);
+                } else {
+                    getHiddenChannelAvatar(channelName, author).then(applyAvatar);
+                }
+
                 const label = document.createElement('span');
                 label.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
-                label.textContent = channel;
+                label.textContent = channelName;
+                const info = document.createElement('div');
+                info.style.cssText = 'display:flex;align-items:center;gap:16px;min-width:0;flex:1;';
+                info.append(avatar, label);
+
                 const button = document.createElement('button');
                 button.className = 'unhide-btn';
                 button.type = 'button';
                 button.textContent = t('Показать');
                 button.addEventListener('click', () => toggleHideChannel(channel));
-                item.append(label, button);
+                item.append(info, button);
                 container.append(item);
             });
         }
@@ -1102,7 +1225,7 @@
                     <div class="queue-item-info">
                         <div class="queue-item-title">${escapeHtml(task.title)}</div>
                         ${priorityBadge}
-                        <div class="queue-item-meta">${position} · ${Math.round(progress)}%${metrics ? ` · ${escapeHtml(metrics)}` : ''}${attempts ? ` · ${attempts}` : ''}</div>
+                        <div class="queue-item-meta">${position} · ${Math.round(progress)}%${metrics ? ` ${escapeHtml(metrics)}` : ''}${attempts ? ` · ${attempts}` : ''}</div>
                         ${currentUrl}${task.error ? `<div class="queue-item-error">${escapeHtml(task.error)}</div>` : ''}
                         <div class="progress-bar"><div class="progress-fill-queue" style="width:${progress}%;"></div></div>
                         <div class="queue-item-meta">${escapeHtml(task.message || '')}</div>
@@ -1123,7 +1246,7 @@
         function buildFormatSelector(quality, url = '') {
             if (!quality || quality === 'best') return null;
             if (quality === 'audio') return 'bestaudio/best';
-            // TikTok отдаёт единый поток: селектор bestvideo+bestaudio —
+            // Некоторые сайты отдают единый поток: селектор bestvideo+bestaudio —
             // синтаксис YouTube и там приводит к «формат не найден».
             if (/^https?:\/\/(?:www\.)?(?:m\.)?(?:vm\.|vt\.)?tiktok\.com\//i.test(url)) return null;
             return `bestvideo[height<=${quality}]+bestaudio/best`;
@@ -1159,7 +1282,7 @@
             const url = input.value.trim();
             if (!url) { showToast(t('Введите ссылку на видео')); input.focus(); return; }
             if (!isSupportedVideoUrl(url)) {
-                showErrorToast(t('Это не похоже на ссылку YouTube или TikTok'));
+                showErrorToast(t('Это не похоже на ссылку на видео'));
                 input.focus();
                 return;
             }

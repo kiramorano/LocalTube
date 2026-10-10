@@ -7,7 +7,7 @@ import logging
 import traceback
 
 import paths
-from utils import cookiefile_for_ydl
+from utils import cookiefile_for_ydl, apply_cookie_updates
 
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = paths.data_dir()
@@ -43,10 +43,12 @@ class YouTubeExtractor:
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                return info if info is not None else {}
+            apply_cookie_updates(opts)
         except Exception as e:
+            apply_cookie_updates(opts)
             logger.error(f"Ошибка экстракции: {e}\n{traceback.format_exc()}")
             return {}
+        return info if info is not None else {}
 
     def get_formats(self, url: str) -> list:
         info = self.extract_info(url, {'extract_flat': False})
@@ -113,8 +115,10 @@ class YouTubeExtractor:
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 ydl.download([url])
-                return True
+            apply_cookie_updates(opts)
+            return True
         except Exception as e:
+            apply_cookie_updates(opts)
             logger.error(f"Ошибка скачивания: {e}")
             return False
 

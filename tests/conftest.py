@@ -186,6 +186,21 @@ def _protect_real_video_dir(tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
+def _block_channel_about_requests(monkeypatch):
+    """Запрещает реальные HTTP-запросы к странице /about канала.
+
+    fetch_channel_info всегда вызывает channel_about.fetch_about, который ходит
+    в сеть за страницей /@канал/about. Тесты, которым это не нужно, повесели бы
+    на 20-секундный таймаут (а в CI — завис на нём до kill), потому что
+    fetch_about не знает о режиме TESTING. Тесты, которым /about важен,
+    подменяют fetch_about явно через monkeypatch — их патч перекрывает эту
+    фикстуру, так как autouse-фикстура применяется раньше.
+    """
+    import channel_about
+    monkeypatch.setattr(channel_about, "fetch_about", lambda url: {})
+
+
+@pytest.fixture(autouse=True)
 def _no_background_queue_worker(monkeypatch, request):
     """Запрещает фоновый воркер очереди во всех тестах.
 

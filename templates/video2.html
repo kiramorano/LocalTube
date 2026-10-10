@@ -1,0 +1,2092 @@
+<!DOCTYPE html>
+<html lang="{{ ui_lang }}" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>{{ meta.get('title', 'Видео') }} - LocalTube</title>
+    <link id="fonts-link" rel="stylesheet" href="/static/css/fonts.css">
+    <!-- mobile.js подключён и здесь: страница имеет тот же сайдбар-драйвер, но
+         скрипта не было, поэтому закрытие по Escape и возврат фокуса работали
+         на всех страницах, кроме этой. -->
+    <script src="/static/js/mobile.js" defer></script>
+    <style>
+        /* --yt-bg-solid — непрозрачная версия фона. Нужна там, где фон служит
+           цветом текста (инверсия на активных элементах): в frutiger-aero
+           --yt-bg равен transparent, и такой текст становился невидимым. */
+        :root[data-theme="dark"] {
+            --yt-bg: #0f0f0f; --yt-bg-solid: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa;
+            --yt-spec-border: #3f3f3f; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: #272727;
+            --yt-button-hover: #3f3f3f; --yt-header-height: 56px; --yt-search-bg: #121212;
+            --yt-modal-bg: #212121;
+        }
+        :root[data-theme="light"] {
+            --yt-bg: #ffffff; --yt-bg-solid: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060;
+            --yt-spec-border: #e5e5e5; --yt-spec-icon-inactive: #030303; --yt-button-bg: #f2f2f2;
+            --yt-button-hover: #e0e0e0; --yt-header-height: 56px; --yt-search-bg: #f8f8f8;
+            --yt-modal-bg: #ffffff;
+        }
+
+        :root { --yt-font-family: 'Roboto', Arial, sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; transition: background-color 0.5s ease, color 0.5s ease; position: relative; }
+        #bg-layer-1, #bg-layer-2 {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            transition: opacity 1.5s ease-in-out;
+            pointer-events: none;
+            z-index: -3;
+        }
+        #bg-layer-2 { z-index: -2; }
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: rgba(0, 0, 0, 0.05);
+            pointer-events: none;
+            transition: background 1s ease;
+        }
+        [data-theme="frutiger-aero"] body::after {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        header { position: fixed; top: 0; left: 0; right: 0; height: var(--yt-header-height); background-color: var(--yt-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 300; border-bottom: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .menu-icon { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); cursor: pointer; transition: fill 0.3s ease; }
+        .logo { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 500; text-decoration: none; color: var(--yt-spec-text-primary); transition: color 0.3s ease; }
+        .logo svg { width: 30px; height: 20px; fill: #FF0000; }
+        .user-profile-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 12px; border-radius: 20px; transition: background 0.3s ease; text-decoration: none; color: var(--yt-spec-text-primary);}
+        .user-profile-btn:hover { background-color: var(--yt-button-hover); }
+        .user-name-display { font-weight: 500; font-size: 14px; display: none; }
+        .user-avatar-placeholder { width: 32px; height: 32px; border-radius: 50%; background-color: #00897b; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; overflow: hidden; transition: border 0.3s ease; }
+        .user-avatar-placeholder img { width: 100%; height: 100%; object-fit: cover; }
+        @media (min-width: 768px) { .user-name-display { display: block; } }
+
+        .sidebar-drawer { position: fixed; top: var(--yt-header-height); left: -240px; width: 240px; height: calc(100vh - var(--yt-header-height)); background: var(--yt-bg); z-index: 200; transition: left 0.3s ease, background-color 0.5s ease; padding: 12px; overflow-y: auto; }
+        .sidebar-drawer.active { left: 0; }
+        .sidebar-overlay { position: fixed; top: var(--yt-header-height); left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .sidebar-overlay.active { opacity: 1; pointer-events: all; }
+        .sidebar-item { display: flex; align-items: center; gap: 16px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; text-decoration: none; transition: background 0.2s, color 0.5s ease; }
+        .sidebar-item:hover { background-color: var(--yt-button-hover); }
+        .sidebar-item svg { width: 24px; height: 24px; fill: currentColor; transition: fill 0.3s ease; }
+        .sidebar-divider { height: 1px; background-color: var(--yt-spec-border); margin: 12px 0; transition: background-color 0.5s ease; }
+
+        .page-content { padding-top: calc(var(--yt-header-height) + 24px); padding-bottom: 40px; }
+        .watch-layout { display: flex; gap: 24px; max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+        .primary-column { flex: 1; min-width: 0; }
+        .secondary-column { width: 400px; flex-shrink: 0; display: flex; flex-direction: column; gap: 16px; }
+        .page-content.theater-mode-active { padding-top: var(--yt-header-height); }
+        .page-content.theater-mode-active .watch-layout { flex-wrap: wrap; max-width: 100%; padding: 0; }
+        .page-content.theater-mode-active .primary-column { flex: 0 0 100%; max-width: 100%; }
+        .page-content.theater-mode-active .yt-player-container { height: calc(100vh - var(--yt-header-height)); aspect-ratio: auto; margin-bottom: 24px; width: 100%; background: #000; }
+        .page-content.theater-mode-active .content-wrapper { max-width: 1280px; margin: 0 auto; padding: 0 24px; width: 100%; }
+        .page-content.theater-mode-active .secondary-column { max-width: 1280px; margin: 0 auto; padding: 0 24px; flex-direction: column; width: 100%; }
+        @media (max-width: 1000px) { .watch-layout { flex-direction: column; } .secondary-column { width: 100%; } }
+
+        .yt-player-container { position: relative; width: 100%; max-width: 100%; background: #000; margin-bottom: 20px; display: flex; justify-content: center; align-items: center; overflow: hidden; aspect-ratio: 16/9; }
+        video { width: 100%; height: 100%; display: block; cursor: pointer; object-fit: contain; }
+        video::cue { background-color: rgba(0,0,0,0.7); color: white; font-size: 1.2em; font-family: 'Roboto', sans-serif; line-height: 1.4; text-align: center; text-shadow: 1px 1px 0px black; bottom: 10px; }
+        .player-gradient { position: absolute; bottom: 0; width: 100%; height: 30%; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); pointer-events: none; z-index: 1; transition: opacity 0.3s; }
+        .player-controls { position: absolute; bottom: 0; left: 0; right: 0; z-index: 2; padding: 0 12px; display: flex; flex-direction: column; transition: opacity 0.3s; opacity: 1; }
+        .yt-player-container.idle .player-controls, .yt-player-container.idle .player-gradient { opacity: 0; pointer-events: none; }
+        .yt-player-container.idle { cursor: none; }
+        .progress-container { width: 100%; height: 5px; background: rgba(255,255,255,0.2); cursor: pointer; position: relative; margin-bottom: 8px; transition: height 0.1s; transform-origin: bottom; }
+        .progress-container:hover { height: 8px; }
+        .progress-loaded { position: absolute; top: 0; left: 0; height: 100%; background: rgba(255,255,255,0.4); width: 0%; pointer-events: none; }
+        .progress-fill { position: absolute; top: 0; left: 0; height: 100%; background: #FF0000; width: 0%; pointer-events: none; }
+        .progress-scrubber { position: absolute; top: 50%; width: 13px; height: 13px; background: #FF0000; border-radius: 50%; transform: translate(-50%, -50%); opacity: 0; transition: opacity 0.1s; pointer-events: none; }
+        .seek-preview { position:absolute; bottom:22px; width:160px; aspect-ratio:16/9; transform:translateX(-50%); display:none; overflow:hidden; border-radius:8px; border:1px solid rgba(255,255,255,.45); background:rgba(0,0,0,.92); color:#fff; z-index:5; pointer-events:none; box-shadow:0 4px 18px rgba(0,0,0,.45); }
+        .seek-preview.visible { display:block; }
+        .seek-preview-image { width:100%; height:100%; background:center/cover no-repeat; display:block; }
+        .seek-preview-time { position:absolute; right:5px; bottom:4px; padding:2px 4px; border-radius:3px; background:rgba(0,0,0,.82); font-size:12px; }
+        .progress-container:hover .progress-scrubber { opacity: 1; }
+        .controls-row { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; }
+        .controls-left, .controls-right { display: flex; align-items: center; gap: 8px; }
+        .control-btn { background: none; border: none; cursor: pointer; width: 46px; height: 36px; display: flex; justify-content: center; align-items: center; opacity: 0.9; transition: opacity 0.2s; color: white; }
+        .control-btn:hover { opacity: 1; }
+        .control-btn svg { width: 24px; height: 24px; fill: #fff; }
+        .volume-container { display: flex; align-items: center; }
+        .volume-slider { width: 0; overflow: hidden; transition: width 0.2s; height: 100%; display: flex; align-items: center; }
+        .volume-container:hover .volume-slider { width: 60px; }
+        input[type="range"] { -webkit-appearance: none; width: 100%; height: 3px; background: rgba(255,255,255,0.2); outline: none; cursor: pointer; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff; }
+        input[type="range"]::-webkit-slider-runnable-track { height: 3px; background: linear-gradient(to right, #fff var(--vol, 100%), rgba(255,255,255,0.2) var(--vol, 100%)); }
+        .time-display { color: #fff; font-size: 13px; margin-left: 8px; font-variant-numeric: tabular-nums; user-select: none; }
+        .seek-animation { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; padding: 20px; border-radius: 50%; font-size: 14px; display: flex; flex-direction: column; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 10; }
+        .seek-left { left: 10%; } .seek-right { right: 10%; }
+        .seek-animation.active { opacity: 1; }
+        .seek-animation svg { width: 24px; height: 24px; fill: #fff; margin-bottom: 4px; }
+
+        h1 { font-size: 20px; font-weight: 700; line-height: 28px; margin-bottom: 12px; word-break: break-word; transition: color 0.5s ease; }
+        .meta-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+        .channel-info { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .channel-avatar { width: 40px; height: 40px; border-radius: 50%; background-color: #8e24aa; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: white; overflow: hidden; transition: border 0.3s ease; }
+        .channel-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .channel-details { display: flex; flex-direction: column; gap: 2px; }
+        .channel-name { font-size: 16px; font-weight: 500; color: var(--yt-spec-text-primary); transition: color 0.5s ease; }
+        .channel-subscribers { font-size: 12px; color: var(--yt-spec-text-secondary); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; transition: color 0.5s ease; }
+        .publish-date { font-size: 12px; color: var(--yt-spec-text-secondary); transition: color 0.5s ease; }
+        .edit-buttons { display: flex; gap: 12px; margin-left: auto; }
+        .edit-btn { background: #3ea6ff; color: #000; border: none; border-radius: 20px; padding: 6px 12px; cursor: pointer; font-weight: 500; font-size: 13px; transition: background 0.3s ease; }
+        .edit-btn:hover { background: #65b8ff; }
+        .delete-btn { background: #ff4d4d; color: white; }
+        .delete-btn:hover { background: #ff1a1a; }
+        .hide-channel-btn { background: none; border: none; cursor: pointer; padding: 6px 12px; border-radius: 20px; background-color: var(--yt-button-bg); color: var(--yt-spec-text-primary); font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: background 0.3s ease, color 0.5s ease; }
+        .hide-channel-btn:hover { background-color: var(--yt-button-hover); }
+        .hide-channel-btn svg { width: 18px; height: 18px; fill: currentColor; transition: fill 0.3s ease; }
+
+        /* Сохранение видео в свой плейлист. Стилем повторяет кнопку скрытия
+           канала: обе стоят в одном ряду под названием видео. */
+        .save-btn { background: none; border: none; cursor: pointer; padding: 6px 12px; border-radius: 20px; background-color: var(--yt-button-bg); color: var(--yt-spec-text-primary); font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; }
+        .save-btn:hover { background-color: var(--yt-button-hover); }
+        .save-btn svg { width: 18px; height: 18px; fill: currentColor; }
+        .collection-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1500; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+        .collection-modal.active { opacity: 1; pointer-events: all; }
+        .collection-modal-box { background: var(--yt-modal-bg); width: 90%; max-width: 420px; max-height: 80vh; overflow-y: auto; border-radius: 12px; padding: 20px; border: 1px solid var(--yt-spec-border); }
+        .collection-modal-box h3 { margin-bottom: 14px; font-size: 18px; }
+        .collection-option { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .collection-option:hover { background: var(--yt-button-hover); }
+        .collection-option input { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
+        .collection-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .collection-new { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--yt-spec-border); }
+        .collection-new input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--yt-spec-border); background: var(--yt-bg); color: var(--yt-spec-text-primary); font-family: inherit; font-size: 14px; }
+        .collection-new button { padding: 9px 14px; border: none; border-radius: 8px; background: #3ea6ff; color: #000; cursor: pointer; font-family: inherit; font-size: 14px; }
+        .collection-modal-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 16px; }
+        .collection-modal-actions button { padding: 8px 14px; border: none; border-radius: 18px; background: var(--yt-button-bg); color: var(--yt-spec-text-primary); cursor: pointer; font-family: inherit; font-size: 14px; }
+        #collectionModalStatus { font-size: 13px; color: var(--yt-spec-text-secondary); min-height: 18px; margin-top: 10px; }
+
+        .description-box { background-color: var(--yt-button-bg); border-radius: 12px; padding: 12px; font-size: 14px; line-height: 20px; color: var(--yt-spec-text-primary); white-space: pre-wrap; margin-bottom: 16px; transition: background-color 0.5s ease, color 0.5s ease; }
+        .subtitles-section { background-color: var(--yt-button-bg); border-radius: 12px; padding: 12px; margin-bottom: 20px; transition: background-color 0.5s ease; }
+        .subtitles-section h3 { margin-bottom: 12px; font-size: 16px; transition: color 0.5s ease; }
+        .subtitle-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .subtitle-item { background: var(--yt-search-bg); border-radius: 20px; padding: 4px 12px; display: flex; align-items: center; gap: 8px; transition: background-color 0.5s ease; }
+        .subtitle-item button { background: none; border: none; color: var(--yt-spec-text-secondary); cursor: pointer; font-size: 14px; transition: color 0.3s ease; }
+        .subtitle-item button:hover { color: #ff4d4d; }
+        .subtitle-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+        .subtitle-actions input, .subtitle-actions button { background: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); border-radius: 20px; padding: 6px 12px; color: var(--yt-spec-text-primary); font-size: 13px; cursor: pointer; transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; }
+        .subtitle-actions input { cursor: text; width: 80px; }
+        .subtitle-actions button:hover { background: var(--yt-button-hover); }
+
+        .related-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; }
+        .related-tab { background-color: var(--yt-button-bg); border: none; color: var(--yt-spec-text-primary); padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: background 0.3s ease, color 0.5s ease; }
+        .related-tab:hover { background-color: var(--yt-button-hover); }
+        .related-tab.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg-solid, #0f0f0f); }
+        .related-list { display: flex; flex-direction: column; gap: 8px; }
+        .related-card { display: flex; gap: 8px; text-decoration: none; cursor: pointer; border-radius: 8px; padding: 4px; transition: background 0.3s ease; }
+        .related-card:hover { background-color: var(--yt-button-hover); }
+        .related-thumb { width: 168px; height: 94px; background-color: #272727; border-radius: 8px; overflow: hidden; flex-shrink: 0; position: relative; }
+        .related-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .related-info { display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+        .related-title { color: var(--yt-spec-text-primary); font-size: 14px; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; transition: color 0.5s ease; }
+        .related-author { color: var(--yt-spec-text-secondary); font-size: 12px; transition: color 0.5s ease; }
+
+        .svg-defs { display: none; }
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: var(--yt-button-hover); color: var(--yt-spec-text-primary); padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid var(--yt-spec-border); animation: slideIn 0.3s ease forwards; transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .download-file-btn { display: inline-block; margin-top: 12px; margin-bottom: 12px; padding: 8px 16px; background: #3ea6ff; color: #000; border-radius: 20px; text-decoration: none; font-weight: 500; transition: background 0.3s ease; }
+        .player-settings-menu { display: none; position: absolute; bottom: 60px; right: 12px; background: var(--yt-modal-bg); border: 1px solid var(--yt-spec-border); border-radius: 12px; padding: 8px; min-width: 200px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: background-color 0.5s ease, border-color 0.5s ease; }
+        .settings-menu-header { padding: 10px 16px; font-weight: 500; cursor: pointer; border-bottom: 1px solid var(--yt-spec-border); margin-bottom: 4px; transition: border-color 0.5s ease; }
+        .settings-menu-item { padding: 10px 16px; cursor: pointer; border-radius: 8px; transition: background 0.3s ease; }
+        .settings-menu-item:hover { background-color: var(--yt-button-hover); }
+        .settings-menu-item.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg-solid, #0f0f0f); }
+        /* Меню качества насчитывает 11 ступеней (оригинал, 2160p...144p и два
+           улучшайзера) и в высоту не влезает в плеер: верхние пункты выезжали за
+           его край, попадали под содержимое страницы и не нажимались. Ограничение
+           по высоте плеера с прокруткой держит меню внутри. */
+        #playerQualityMenu #qualityOptionsList { max-height: min(50vh, 320px); overflow-y: auto; }
+        .quality-option { padding: 8px 16px; cursor: pointer; border-radius: 6px; transition: background 0.3s ease; }
+        .quality-option:hover { background-color: var(--yt-button-hover); }
+        .quality-option.active { background-color: #3ea6ff; color: #000; }
+        .quality-res { font-weight: 500; }
+        .quality-codec { margin-left: 8px; }
+        .equalizer-slider { width: 100%; margin: 8px 0; }
+        .description-box, .related-info, .channel-details { min-width: 0; overflow-wrap: anywhere; }
+        button:focus-visible, a:focus-visible, input:focus-visible, .menu-icon:focus-visible { outline: 2px solid #3ea6ff; outline-offset: 2px; }
+        @media (max-width: 700px) {
+            header { padding-inline: 12px; }
+            .logo { font-size: 18px; }
+            .user-profile-btn { padding-inline: 6px; }
+            .page-content { padding-top: calc(var(--yt-header-height) + 12px); }
+            .watch-layout { padding-inline: 0; gap: 20px; }
+            .content-wrapper, .secondary-column { padding-inline: 12px; }
+            .primary-column > .yt-player-container { border-radius: 0; margin-bottom: 16px; }
+            h1 { font-size: 18px; line-height: 24px; }
+            .meta-row { align-items: flex-start; }
+            .channel-info { width: 100%; }
+            .edit-buttons { width: 100%; margin-left: 0; overflow-x: auto; padding-bottom: 4px; }
+            .edit-buttons .edit-btn, .hide-channel-btn { flex: 0 0 auto; min-height: 36px; }
+            .related-thumb { width: 40%; height: auto; aspect-ratio: 16 / 9; }
+            .related-card { min-width: 0; }
+            .volume-slider { display: none; }
+            #toast-container { inset-inline: 12px; bottom: 12px; }
+            .toast { width: 100%; }
+            .page-content.theater-mode-active .yt-player-container { height: auto; aspect-ratio: 16 / 9; }
+            .page-content.theater-mode-active .content-wrapper, .page-content.theater-mode-active .secondary-column { padding-inline: 12px; }
+        }
+        @media (max-width: 380px) {
+            .time-display { max-width: 86px; overflow: hidden; text-overflow: ellipsis; }
+            .related-title { -webkit-line-clamp: 2; }
+        }
+    </style>
+
+    <style id="youtube-skin">
+        /* =========================================================
+           LocalTube — единый YouTube-inspired visual skin.
+           Только CSS: DOM, Jinja, IDs, события и JS не меняются.
+           Палитра намеренно монохромная: #0f0f0f / #181818 / #272727
+           с единственным фирменным акцентом #ff0000.
+           ========================================================= */
+
+        :root,
+        :root[data-theme],
+        :root[data-theme="dark"],
+        :root[data-theme="light"],
+        :root[data-theme="midnight"],
+        :root[data-theme="glass"],
+        :root[data-theme="frutiger-aero"] {
+            --yt-bg: #0f0f0f !important;
+            --yt-bg-solid: #0f0f0f !important;
+            --yt-spec-text-primary: #f1f1f1 !important;
+            --yt-spec-text-secondary: #aaaaaa !important;
+            --yt-spec-border: #303030 !important;
+            --yt-spec-icon-inactive: #f1f1f1 !important;
+            --yt-button-bg: #272727 !important;
+            --yt-button-hover: #3f3f3f !important;
+            --yt-search-bg: #121212 !important;
+            --yt-modal-bg: #212121 !important;
+            --yt-header-height: 56px !important;
+            --lt-red: #ff0000;
+            --lt-surface: #181818;
+            --lt-surface-2: #212121;
+            --lt-surface-3: #272727;
+            --lt-line: #303030;
+        }
+
+        html {
+            background: #0f0f0f !important;
+        }
+
+        body {
+            background: #0f0f0f !important;
+            color: #f1f1f1 !important;
+            font-family: "Roboto", Arial, sans-serif !important;
+            transition: none !important;
+        }
+
+        /* Убираем декоративные фоновые слои, не трогая их DOM/API */
+        #bg-layer-1,
+        #bg-layer-2,
+        body::after {
+            background: none !important;
+            opacity: 0 !important;
+            transition: none !important;
+        }
+
+        /* ---------- Header ---------- */
+        header {
+            height: 56px !important;
+            background: #0f0f0f !important;
+            border-bottom: 1px solid #303030 !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+
+        .header-left {
+            gap: 16px !important;
+        }
+
+        .menu-icon {
+            fill: #f1f1f1 !important;
+            opacity: .92;
+        }
+
+        .menu-icon:hover {
+            opacity: 1;
+        }
+
+        .logo {
+            color: #f1f1f1 !important;
+            font-size: 20px !important;
+            font-weight: 500 !important;
+            letter-spacing: -0.2px;
+        }
+
+        .logo svg {
+            fill: #ff0000 !important;
+            width: 30px !important;
+            height: 21px !important;
+        }
+
+        .user-profile-btn {
+            color: #f1f1f1 !important;
+            background: transparent !important;
+            border-radius: 24px !important;
+            padding: 4px 10px !important;
+        }
+
+        .user-profile-btn:hover {
+            background: #272727 !important;
+        }
+
+        .user-avatar-placeholder {
+            background: #272727 !important;
+            color: #f1f1f1 !important;
+            border: 1px solid #3f3f3f !important;
+        }
+
+        /* ---------- Sidebar ---------- */
+        .sidebar-drawer {
+            background: #0f0f0f !important;
+            border-right: 1px solid #303030 !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            scrollbar-color: #424242 #0f0f0f;
+        }
+
+        .sidebar-item {
+            color: #f1f1f1 !important;
+            background: transparent !important;
+            border-radius: 10px !important;
+            padding: 10px 12px !important;
+        }
+
+        .sidebar-item:hover {
+            background: #272727 !important;
+        }
+
+        .sidebar-item svg {
+            fill: #f1f1f1 !important;
+        }
+
+        .sidebar-divider {
+            background: #303030 !important;
+        }
+
+        .sidebar-overlay {
+            background: rgba(0, 0, 0, .72) !important;
+        }
+
+        /* ---------- Main layout ---------- */
+        .page-content {
+            background: #0f0f0f !important;
+            color: #f1f1f1 !important;
+        }
+
+        .watch-layout {
+            max-width: 1400px !important;
+            padding-left: 24px !important;
+            padding-right: 24px !important;
+            gap: 24px !important;
+        }
+
+        .secondary-column {
+            width: 390px !important;
+            gap: 12px !important;
+        }
+
+        .content-wrapper {
+            max-width: 100% !important;
+        }
+
+        /* ---------- Video player ---------- */
+        .yt-player-container {
+            background: #000 !important;
+            border-radius: 12px !important;
+            box-shadow: none !important;
+            border: 1px solid #181818 !important;
+        }
+
+        video {
+            background: #000 !important;
+        }
+
+        .player-gradient {
+            background: linear-gradient(to top, rgba(0,0,0,.82), transparent) !important;
+        }
+
+        .progress-container {
+            height: 4px !important;
+            background: rgba(255,255,255,.28) !important;
+        }
+
+        .progress-container:hover {
+            height: 5px !important;
+        }
+
+        .progress-loaded {
+            background: rgba(255,255,255,.46) !important;
+        }
+
+        .progress-fill,
+        .progress-scrubber {
+            background: #ff0000 !important;
+        }
+
+        .controls-row {
+            padding-bottom: 6px !important;
+        }
+
+        .controls-left,
+        .controls-right {
+            gap: 4px !important;
+        }
+
+        .control-btn {
+            color: #fff !important;
+            opacity: .94 !important;
+            border-radius: 50% !important;
+        }
+
+        .control-btn:hover {
+            background: rgba(255,255,255,.10) !important;
+            opacity: 1 !important;
+        }
+
+        .control-btn svg {
+            fill: #fff !important;
+        }
+
+        .time-display {
+            color: #fff !important;
+            font-size: 13px !important;
+        }
+
+        .seek-animation {
+            background: rgba(0,0,0,.62) !important;
+            border-radius: 50% !important;
+        }
+
+        .seek-preview {
+            border-color: rgba(255,255,255,.32) !important;
+            box-shadow: 0 6px 20px rgba(0,0,0,.48) !important;
+        }
+
+        input[type="range"] {
+            accent-color: #fff;
+        }
+
+        /* ---------- Settings / quality ---------- */
+        .player-settings-menu {
+            background: #212121 !important;
+            border: 1px solid #3a3a3a !important;
+            border-radius: 10px !important;
+            box-shadow: 0 8px 28px rgba(0,0,0,.55) !important;
+            color: #f1f1f1 !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+
+        .settings-menu-header {
+            color: #f1f1f1 !important;
+            border-bottom-color: #3a3a3a !important;
+        }
+
+        .settings-menu-item,
+        .quality-option {
+            color: #f1f1f1 !important;
+            border-radius: 6px !important;
+        }
+
+        .settings-menu-item:hover,
+        .quality-option:hover {
+            background: #3f3f3f !important;
+        }
+
+        .settings-menu-item.active,
+        .quality-option.active {
+            background: #f1f1f1 !important;
+            color: #0f0f0f !important;
+        }
+
+        /* ---------- Title / channel ---------- */
+        h1 {
+            color: #f1f1f1 !important;
+            font-size: 20px !important;
+            font-weight: 700 !important;
+            line-height: 28px !important;
+            letter-spacing: 0 !important;
+        }
+
+        .channel-avatar {
+            background: #272727 !important;
+            color: #f1f1f1 !important;
+            border: 1px solid #3f3f3f !important;
+        }
+
+        .channel-name {
+            color: #f1f1f1 !important;
+            font-weight: 500 !important;
+        }
+
+        .channel-subscribers,
+        .publish-date,
+        .related-author {
+            color: #aaaaaa !important;
+        }
+
+        /* ---------- Action buttons ---------- */
+        .hide-channel-btn,
+        .save-btn {
+            background: #272727 !important;
+            color: #f1f1f1 !important;
+            border: 0 !important;
+            border-radius: 18px !important;
+            box-shadow: none !important;
+        }
+
+        .hide-channel-btn:hover,
+        .save-btn:hover {
+            background: #3f3f3f !important;
+        }
+
+        .edit-btn {
+            background: #f1f1f1 !important;
+            color: #0f0f0f !important;
+            border-radius: 18px !important;
+            border: none !important;
+        }
+
+        .edit-btn:hover {
+            background: #fff !important;
+        }
+
+        .delete-btn {
+            background: #cc0000 !important;
+            color: #fff !important;
+        }
+
+        .delete-btn:hover {
+            background: #ff0000 !important;
+        }
+
+        .download-file-btn {
+            background: #272727 !important;
+            color: #f1f1f1 !important;
+            border: 1px solid #3f3f3f !important;
+            border-radius: 18px !important;
+            box-shadow: none !important;
+        }
+
+        .download-file-btn:hover {
+            background: #3f3f3f !important;
+        }
+
+        /* ---------- Description / subtitles ---------- */
+        .description-box,
+        .subtitles-section {
+            background: #181818 !important;
+            color: #f1f1f1 !important;
+            border: 1px solid #272727 !important;
+            border-radius: 10px !important;
+            box-shadow: none !important;
+        }
+
+        .subtitle-item {
+            background: #272727 !important;
+            color: #f1f1f1 !important;
+            border-radius: 18px !important;
+        }
+
+        .subtitle-actions input,
+        .subtitle-actions button {
+            background: #181818 !important;
+            border-color: #3f3f3f !important;
+            color: #f1f1f1 !important;
+        }
+
+        .subtitle-actions button:hover {
+            background: #3f3f3f !important;
+        }
+
+        /* ---------- Related videos ---------- */
+        .related-tabs {
+            gap: 8px !important;
+        }
+
+        .related-tab {
+            background: #272727 !important;
+            color: #f1f1f1 !important;
+            border: 0 !important;
+            border-radius: 8px !important;
+        }
+
+        .related-tab:hover {
+            background: #3f3f3f !important;
+        }
+
+        .related-tab.active {
+            background: #f1f1f1 !important;
+            color: #0f0f0f !important;
+        }
+
+        .related-list {
+            gap: 6px !important;
+        }
+
+        .related-card {
+            background: transparent !important;
+            border-radius: 10px !important;
+            padding: 6px !important;
+        }
+
+        .related-card:hover {
+            background: #181818 !important;
+        }
+
+        .related-thumb {
+            background: #272727 !important;
+            border-radius: 8px !important;
+        }
+
+        .related-title {
+            color: #f1f1f1 !important;
+            font-weight: 500 !important;
+        }
+
+        /* ---------- Collection modal ---------- */
+        .collection-modal {
+            background: rgba(0,0,0,.72) !important;
+        }
+
+        .collection-modal-box {
+            background: #212121 !important;
+            color: #f1f1f1 !important;
+            border: 1px solid #3a3a3a !important;
+            border-radius: 12px !important;
+            box-shadow: 0 12px 40px rgba(0,0,0,.58) !important;
+        }
+
+        .collection-option:hover {
+            background: #3f3f3f !important;
+        }
+
+        .collection-new {
+            border-top-color: #3a3a3a !important;
+        }
+
+        .collection-new input {
+            background: #121212 !important;
+            color: #f1f1f1 !important;
+            border-color: #3f3f3f !important;
+        }
+
+        .collection-new button {
+            background: #f1f1f1 !important;
+            color: #0f0f0f !important;
+        }
+
+        .collection-modal-actions button {
+            background: #272727 !important;
+            color: #f1f1f1 !important;
+        }
+
+        .collection-modal-actions button:hover {
+            background: #3f3f3f !important;
+        }
+
+        /* ---------- Toasts ---------- */
+        .toast {
+            background: #212121 !important;
+            color: #f1f1f1 !important;
+            border: 1px solid #3a3a3a !important;
+            box-shadow: 0 6px 24px rgba(0,0,0,.52) !important;
+            border-radius: 8px !important;
+        }
+
+        /* ---------- Focus / accessibility ---------- */
+        button:focus-visible,
+        a:focus-visible,
+        input:focus-visible,
+        .menu-icon:focus-visible {
+            outline: 2px solid #fff !important;
+            outline-offset: 2px !important;
+        }
+
+        /* ---------- Remove visual theme effects only ----------
+           Theme.js can continue running and persisting its setting;
+           this page intentionally renders the same monochrome skin. */
+        [data-theme="frutiger-aero"] body::after {
+            background: none !important;
+            border-color: #181818 !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+
+        /* ---------- Responsive ---------- */
+        @media (max-width: 1000px) {
+            .watch-layout {
+                gap: 20px !important;
+            }
+
+            .secondary-column {
+                width: 100% !important;
+            }
+        }
+
+        @media (max-width: 700px) {
+            header {
+                padding-inline: 12px !important;
+            }
+
+            .page-content {
+                padding-top: calc(var(--yt-header-height) + 12px) !important;
+            }
+
+            .watch-layout {
+                padding-inline: 0 !important;
+                gap: 20px !important;
+            }
+
+            .content-wrapper,
+            .secondary-column {
+                padding-inline: 12px !important;
+            }
+
+            .primary-column > .yt-player-container {
+                border-radius: 0 !important;
+                border-left: 0 !important;
+                border-right: 0 !important;
+            }
+
+            h1 {
+                font-size: 18px !important;
+                line-height: 24px !important;
+            }
+
+            .related-card {
+                padding: 4px !important;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .time-display {
+                max-width: 86px;
+            }
+        }
+    </style>
+
+    <!-- Синхронно, после ссылки на файл темы и до разметки: иначе
+         applyStylesheet не находит элемент, а тема встаёт после первой
+         отрисовки. -->
+    <!-- Перевод строк, которые собирает клиентский код. До theme.js:
+         t() должна быть готова к первому вызову. -->
+    {# Словарь идёт вместе со страницей: отдельный запрос приходил позже
+       первой отрисовки, и подписи из скриптов оставались русскими. #}
+    {% if ui_strings %}<script>
+        window.LT_I18N = {{ ui_strings|tojson }};
+    </script>{% endif %}
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/theme.js"></script>
+</head>
+<body>
+    <!-- Фоновые слои -->
+    <div id="bg-layer-1" style="background-image:none; opacity:0;"></div>
+    <div id="bg-layer-2" style="background-image:none; opacity:1;"></div>
+
+    <svg class="svg-defs">
+        <defs>
+            <g id="icon-play"><path d="M8 5v14l11-7z"></path></g>
+            <g id="icon-pause"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></g>
+            <g id="icon-vol-high"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"></path></g>
+            <g id="icon-vol-muted"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"></path></g>
+            <g id="icon-fullscreen"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"></path></g>
+            <g id="icon-exit-fullscreen"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"></path></g>
+            <g id="icon-theater"><path d="M22 6H2v12h20V6zm-2 10H4V8h16v8z"></path></g>
+            <g id="icon-rewind-left"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"></path></g>
+            <g id="icon-rewind-right"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"></path></g>
+            <g id="icon-pip"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zm-10-7h8v6h-8z"></path></g>
+            <g id="icon-settings"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></g>
+        </defs>
+    </svg>
+
+    <header>
+        <div class="header-left">
+            <svg class="menu-icon" id="sidebarToggle" viewBox="0 0 24 24"><path d="M21,6H3V5h18V6z M21,11H3v1h18V11z M21,17H3v1h18V17z"></path></svg>
+            <a href="/" class="logo"><svg viewBox="0 0 24 24"><path d="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5s-6.25,0-7.81,0.42c-0.88,0.23-1.54,0.89-1.77,1.77 C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42 c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19z M10,15V9l5.2,3L10,15z"/></svg>LocalTube</a>
+        </div>
+        <div class="header-right">
+            <a href="/" class="user-profile-btn"><span class="user-name-display" id="headerUsername">{{ 'Гость'|t }}</span><div class="user-avatar-placeholder" id="headerAvatar">{{ ('Гость'|t)[:1] }}</div></a>
+        </div>
+    </header>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar-drawer" id="sidebarDrawer">
+        <a href="/" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg><span>{{ 'На главную'|t }}</span></a>
+        <div class="sidebar-divider"></div>
+        <a href="/" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>{{ 'Настройки профиля'|t }}</span></a>
+    </aside>
+
+    <div class="page-content" id="pageContent">
+        {% if is_short %}
+            <style>
+                body { overflow: hidden; }
+                .page-content { padding: var(--yt-header-height) 0 0 !important; margin: 0 !important; max-width: 100% !important; height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; background: var(--yt-bg); display: flex; flex-direction: column; align-items: center; }
+                
+                .short-item { height: calc(100vh - var(--yt-header-height)); width: 100%; scroll-snap-align: start; display: flex; justify-content: center; align-items: center; position: relative; padding: 12px 0; flex-shrink: 0; background: transparent; }
+                .short-video-wrapper { position: relative; height: 100%; aspect-ratio: 9 / 16; max-width: 100%; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+                .short-video-wrapper video { width: 100%; height: 100%; object-fit: contain; cursor: pointer; border-radius: 12px; }
+                
+                /* Плавный градиент внизу для читаемости текста */
+                .short-video-wrapper::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 40%; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%); pointer-events: none; z-index: 1; }
+
+                /* Левый нижний угол: Автор и Название (как в YT Shorts) */
+                .short-overlay { position: absolute; bottom: 24px; left: 16px; right: 72px; z-index: 2; pointer-events: none; display: flex; flex-direction: column; gap: 8px; }
+                .short-author-row { display: flex; align-items: center; gap: 10px; }
+                .short-author-avatar { width: 32px; height: 32px; border-radius: 50%; background: #8e24aa; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+                .short-author { color: #fff; font-size: 15px; font-weight: 500; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+                .short-title { color: white; font-size: 15px; font-weight: 400; line-height: 1.4; text-shadow: 0 1px 3px rgba(0,0,0,0.8); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+                /* Правая панель кнопок: вертикальная стойка */
+                .short-controls-row { position: absolute; bottom: 24px; right: 12px; display: flex; flex-direction: column; gap: 20px; z-index: 10; align-items: center; }
+                .short-btn-wrapper { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+                .short-btn { background: rgba(255, 255, 255, 0.1); border: none; border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 500; font-size: 15px; cursor: pointer; fill: white; transition: background 0.2s; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+                .short-btn:hover { background: rgba(255, 255, 255, 0.2); }
+                .short-btn-label { color: #fff; font-size: 13px; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.8); user-select: none; }
+
+                /* Горизонтальный выезжающий ползунок громкости */
+                .short-vol-wrapper { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+                .short-vol-slider-container { position: absolute; right: 48px; top: 0; height: 48px; width: 124px; background: rgba(0,0,0,0.7); border-radius: 24px; backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s ease, visibility 0.2s ease; z-index: 12; }
+                .short-vol-slider-container.active { opacity: 1; visibility: visible; pointer-events: auto; }
+                input[type="range"].short-vol-slider { width: 90px; height: 24px; margin: 0; padding: 0; -webkit-appearance: none; appearance: none; background: transparent; outline: none; cursor: pointer; touch-action: none; }
+                input[type="range"].short-vol-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.35); }
+                input[type="range"].short-vol-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-top: -5px; border: none; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); cursor: pointer; }
+                input[type="range"].short-vol-slider::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.35); }
+                input[type="range"].short-vol-slider::-moz-range-thumb { width: 14px; height: 14px; border: none; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); cursor: pointer; }
+
+                .sidebar-drawer { display: none !important; }
+            </style>
+            {% for s in shorts_feed %}
+            <div class="short-item" data-id="{{ s.id }}">
+                <div class="short-video-wrapper">
+                    <video class="short-video" src="{{ url_for('media', filename=s.url) }}" preload="metadata" loop playsinline></video>
+                    
+                    <!-- Автор и название слева внизу (стиль YouTube) -->
+                    <div class="short-overlay">
+                        <div class="short-author-row">
+                            <div class="short-author-avatar">{{ s.author[:1]|upper }}</div>
+                            <div class="short-author">@{{ s.author }}</div>
+                        </div>
+                        <div class="short-title">{{ s.title }}</div>
+                    </div>
+                    
+                    <!-- Вертикальная панель кнопок справа -->
+                    <div class="short-controls-row">
+                        {% if is_owner|default(true) %}
+                        <div class="short-btn-wrapper">
+                            <button class="short-btn short-save-btn" data-video-id="{{ s.id }}" title="{{ 'Сохранить'|t }}">
+                                <svg viewBox="0 0 24 24" width="24" height="24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zM2 16h8v-2H2v2zm19.5-4.5L23 13l-6.99 7-4.51-4.5L13 14l3.01 3 5.49-5.5z"/></svg>
+                            </button>
+                            <span class="short-btn-label">{{ 'Сохранить'|t }}</span>
+                        </div>
+                        {% endif %}
+
+                        <div class="short-btn-wrapper">
+                            <button class="short-btn short-speed-btn">1x</button>
+                            <span class="short-btn-label">{{ 'Скорость'|t }}</span>
+                        </div>
+                        
+                        <div class="short-btn-wrapper short-vol-wrapper">
+                            <div class="short-vol-slider-container">
+                                <input type="range" class="short-vol-slider" min="0" max="1" step="0.05" value="0.5">
+                            </div>
+                            <button class="short-btn short-mute-btn">
+                                <svg viewBox="0 0 24 24" width="24" height="24"><use href="#icon-vol-high"></use></svg>
+                            </button>
+                            <span class="short-btn-label">{{ 'Звук'|t }}</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            {% endfor %}
+            <script>
+                (function() {
+                    const shortVideos = document.querySelectorAll('.short-video');
+                    const shortSpeeds = [0.5, 1, 1.5, 2];
+                    let globalShortVol = 0.5, globalShortMute = true;
+                    const shortWatchedSent = new Set();
+                    // Гость из локальной сети историю владельца не пополняет.
+                    const shortsOwner = {{ 'true' if is_owner|default(true) else 'false' }};
+                    function markShortWatched(id) {
+                        if (!id || shortWatchedSent.has(id)) return;
+                        // Наблюдатель срабатывает при каждой прокрутке — отправляем
+                        // отметку один раз на сессию.
+                        shortWatchedSent.add(id);
+                        if (!shortsOwner) return;
+                        fetch(`/api/userdata/watched/${encodeURIComponent(id)}`, { method: 'POST' })
+                            .catch(err => console.error('Не удалось отметить просмотр:', err));
+                    }
+                    const observer = new IntersectionObserver((entries) => {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting) {
+                                markShortWatched(entry.target.closest('.short-item')?.dataset.id);
+                                entry.target.play().catch(() => {});
+                            } else {
+                                entry.target.pause();
+                                entry.target.currentTime = 0;
+                            }
+                        });
+                    }, { threshold: 0.6 });
+                    document.querySelectorAll('.short-item').forEach(item => {
+                        const video = item.querySelector('.short-video');
+                        const speedBtn = item.querySelector('.short-speed-btn');
+                        const muteBtn = item.querySelector('.short-mute-btn');
+                        const volSliderContainer = item.querySelector('.short-vol-slider-container');
+                        const volSlider = item.querySelector('.short-vol-slider');
+                        observer.observe(video);
+                        video.volume = globalShortVol; video.muted = globalShortMute;
+                        volSlider.value = globalShortVol;
+                        video.addEventListener('click', () => video.paused ? video.play() : video.pause());
+                        let currentSpeedIdx = 1;
+                        speedBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            currentSpeedIdx = (currentSpeedIdx + 1) % shortSpeeds.length;
+                            video.playbackRate = shortSpeeds[currentSpeedIdx];
+                            speedBtn.textContent = shortSpeeds[currentSpeedIdx] + 'x';
+                        });
+                        const volWrapper = item.querySelector('.short-vol-wrapper');
+                        let shortHideTimeout;
+                        function showVolumeSlider() {
+                            clearTimeout(shortHideTimeout);
+                            volSliderContainer.classList.add('active');
+                        }
+                        function hideVolumeSlider() {
+                            shortHideTimeout = setTimeout(() => volSliderContainer.classList.remove('active'), 150);
+                        }
+                        volWrapper.addEventListener('mouseenter', showVolumeSlider);
+                        volWrapper.addEventListener('mouseleave', hideVolumeSlider);
+                        volSliderContainer.addEventListener('mouseenter', showVolumeSlider);
+                        volSliderContainer.addEventListener('mouseleave', hideVolumeSlider);
+
+                        muteBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            if (!volSliderContainer.classList.contains('active')) {
+                                closeAllVolumeSliders();
+                                volSliderContainer.classList.add('active');
+                            }
+                            globalShortMute = !globalShortMute;
+                            if (!globalShortMute && globalShortVol === 0) globalShortVol = 0.5;
+                            syncVolume();
+                        });
+
+                        volSliderContainer.addEventListener('click', (e) => e.stopPropagation());
+                        volSliderContainer.addEventListener('pointerdown', (e) => e.stopPropagation());
+                        const onSlide = (e) => {
+                            e.stopPropagation();
+                            globalShortVol = parseFloat(volSlider.value);
+                            globalShortMute = globalShortVol === 0;
+                            syncVolume();
+                        };
+                        volSlider.addEventListener('input', onSlide);
+                        volSlider.addEventListener('change', onSlide);
+                    });
+
+                    function setVolIcon(svg, muted) {
+                        const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+                        use.setAttribute('href', muted ? '#icon-vol-muted' : '#icon-vol-high');
+                        svg.replaceChildren(use);
+                    }
+                    function syncVolume() {
+                        document.querySelectorAll('.short-video').forEach(v => { v.volume = globalShortVol; v.muted = globalShortMute; });
+                        document.querySelectorAll('.short-vol-slider').forEach(s => { s.value = globalShortVol; });
+                        document.querySelectorAll('.short-mute-btn svg').forEach(svg => setVolIcon(svg, globalShortMute || globalShortVol === 0));
+                    }
+                    function closeAllVolumeSliders() {
+                        document.querySelectorAll('.short-vol-slider-container').forEach(c => c.classList.remove('active'));
+                    }
+                    syncVolume();
+                    document.addEventListener('click', (e) => {
+                        if (!e.target.closest('.short-vol-wrapper')) closeAllVolumeSliders();
+                    });
+                })();
+            </script>
+        {% else %}
+        <div class="watch-layout">
+            <div class="primary-column">
+                {% if video_url %}
+                <div class="yt-player-container" id="playerContainer">
+                    <video id="videoElement" autoplay src="{{ video_url }}" type="{{ mime_type }}"></video>
+                    <div class="seek-animation seek-left" id="seekLeftAnim"><svg viewBox="0 0 24 24"><use href="#icon-rewind-left"></use></svg><span>{{ '-10 сек'|t }}</span></div>
+                    <div class="seek-animation seek-right" id="seekRightAnim"><svg viewBox="0 0 24 24"><use href="#icon-rewind-right"></use></svg><span>{{ '+10 сек'|t }}</span></div>
+                    <div class="player-gradient"></div>
+                    <div class="player-controls">
+                        <div class="progress-container" id="progressContainer"><div class="progress-loaded" id="progressLoaded"></div><div class="progress-fill" id="progressFill"></div><div class="progress-scrubber" id="progressScrubber"></div><div class="seek-preview" id="seekPreview"><div class="seek-preview-image" id="seekPreviewImage"></div><span class="seek-preview-time" id="seekPreviewTime">0:00</span></div></div>
+                        <div class="controls-row">
+                            <div class="controls-left">
+                                <button class="control-btn" id="playPauseBtn"><svg viewBox="0 0 24 24" id="playIconSvg"><use href="#icon-pause"></use></svg></button>
+                                <div class="volume-container"><button class="control-btn" id="muteBtn"><svg viewBox="0 0 24 24" id="volumeIconSvg"><use href="#icon-vol-high"></use></svg></button><div class="volume-slider"><input type="range" id="volumeRange" min="0" max="1" step="0.05" value="0.05"></div></div>
+                                <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
+                            </div>
+                            <div class="controls-right">
+                                <button class="control-btn" id="speedBtn" style="font-size: 14px; font-weight: bold; width: auto; padding: 0 8px;">1x</button>
+                                <button class="control-btn" id="subtitlesBtn" title="{{ 'Субтитры'|t }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6v-2zm4 0h8v2h-8v-2zm0 4h6v2h-6v-2z"/></svg></button>
+                                <button class="control-btn" id="pipBtn"><svg viewBox="0 0 24 24"><use href="#icon-pip"></use></svg></button>
+                                 <button class="control-btn" id="theaterBtn"><svg viewBox="0 0 24 24"><use href="#icon-theater"></use></svg></button>
+                                 <button class="control-btn" id="settingsBtn" title="{{ 'Настройки (Качество/Шакализатор/Улучшайзер)'|t }}"><svg viewBox="0 0 24 24"><use href="#icon-settings"></use></svg></button>
+                                 <button class="control-btn" id="fullscreenBtn"><svg viewBox="0 0 24 24" id="fullscreenIconSvg"><use href="#icon-fullscreen"></use></svg></button>
+                             </div>
+                         </div>
+
+                          <!-- Меню качества (Шакализатор / Улучшайзер) -->
+                          <div id="playerSettingsMenu" class="player-settings-menu">
+                              <div class="settings-menu-header" onclick="document.getElementById('playerSettingsMenu').style.display='none'">{{ '⚙️ Настройки'|t }}</div>
+                              <div class="settings-menu-item" id="menuQualityBtn">{{ 'Качество'|t }} <span id="currentQualityLabel" style="color:#aaa;">{{ 'Оригинал'|t }}</span></div>
+                              <div class="settings-menu-item" id="menuEqualizerBtn">{{ 'Шакализатор'|t }}</div>
+                              <div class="settings-menu-item" id="menuBassBoosterBtn">{{ 'Улучшайзер (Басы)'|t }}</div>
+                          </div>
+                          <div id="playerQualityMenu" class="player-settings-menu" style="display:none;">
+                              <div class="settings-menu-header" id="backToSettingsBtn">{{ '← Назад к настройкам'|t }}</div>
+                             <div id="qualityOptionsList"></div>
+                          </div>
+                          <!-- Меню шакализатора -->
+                          <div id="playerEqualizerMenu" class="player-settings-menu" style="display:none; max-width: 240px;">
+                              <div class="settings-menu-header" onclick="showPlayerSettingsMenu()">{{ '← Назад к настройкам'|t }}</div>
+                              <div id="equalizerPresets" style="padding: 8px;">
+                                  <div class="quality-option" onclick="setEqualizerPreset('flat')">{{ '🔊 Плоский (выключен)'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('pop')">{{ '🎤 Поп'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('rock')">{{ '🎸 Рок'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('bass')">{{ '🎵 Басы в унисон'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('dance')">{{ '💃 Танцы'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('acoustic')">{{ '🎸 Акустика'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('classical')">{{ '🎼 Классика'|t }}</div>
+                              </div>
+                          </div>
+                          <!-- Меню улучшайзера -->
+                          <div id="playerBassMenu" class="player-settings-menu" style="display:none; max-width: 220px;">
+                              <div class="settings-menu-header" onclick="showPlayerSettingsMenu()">{{ '← Назад к настройкам'|t }}</div>
+                              <div id="bassBoostOptions" style="padding: 8px;">
+                                  <div class="quality-option" onclick="setBassBoost(0)">{{ '🔊 Выключен'|t }}</div>
+                                  <div class="quality-option" onclick="setBassBoost(3)">{{ '🔊 Слабый (+3 дБ)'|t }}</div>
+                                  <div class="quality-option" onclick="setBassBoost(6)">{{ '🔊 Средний (+6 дБ)'|t }}</div>
+                                  <div class="quality-option" onclick="setBassBoost(10)">{{ '🔊 Сильный (+10 дБ)'|t }}</div>
+                              </div>
+                          </div>
+                      </div>
+                 </div>
+                {% if is_owner|default(true) %}<a href="{{ video_url }}" download class="download-file-btn">{{ '📥 Скачать видео (исходный файл)'|t }}</a>{% endif %}
+                {% else %}
+                <div style="height: 50vh; display:flex; align-items:center; justify-content:center; color:#aaa; margin-bottom: 24px;">{{ 'Видеофайл не найден'|t }}</div>
+                {% endif %}
+                <div class="content-wrapper">
+                    <h1>{{ meta.get('title', folder) }}</h1>
+                    <div class="meta-row">
+                        <div class="channel-info">
+                            <div class="channel-avatar">{% if author_avatar %}<img src="{{ author_avatar }}" alt="{{ author }}">{% else %}{{ meta.get('uploader', author)[:1]|upper if meta.get('uploader', author) else 'U' }}{% endif %}</div>
+                            <div class="channel-details"><span class="channel-name" id="channelName">{{ meta.get('uploader', author) }}</span><span class="channel-subscribers">LocalTube • {{ file_size_mb }} {{ 'МБ'|t }}{% if publish_date %} • <span class="publish-date">📅 {{ publish_date }}</span>{% endif %}</span></div>
+                            {# Скрытие канала, плейлисты и правка — только владельцу. #}
+                            {% if is_owner|default(true) %}
+                            <button class="hide-channel-btn" id="hideChannelBtn" title="{{ 'Скрыть канал'|t }}"><svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg><span id="hideChannelText">{{ 'Скрыть канал'|t }}</span></button>
+                            <button type="button" class="save-btn" id="saveToCollectionBtn" title="{{ 'Сохранить в плейлист'|t }}"><svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zM2 16h8v-2H2v2zm19.5-4.5L23 13l-6.99 7-4.51-4.5L13 14l3.01 3 5.49-5.5z"/></svg><span>{{ 'Сохранить'|t }}</span></button>
+                            {% if meta.get('source') == 'user' %}<div class="edit-buttons"><button class="edit-btn" onclick="window.location.href='/edit/{{ meta.id }}'">{{ '✏️ Редактировать'|t }}</button><button class="edit-btn delete-btn" onclick="deleteUserVideo('{{ meta.id }}', '{{ meta.get('uploader', author) }}')">{{ '🗑️ Удалить'|t }}</button></div>{% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="description-box">{{ meta.get('description') or 'Нет описания' }}</div>
+
+                    <div class="subtitles-section" id="subtitlesSection">
+                        <h3>{{ '📝 Субтитры и аудио'|t }}</h3>
+                        <div id="subtitleList" class="subtitle-list"></div>
+                        {# Загрузка субтитров и MP3 пишет файлы на диск владельца:
+                           гостю показываем только уже готовые дорожки. #}
+                        {% if is_owner|default(true) %}
+                        <div class="subtitle-actions">
+                            <input type="text" id="subtitleLang" placeholder="{{ 'Код языка (ru, en)'|t }}" value="ru" size="5">
+                            <input type="file" id="subtitleFile" accept=".vtt,.srt" style="display:none;">
+                            <button id="uploadSubtitleBtn">{{ '📁 Загрузить свой файл'|t }}</button>
+                            {% if video_source == 'youtube' %}<button id="downloadSubtitleBtn">{{ '⬇️ Скачать с YouTube'|t }}</button>{% endif %}
+                            <button id="downloadAudioBtn">{{ '🎵 Скачать аудио (MP3)'|t }}</button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="secondary-column">
+                {# data-filter, а не подпись кнопки: раньше активная вкладка
+                   определялась сравнением textContent с «Все видео», и перевод
+                   интерфейса сбрасывал бы фильтр на «От автора». #}
+                <div class="related-tabs"><button class="related-tab active" data-filter="all" onclick="filterRelated('all', this)">{{ 'Все видео'|t }}</button><button class="related-tab" data-filter="author" onclick="filterRelated('author', this)">{{ 'От автора'|t }}</button></div>
+                <div class="related-list" id="relatedList">
+                    {% for rv in recommended_videos %}
+                    <a href="{{ url_for('watch', vid_id=rv.id) }}" class="related-card" data-author="{{ rv.author }}">
+                        <div class="related-thumb">{% if rv.thumb %}<img src="{{ url_for('media', filename=rv.author ~ '/' ~ rv.folder ~ '/' ~ rv.thumb) }}" loading="lazy">{% else %}<div style="background:#272727; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет'|t }}</div>{% endif %}</div>
+                        <div class="related-info"><div class="related-title">{{ rv.title }}</div><div class="related-author">{{ rv.author }}</div></div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <script>
+            function filterRelated(type, button) {
+                const tabs = document.querySelectorAll('.related-tab');
+                tabs.forEach(btn => btn.classList.remove('active'));
+                button?.classList.add('active');
+                const currentAuthor = {{ meta.get('uploader', author)|tojson }};
+                const cards = document.querySelectorAll('.related-card');
+                const hiddenChannels = getHiddenChannels();
+                cards.forEach(card => {
+                    const cardAuthor = card.getAttribute('data-author');
+                    if (type === 'all') card.style.display = hiddenChannels.includes(cardAuthor) ? 'none' : 'flex';
+                    else if (type === 'author') card.style.display = (cardAuthor === currentAuthor && !hiddenChannels.includes(cardAuthor)) ? 'flex' : 'none';
+                });
+            }
+        </script>
+        {% endif %}
+    </div>
+
+    {# В ленте Shorts панели нет: ролик занимает весь экран, а его кнопки стоят
+       у нижнего края и оказались бы под навигацией. #}
+    {% if not is_short %}
+    {% include '_mobile_nav.html' with context %}
+    {% endif %}
+
+    <div id="toast-container"></div>
+
+    <script>
+        // Тема, стиль и обои — /static/js/theme.js (единая реализация для всех
+        // страниц). Раньше здесь была своя копия на 110 строк.
+
+        // ========== ПРОФИЛЬ ==========
+        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"avatar":""}');
+        function applyProfileUI() {
+            const username = userSettings.username || t('Гость');
+            const usernameEl = document.getElementById('headerUsername');
+            const avatarBox = document.getElementById('headerAvatar');
+            if (usernameEl) usernameEl.textContent = username;
+            if (!avatarBox) return;
+            avatarBox.replaceChildren();
+            if (userSettings.avatar) {
+                const image = document.createElement('img');
+                image.src = userSettings.avatar;
+                image.alt = t('Аватар');
+                avatarBox.append(image);
+            } else {
+                avatarBox.textContent = username.charAt(0).toUpperCase();
+            }
+        }
+        applyProfileUI();
+
+        // ========== САЙДБАР ==========
+        // Переключение панели живёт в /static/js/mobile.js (общий слой).
+
+        // ========== СКРЫТЫЕ КАНАЛЫ ==========
+        // Владелец или гость из локальной сети. Гость только смотрит: его
+        // просмотры не попадают в историю владельца.
+        const IS_OWNER = {{ 'true' if is_owner|default(true) else 'false' }};
+        // Список хранится на сервере; здесь держим локальную копию для
+        // мгновенной реакции интерфейса.
+        let hiddenChannels = [];
+        function getHiddenChannels() { return hiddenChannels; }
+        function isChannelHidden(channelName) { return hiddenChannels.includes(channelName); }
+
+        function refreshHiddenChannelUI(channelName) {
+            updateHideChannelButton(channelName);
+            const activeTab = document.querySelector('.related-tab.active');
+            filterRelated(activeTab?.dataset.filter || 'all', activeTab);
+        }
+
+        let hiddenChannelsReady = null;
+
+        async function toggleHideChannel(channelName) {
+            // Скрытие каналов — настройка владельца. Кнопка гостю не показана,
+            // но защита нужна и здесь: иначе при сбое запроса список владельца
+            // перезаписался бы из браузера гостя.
+            if (!IS_OWNER) return;
+            // Ждём загрузки списка: иначе он пуст и сервер сделает обратное.
+            await hiddenChannelsReady;
+            const shouldHide = !hiddenChannels.includes(channelName);
+            if (shouldHide) {
+                hiddenChannels = hiddenChannels.concat([channelName]);
+                showToast(`Канал "${channelName}" скрыт`);
+            } else {
+                hiddenChannels = hiddenChannels.filter(c => c !== channelName);
+                showToast(`Канал "${channelName}" больше не скрыт`);
+            }
+            refreshHiddenChannelUI(channelName);
+            try {
+                const res = await fetch('/api/userdata/hidden-channel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // Явное состояние, а не «переключи».
+                    body: JSON.stringify({ author: channelName, hidden: shouldHide }),
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                if (data.hidden_channels) {
+                    hiddenChannels = data.hidden_channels;
+                    refreshHiddenChannelUI(channelName);
+                }
+            } catch (err) {
+                console.error('Не удалось сохранить скрытые каналы:', err);
+                // Сохраняем локально, чтобы изменение не пропало до перезагрузки.
+                try {
+                    localStorage.setItem('lt_hidden_channels', JSON.stringify(hiddenChannels));
+                } catch (e) { console.error('Локальное сохранение не удалось:', e); }
+                showToast(t('Сервер недоступен, изменение сохранено локально'));
+            }
+        }
+
+        async function loadHiddenChannels() {
+            // Скрытые каналы — настройка владельца. Гостю сервер их уже
+            // отфильтровал, а /api/userdata для него закрыт.
+            if (!IS_OWNER) { hiddenChannels = []; return; }
+            try {
+                const res = await fetch('/api/userdata');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                hiddenChannels = data.hidden_channels || [];
+            } catch (err) {
+                console.error('Не удалось загрузить скрытые каналы:', err);
+                hiddenChannels = JSON.parse(localStorage.getItem('lt_hidden_channels') || '[]');
+            }
+        }
+        function updateHideChannelButton(channelName) {
+            const btn = document.getElementById('hideChannelBtn');
+            const textSpan = document.getElementById('hideChannelText');
+            if (!btn || !textSpan) return;
+            if (isChannelHidden(channelName)) { textSpan.innerText = t('Показать канал'); btn.title = t('Показать канал'); }
+            else { textSpan.innerText = t('Скрыть канал'); btn.title = t('Скрыть канал'); }
+        }
+        {% if not is_short %}
+        const currentChannelName = {{ meta.get('uploader', author)|tojson }};
+        document.getElementById('hideChannelBtn')?.addEventListener('click', () => toggleHideChannel(currentChannelName));
+        // Список приходит с сервера, поэтому кнопка и лента обновляются после загрузки.
+        hiddenChannelsReady = loadHiddenChannels();
+        hiddenChannelsReady.then(() => refreshHiddenChannelUI(currentChannelName));
+        {% endif %}
+
+        // Отмечаем просмотр на сервере: раньше история пополнялась только при
+        // клике из каталога, поэтому прямой переход по ссылке в неё не попадал.
+        (function markCurrentVideoWatched() {
+            const videoId = {{ video_id|tojson }};
+            if (!videoId) return;
+            if (!IS_OWNER) {
+                // Гость ведёт свою историю в своём же браузере, и в отдельном
+                // ключе: lt_history читает перенос старых данных на сервер, так
+                // что при входе по PIN история гостя уехала бы к владельцу.
+                try {
+                    const key = 'lt_guest_history';
+                    const local = JSON.parse(localStorage.getItem(key) || '[]');
+                    const next = [videoId].concat(local.filter(x => x !== videoId)).slice(0, 500);
+                    localStorage.setItem(key, JSON.stringify(next));
+                } catch (err) { console.error('Не удалось сохранить историю локально:', err); }
+                return;
+            }
+            fetch(`/api/userdata/watched/${encodeURIComponent(videoId)}`, { method: 'POST' })
+                .catch(err => console.error('Не удалось отметить просмотр:', err));
+        })();
+
+        function showToast(msg) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+        }
+
+        {% if not is_short %}
+        // ========== ПЛЕЕР ==========
+        const video = document.getElementById('videoElement');
+        if (video) {
+            const playerContainer = document.getElementById('playerContainer');
+            const playPauseBtn = document.getElementById('playPauseBtn');
+            const playIconSvg = document.getElementById('playIconSvg');
+            const volumeRange = document.getElementById('volumeRange');
+            const muteBtn = document.getElementById('muteBtn');
+            const volumeIconSvg = document.getElementById('volumeIconSvg');
+            const timeDisplay = document.getElementById('timeDisplay');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressLoaded = document.getElementById('progressLoaded');
+            const progressScrubber = document.getElementById('progressScrubber');
+            const seekPreview = document.getElementById('seekPreview');
+            const seekPreviewImage = document.getElementById('seekPreviewImage');
+            const seekPreviewTime = document.getElementById('seekPreviewTime');
+            const storyboardData = {{ meta.get('storyboards', {})|tojson }};
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+            const fullscreenIconSvg = document.getElementById('fullscreenIconSvg');
+            const theaterBtn = document.getElementById('theaterBtn');
+            const pipBtn = document.getElementById('pipBtn');
+            const speedBtn = document.getElementById('speedBtn');
+            const settingsBtn = document.getElementById('settingsBtn');
+            const playerSettingsMenu = document.getElementById('playerSettingsMenu');
+            const playerQualityMenu = document.getElementById('playerQualityMenu');
+            const playerEqualizerMenu = document.getElementById('playerEqualizerMenu');
+            const playerBassMenu = document.getElementById('playerBassMenu');
+            const qualityOptionsList = document.getElementById('qualityOptionsList');
+            const menuQualityBtn = document.getElementById('menuQualityBtn');
+            const menuEqualizerBtn = document.getElementById('menuEqualizerBtn');
+            const menuBassBoosterBtn = document.getElementById('menuBassBoosterBtn');
+            const pageContent = document.getElementById('pageContent');
+            const seekLeftAnim = document.getElementById('seekLeftAnim');
+            const seekRightAnim = document.getElementById('seekRightAnim');
+            let isDragging = false, hideControlsTimeout;
+            video.volume = 0.05;
+            if (speedBtn) {
+                const speeds = [0.5, 1, 1.5, 2];
+                let speedIndex = 1;
+                speedBtn.addEventListener('click', () => { speedIndex = (speedIndex + 1) % speeds.length; video.playbackRate = speeds[speedIndex]; speedBtn.textContent = speeds[speedIndex] + 'x'; });
+            }
+            const videoKey = 'lt_time_' + encodeURIComponent({{ video_url|tojson }});
+            video.addEventListener('loadedmetadata', () => { timeDisplay.textContent = `0:00 / ${formatTime(video.duration)}`; const savedTime = localStorage.getItem(videoKey); if (savedTime && parseFloat(savedTime) > 0) video.currentTime = parseFloat(savedTime); });
+            setInterval(() => { if (!video.paused) localStorage.setItem(videoKey, video.currentTime); }, 3000);
+            video.addEventListener('pause', () => localStorage.setItem(videoKey, video.currentTime));
+            function showControls() { playerContainer.classList.remove('idle'); clearTimeout(hideControlsTimeout); if (!video.paused) hideControlsTimeout = setTimeout(() => playerContainer.classList.add('idle'), 2500); }
+            playerContainer.addEventListener('mousemove', showControls);
+            playerContainer.addEventListener('mouseleave', () => { if (!video.paused) playerContainer.classList.add('idle'); });
+            function togglePlay() { if (video.paused) video.play(); else video.pause(); }
+            playPauseBtn.addEventListener('click', togglePlay);
+            video.addEventListener('play', () => { playIconSvg.innerHTML = '<use href="#icon-pause"></use>'; showControls(); });
+            video.addEventListener('pause', () => { playIconSvg.innerHTML = '<use href="#icon-play"></use>'; playerContainer.classList.remove('idle'); clearTimeout(hideControlsTimeout); });
+            let clickTimeout;
+            video.addEventListener('click', (e) => {
+                const rect = video.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                if (clickTimeout) { clearTimeout(clickTimeout); clickTimeout = null; if (clickX < rect.width / 3) seek(-10, seekLeftAnim); else if (clickX > (rect.width / 3) * 2) seek(10, seekRightAnim); else togglePlay(); }
+                else { clickTimeout = setTimeout(() => { togglePlay(); clickTimeout = null; }, 250); }
+            });
+            function seek(seconds, animElement) { video.currentTime += seconds; animElement.classList.add('active'); setTimeout(() => animElement.classList.remove('active'), 400); }
+            function formatTime(sec) { if (isNaN(sec)) return "0:00"; let m = Math.floor(sec / 60), s = Math.floor(sec % 60); return `${m}:${s < 10 ? '0' : ''}${s}`; }
+            video.addEventListener('timeupdate', () => {
+                timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+                if (!isDragging) { let percent = (video.currentTime / video.duration) * 100; progressFill.style.width = `${percent}%`; progressScrubber.style.left = `${percent}%`; }
+            });
+            video.addEventListener('progress', () => { if (video.buffered.length > 0) { let loaded = (video.buffered.end(video.buffered.length - 1) / video.duration) * 100; progressLoaded.style.width = `${loaded}%`; } });
+            function parseStoryboardSpec(spec) {
+                if (typeof spec !== 'string') return null;
+                const parts = spec.split('|');
+                if (parts.length < 2 || !parts[0]) return null;
+                const level = Math.max(0, parts.length - 2);
+                const descriptor = parts[level + 1].split('#');
+                const width = Number(descriptor[0]);
+                const height = Number(descriptor[1]);
+                const frameCount = Number(descriptor[2]);
+                const columns = Number(descriptor[3]);
+                const rows = Number(descriptor[4]);
+                if (![width, height, frameCount, columns, rows].every(Number.isFinite)) return null;
+                return { template: parts[0], level, width, height, frameCount, columns, rows, interval: (video.duration || 0) / frameCount };
+            }
+            function getStoryboardFrame(position) {
+                const candidates = Array.isArray(storyboardData) ? storyboardData : (storyboardData && typeof storyboardData === 'object' ? Object.values(storyboardData) : [storyboardData]);
+                const source = candidates.find(item => item && (typeof item === 'string' || typeof item === 'object'));
+                if (!source) return null;
+                const config = typeof source === 'string' ? parseStoryboardSpec(source) : {
+                    template: source.url || source.template_url,
+                    level: Number(source.level || 0),
+                    width: Number(source.width || source.thumbnail_width || 160),
+                    height: Number(source.height || source.thumbnail_height || 90),
+                    frameCount: Number(source.count || source.frame_count || source.total_count || 0),
+                    columns: Number(source.columns || source.cols || 1),
+                    rows: Number(source.rows || 1),
+                    interval: Number(source.interval || source.interval_seconds || 5)
+                };
+                if (!config.template || !video.duration || !config.columns || !config.rows) return null;
+                const interval = config.interval || 5;
+                const rawIndex = Math.max(0, Math.floor((position * video.duration) / interval));
+                const frameIndex = config.frameCount ? Math.min(rawIndex, config.frameCount - 1) : rawIndex;
+                const framesPerSheet = config.columns * config.rows;
+                const sheet = Math.floor(frameIndex / framesPerSheet);
+                const indexInSheet = frameIndex % framesPerSheet;
+                const column = indexInSheet % config.columns;
+                const row = Math.floor(indexInSheet / config.columns);
+                return {
+                    url: config.template.replace(/\$L/g, String(config.level)).replace(/\$N/g, String(sheet)).replace(/\$M/g, String(sheet)),
+                    columns: config.columns,
+                    rows: config.rows,
+                    column,
+                    row
+                };
+            }
+            function showSeekPreview(event) {
+                if (!seekPreview || !progressContainer || !video.duration) return;
+                const rect = progressContainer.getBoundingClientRect();
+                const position = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+                seekPreview.style.left = `${position * 100}%`;
+                seekPreviewTime.textContent = formatTime(position * video.duration);
+                const frame = getStoryboardFrame(position);
+                if (frame && seekPreviewImage) {
+                    seekPreviewImage.style.backgroundImage = `url("${frame.url}")`;
+                    seekPreviewImage.style.backgroundSize = `${frame.columns * 100}% ${frame.rows * 100}%`;
+                    seekPreviewImage.style.backgroundPosition = `${frame.columns === 1 ? 0 : (frame.column * 100) / (frame.columns - 1)}% ${frame.rows === 1 ? 0 : (frame.row * 100) / (frame.rows - 1)}%`;
+                    seekPreviewImage.style.display = 'block';
+                } else if (seekPreviewImage) {
+                    seekPreviewImage.style.backgroundImage = 'none';
+                    seekPreviewImage.style.display = 'none';
+                }
+                seekPreview.classList.add('visible');
+            }
+            progressContainer.addEventListener('mousemove', showSeekPreview);
+            progressContainer.addEventListener('mouseleave', () => seekPreview?.classList.remove('visible'));
+            function updateProgress(e) {
+                const rect = progressContainer.getBoundingClientRect();
+                let pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                progressFill.style.width = `${pos * 100}%`; progressScrubber.style.left = `${pos * 100}%`; video.currentTime = pos * video.duration;
+            }
+            progressContainer.addEventListener('mousedown', (e) => { isDragging = true; updateProgress(e); });
+            document.addEventListener('mousemove', (e) => { if (isDragging) updateProgress(e); });
+            document.addEventListener('mouseup', () => { isDragging = false; });
+            volumeRange.addEventListener('input', (e) => { video.volume = e.target.value; video.muted = video.volume === 0; updateVolumeUI(); });
+            muteBtn.addEventListener('click', () => { video.muted = !video.muted; if (!video.muted && video.volume === 0) video.volume = 0.5; updateVolumeUI(); });
+            function updateVolumeUI() { volumeRange.value = video.muted ? 0 : video.volume; volumeRange.style.setProperty('--vol', `${volumeRange.value * 100}%`); if (video.muted || video.volume === 0) volumeIconSvg.innerHTML = '<use href="#icon-vol-muted"></use>'; else volumeIconSvg.innerHTML = '<use href="#icon-vol-high"></use>'; }
+            fullscreenBtn.addEventListener('click', () => { if (!document.fullscreenElement) playerContainer.requestFullscreen().catch(err => console.log(err)); else document.exitFullscreen(); });
+            document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) fullscreenIconSvg.innerHTML = '<use href="#icon-exit-fullscreen"></use>'; else fullscreenIconSvg.innerHTML = '<use href="#icon-fullscreen"></use>'; });
+            if(theaterBtn) theaterBtn.addEventListener('click', () => { pageContent.classList.toggle('theater-mode-active'); window.dispatchEvent(new Event('resize')); });
+            if (pipBtn) {
+                pipBtn.addEventListener('click', () => {
+                    const vidId = window.location.pathname.split('/').pop();
+                    const mpData = { url: {{ video_url|tojson }}, title: {{ meta.get('title', folder)|tojson }}, author: {{ meta.get('uploader', author)|tojson }}, time: video.currentTime };
+                    localStorage.setItem('lt_miniplayer', JSON.stringify(mpData));
+                    window.location.href = '/';
+                });
+            }
+            if (settingsBtn && playerSettingsMenu) {
+                settingsBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    playerSettingsMenu.style.display = 'block';
+                    playerQualityMenu.style.display = 'none';
+                    fetchQualityOptions();
+                });
+                document.addEventListener('click', (e) => {
+                    if (!settingsBtn.contains(e.target) && !playerSettingsMenu.contains(e.target)) {
+                        playerSettingsMenu.style.display = 'none';
+                    }
+                });
+                if (playerQualityMenu && qualityOptionsList && menuQualityBtn) {
+                    const backToSettingsBtn = playerQualityMenu.querySelector('.settings-menu-header');
+                    if (backToSettingsBtn) {
+                        backToSettingsBtn.onclick = () => {
+                            playerQualityMenu.style.display = 'none';
+                            playerSettingsMenu.style.display = 'block';
+                        };
+                    }
+                    menuQualityBtn.onclick = () => {
+                        playerSettingsMenu.style.display = 'none';
+                        playerQualityMenu.style.display = 'block';
+                        fetchQualityOptions();
+                    };
+                    if (menuEqualizerBtn) {
+                        menuEqualizerBtn.onclick = () => {
+                            playerSettingsMenu.style.display = 'none';
+                            playerEqualizerMenu.style.display = 'block';
+                        };
+                    }
+                    if (menuBassBoosterBtn) {
+                        menuBassBoosterBtn.onclick = () => {
+                            playerSettingsMenu.style.display = 'none';
+                            playerBassMenu.style.display = 'block';
+                        };
+                    }
+                }
+            }
+            // ===== Выбор качества: 144p-2160p =====
+            // Скачанный файл лежит в одном качестве. Остальные ступени сервер
+            // пересобирает через ffmpeg и складывает рядом с исходником, поэтому
+            // готовое качество открывается сразу, а новое — после пересборки.
+            const QUALITY_VIDEO_ID = {{ video_id|tojson }};
+            // Текущее качество держим отдельно от подписи: подпись переводится,
+            // а сравнивать нужно ключ.
+            let currentQuality = 'original';
+            let qualityPollTimer = null;
+
+            function setQualityLabel(text) {
+                const label = document.getElementById('currentQualityLabel');
+                if (label) label.textContent = text;
+            }
+
+            async function fetchQualityOptions() {
+                if (!qualityOptionsList) return;
+                qualityOptionsList.innerHTML = '<div style="padding: 8px 16px; color: var(--yt-spec-text-secondary);">'
+                    + t('Загрузка') + '...</div>';
+                try {
+                    const res = await fetch('/api/quality/' + encodeURIComponent(QUALITY_VIDEO_ID));
+                    const data = await res.json();
+                    if (!data.qualities) {
+                        qualityOptionsList.innerHTML = '<div style="padding: 8px 16px; color: #ff4d4d;">'
+                            + t('Ошибка загрузки') + '</div>';
+                        return;
+                    }
+                    renderQualityOptions(data);
+                    // Пересборка, начатая раньше, продолжается на сервере:
+                    // подхватываем её прогресс, а не показываем «Пересобрать».
+                    if (Object.keys(data.tasks || {}).length) scheduleQualityPoll();
+                } catch(e) {
+                    qualityOptionsList.innerHTML = '<div style="padding: 8px 16px; color: #ff4d4d;">'
+                        + t('Ошибка загрузки') + '</div>';
+                }
+            }
+
+            function renderQualityOptions(data) {
+                if (!qualityOptionsList) return;
+                // Порядок берём из ответа: перебор ключей JSON-объекта даёт
+                // алфавитный порядок, и 1080p оказывался ниже 144p.
+                const order = data.order || Object.keys(data.qualities);
+                const tasks = data.tasks || {};
+                qualityOptionsList.innerHTML = '';
+                order.forEach(key => {
+                    const item = data.qualities[key];
+                    if (!item) return;
+                    const row = document.createElement('div');
+                    row.className = 'quality-option' + (key === currentQuality ? ' active' : '');
+                    row.dataset.quality = key;
+
+                    const name = document.createElement('span');
+                    name.className = 'quality-res';
+                    name.textContent = t(item.label);
+                    row.appendChild(name);
+
+                    const note = document.createElement('span');
+                    note.className = 'quality-codec';
+                    note.style.color = 'var(--yt-spec-text-secondary)';
+                    note.style.fontSize = '12px';
+                    const progress = tasks[key];
+                    if (progress !== undefined && progress >= 0 && progress < 100) {
+                        note.textContent = t('Пересобираем: {percent}%').replace('{percent}', progress);
+                    } else if (progress === -1) {
+                        note.textContent = t('Не удалось пересобрать');
+                    } else if (!item.available && IS_OWNER) {
+                        note.textContent = t('Пересобрать');
+                    }
+                    row.appendChild(note);
+
+                    // Гостю пересборка закрыта (/api/convert отвечает 403):
+                    // готовые качества он смотрит, недоступные не предлагаем —
+                    // кнопка с гарантированной ошибкой хуже её отсутствия.
+                    if (!item.available && !IS_OWNER) return;
+                    row.addEventListener('click', () => {
+                        if (item.available && item.url) applyQuality(key, item.url, t(item.label));
+                        else startQualityConversion(key);
+                    });
+                    qualityOptionsList.appendChild(row);
+                });
+                if (IS_OWNER) {
+                    const hint = document.createElement('div');
+                    hint.style.padding = '8px 16px';
+                    hint.style.color = 'var(--yt-spec-text-secondary)';
+                    hint.style.fontSize = '12px';
+                    hint.textContent = t('Пересборка занимает время: файл готовится один раз и потом открывается сразу.');
+                    qualityOptionsList.appendChild(hint);
+                }
+            }
+
+            function applyQuality(key, url, label) {
+                // Смена src сбрасывает плеер: позиция уходит в ноль, скорость
+                // возвращается к 1x, а атрибут autoplay запускает
+                // воспроизведение заново, даже если стояла пауза. Поэтому
+                // состояние снимается до переключения и возвращается после
+                // загрузки метаданных.
+                const wasPlaying = !video.paused;
+                const position = video.currentTime;
+                const rate = video.playbackRate;
+                // Громкость и выбранные субтитры переживают смену src сами:
+                // элементы <track> остаются в DOM, восстанавливать их не нужно.
+                currentQuality = key;
+                video.src = url;
+                video.addEventListener('loadedmetadata', function restore() {
+                    video.removeEventListener('loadedmetadata', restore);
+                    if (position > 0) video.currentTime = position;
+                    // Скорость возвращаем всегда: кнопка продолжала показывать
+                    // «2x», пока плеер уже играл на обычной скорости.
+                    video.playbackRate = rate;
+                    // Пауза сохраняется: с атрибутом autoplay браузер иначе
+                    // начинал играть остановленный ролик.
+                    if (wasPlaying) video.play();
+                    else video.pause();
+                });
+                video.load();
+                setQualityLabel(label);
+                if (playerQualityMenu) playerQualityMenu.style.display = 'none';
+            }
+
+            async function startQualityConversion(key) {
+                try {
+                    const res = await fetch('/api/convert/' + encodeURIComponent(QUALITY_VIDEO_ID), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ quality: key })
+                    });
+                    const data = await res.json();
+                    if (data.error) {
+                        showToast(data.error);
+                        return;
+                    }
+                    scheduleQualityPoll();
+                } catch(e) {
+                    showToast(t('Ошибка загрузки'));
+                }
+            }
+
+            function scheduleQualityPoll() {
+                if (qualityPollTimer) return;
+                qualityPollTimer = setTimeout(pollQuality, 2000);
+            }
+
+            async function pollQuality() {
+                qualityPollTimer = null;
+                try {
+                    const res = await fetch('/api/quality/' + encodeURIComponent(QUALITY_VIDEO_ID));
+                    const data = await res.json();
+                    if (!data.qualities) return;
+                    if (playerQualityMenu && playerQualityMenu.style.display !== 'none') {
+                        renderQualityOptions(data);
+                    }
+                    // Опрос продолжаем, пока есть незавершённые задачи:
+                    // пересборка идёт минутами, и без опроса пункт замирал бы
+                    // на «Пересобрать» до перезагрузки страницы.
+                    const running = Object.values(data.tasks || {})
+                        .some(p => p >= 0 && p < 100);
+                    if (running) qualityPollTimer = setTimeout(pollQuality, 2000);
+                } catch(e) {
+                    // Сеть моргнула: пробуем ещё раз, задача на сервере не пропала.
+                    qualityPollTimer = setTimeout(pollQuality, 5000);
+                }
+            }
+
+            // ========== Шакализатор и улучшайзер ==========
+            let audioContext = null;
+            let sourceNode = null;
+            let gainNodes = [];
+            let equalizerPresets = {
+                'flat': [1, 1, 1, 1, 1, 1, 1, 1, 1],
+                'pop': [1.2, 1.1, 1, 0.9, 1, 1.1, 1.2, 1.1, 1],
+                'rock': [1.4, 1.3, 1.1, 0.8, 1, 1.1, 1.3, 1.4, 1.2],
+                'bass': [1.5, 1.4, 1.2, 1, 1, 1, 1, 1, 1],
+                'dance': [1.3, 1.2, 1.1, 1, 1, 1.2, 1.3, 1.2, 1.1],
+                'acoustic': [1.1, 1, 0.9, 1, 1.2, 1, 0.9, 1.1, 1.2],
+                'classical': [1.2, 1.1, 1, 1, 1, 1, 1, 1.1, 1.2]
+            };
+            let currentPreset = 'flat';
+            let bassBoostGain = 0;
+
+            function initAudioEffects() {
+                if (!video || audioContext) return;
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    sourceNode = audioContext.createMediaElementSource(video);
+                    createGainNodes();
+                } catch (e) {
+                    console.log('Web Audio API недоступен', e);
+                    audioContext = null;
+                }
+            }
+
+            function createGainNodes() {
+                if (!audioContext || !sourceNode) return;
+                const frequencies = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000];
+                gainNodes = frequencies.map(freq => {
+                    const filter = audioContext.createBiquadFilter();
+                    filter.type = 'peaking';
+                    filter.frequency.value = freq;
+                    filter.Q.value = 1;
+                    return filter;
+                });
+                let previous = sourceNode;
+                gainNodes.forEach(filter => { previous.connect(filter); previous = filter; });
+                previous.connect(audioContext.destination);
+            }
+
+            function applyAudioEffects() {
+                if (!audioContext || !gainNodes.length) return;
+                const gains = equalizerPresets[currentPreset] || equalizerPresets.flat;
+                gainNodes.forEach((filter, index) => {
+                    let db = (gains[index] - 1) * 12;
+                    if (index === 0) db += bassBoostGain;
+                    if (index === 1) db += bassBoostGain * 0.7;
+                    filter.gain.setValueAtTime(db, audioContext.currentTime);
+                });
+            }
+
+            function applyEqualizer(preset) {
+                if (!audioContext) initAudioEffects();
+                currentPreset = preset;
+                applyAudioEffects();
+                showToast(t('Шакализатор') + ': ' + preset);
+            }
+
+            window.setEqualizerPreset = function(preset) {
+                applyEqualizer(preset);
+                if (playerEqualizerMenu) playerEqualizerMenu.style.display = 'none';
+            }
+
+            window.setBassBoost = function(gain) {
+                if (!audioContext) initAudioEffects();
+                bassBoostGain = gain;
+                applyAudioEffects();
+                showToast(gain > 0 ? t('Улучшайзер: +{gain} дБ').replace('{gain}', gain) : t('Улучшайзер выключен'));
+                if (playerBassMenu) playerBassMenu.style.display = 'none';
+            }
+
+            function showPlayerSettingsMenu() {
+                if (playerEqualizerMenu) playerEqualizerMenu.style.display = 'none';
+                if (playerBassMenu) playerBassMenu.style.display = 'none';
+                playerSettingsMenu.style.display = 'block';
+            }
+
+            video.addEventListener('play', () => {
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                initAudioEffects();
+            }, { once: true });
+            document.addEventListener('click', (e) => {
+                if (settingsBtn && settingsBtn.contains(e.target)) return;
+                // Меню качества лежит рядом с меню настроек, а не внутри него:
+                // без отдельной проверки клик по ступени качества считался
+                // «кликом снаружи» и закрывал меню сразу после выбора — прогресс
+                // пересборки становилось не видно.
+                if (playerQualityMenu && playerQualityMenu.contains(e.target)) return;
+                if (playerSettingsMenu && !playerSettingsMenu.contains(e.target)) {
+                    playerSettingsMenu.style.display = 'none';
+                    playerQualityMenu.style.display = 'none';
+                }
+            });
+            document.addEventListener('keydown', (e) => {
+                if (document.activeElement.tagName === 'INPUT') return;
+                switch(e.key.toLowerCase()) {
+                    case ' ': case 'k': e.preventDefault(); togglePlay(); break;
+                    case 'f': e.preventDefault(); fullscreenBtn.click(); break;
+                    case 'm': e.preventDefault(); muteBtn.click(); break;
+                    case 'i': case 'p': e.preventDefault(); if(pipBtn) pipBtn.click(); break;
+                    case 't': if(theaterBtn) theaterBtn.click(); break;
+                    case 'arrowleft': e.preventDefault(); seek(-5, seekLeftAnim); break;
+                    case 'arrowright': e.preventDefault(); seek(5, seekRightAnim); break;
+                    case 'arrowup': e.preventDefault(); video.volume = Math.min(1, video.volume + 0.05); updateVolumeUI(); break;
+                    case 'arrowdown': e.preventDefault(); video.volume = Math.max(0, video.volume - 0.05); updateVolumeUI(); break;
+                }
+                showControls();
+            });
+            updateVolumeUI();
+        }
+
+        async function deleteUserVideo(videoId, authorName) {
+            if (!confirm(t('Вы уверены, что хотите безвозвратно удалить это видео?'))) return;
+            const username = userSettings.username || t('Гость');
+            if (authorName !== username) { showToast(t('Вы не можете удалить чужое видео')); return; }
+            try {
+                const response = await fetch(`/api/user_video/delete/${videoId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: username }) });
+                const data = await response.json();
+                if (response.ok) { showToast(t('Видео удалено')); setTimeout(() => window.location.href = '/', 1500); }
+                else showToast(t('Ошибка') + ': ' + (data.error || t('Не удалось удалить')));
+            } catch(err) { showToast(t('Ошибка соединения')); }
+        }
+
+        const videoId = "{{ video_id }}";
+        const videoSource = "{{ video_source }}";
+        async function loadSubtitles() {
+            try {
+                const res = await fetch(`/api/subtitles/${videoId}?source=${videoSource}`);
+                const data = await res.json();
+                const container = document.getElementById('subtitleList');
+                if (!container) return;
+                if (data.subtitles && data.subtitles.length > 0) {
+                    let html = '';
+                    for (let s of data.subtitles) html += `<div class="subtitle-item"><span>${s.label} (${s.lang})</span><button onclick="deleteSubtitle('${s.lang}')" title="${t('Удалить')}">🗑️</button></div>`;
+                    container.innerHTML = html;
+                } else container.innerHTML = '<div style="color: #aaa;">Нет субтитров</div>';
+            } catch(e) { console.error(e); }
+        }
+        async function deleteSubtitle(lang) {
+            if (!confirm(t('Удалить субтитры ({lang})?').replace('{lang}', lang))) return;
+            try {
+                const res = await fetch(`/api/subtitles/${videoId}/${lang}?source=${videoSource}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (res.ok) { showToast(t('Субтитры удалены')); await loadSubtitles(); if (typeof updateSubtitlesTrack === 'function') await updateSubtitlesTrack(); }
+                else showToast(t('Ошибка') + ': ' + data.error);
+            } catch(e) { showToast(t('Ошибка соединения')); }
+        }
+        async function uploadSubtitle(file, lang) {
+            const formData = new FormData(); formData.append('source', videoSource); formData.append('lang', lang); formData.append('file', file);
+            try {
+                const res = await fetch(`/api/subtitles/upload/${videoId}`, { method: 'POST', body: formData });
+                const data = await res.json();
+                if (res.ok) { showToast(t('Субтитры загружены')); await loadSubtitles(); if (typeof updateSubtitlesTrack === 'function') await updateSubtitlesTrack(); }
+                else showToast(t('Ошибка') + ': ' + data.error);
+            } catch(e) { showToast(t('Ошибка соединения')); }
+        }
+        async function downloadSubtitle(lang) {
+            try {
+                const res = await fetch(`/api/subtitles/download/${videoId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: videoSource, lang: lang }) });
+                const data = await res.json();
+                if (res.ok) { showToast(t('Субтитры скачаны')); await loadSubtitles(); if (typeof updateSubtitlesTrack === 'function') await updateSubtitlesTrack(); }
+                else showToast(t('Ошибка') + ': ' + data.error);
+            } catch(e) { showToast(t('Ошибка соединения')); }
+        }
+        document.getElementById('uploadSubtitleBtn')?.addEventListener('click', () => {
+            const lang = document.getElementById('subtitleLang').value.trim();
+            if (!lang) { showToast(t('Введите код языка')); return; }
+            const fileInput = document.getElementById('subtitleFile');
+            fileInput.onchange = (e) => { if (e.target.files.length) uploadSubtitle(e.target.files[0], lang); fileInput.value = ''; };
+            fileInput.click();
+        });
+        document.getElementById('downloadSubtitleBtn')?.addEventListener('click', () => {
+            const lang = document.getElementById('subtitleLang').value.trim();
+            if (!lang) { showToast(t('Введите код языка')); return; }
+            downloadSubtitle(lang);
+        });
+        document.getElementById('downloadAudioBtn')?.addEventListener('click', () => { window.location.href = `/api/audio/download/${videoId}?source=${videoSource}`; });
+        async function updateSubtitlesTrack() {
+            const videoEl = document.getElementById('videoElement');
+            if (!videoEl) return;
+            const oldTracks = videoEl.querySelectorAll('track');
+            oldTracks.forEach(track => track.remove());
+            try {
+                const res = await fetch(`/api/subtitles/${videoId}?source=${videoSource}`);
+                const data = await res.json();
+                if (!data.subtitles || data.subtitles.length === 0) return;
+                for (let sub of data.subtitles) {
+                    const ext = sub.file.split('.').pop();
+                    const track = document.createElement('track');
+                    track.kind = 'subtitles'; track.label = sub.label; track.srclang = sub.lang;
+                    track.src = `/subtitles/${videoId}/${sub.lang}.${ext}?source=${videoSource}`;
+                    track.default = (sub.lang === 'ru');
+                    videoEl.appendChild(track);
+                }
+                videoEl.textTracks;
+            } catch(e) { console.error('Ошибка загрузки треков субтитров', e); }
+        }
+        const subtitlesBtn = document.getElementById('subtitlesBtn');
+        if (subtitlesBtn && document.getElementById('videoElement')) {
+            const videoEl = document.getElementById('videoElement');
+            subtitlesBtn.addEventListener('click', () => {
+                const tracks = videoEl.textTracks;
+                if (tracks.length === 0) { showToast(t('Нет доступных субтитров')); return; }
+                let anyShowing = false;
+                for (let i = 0; i < tracks.length; i++) {
+                    if (tracks[i].mode === 'showing') { tracks[i].mode = 'disabled'; anyShowing = true; showToast(t('Субтитры выключены')); break; }
+                }
+                if (!anyShowing && tracks.length > 0) { tracks[0].mode = 'showing'; showToast(t('Субтитры: {label}').replace('{label}', tracks[0].label)); }
+            });
+        }
+        updateSubtitlesTrack();
+        loadSubtitles();
+        {% endif %}
+
+        // ===== Просмотр плейлиста по порядку =====
+        // Страница открыта из своего плейлиста (?collection=<id>): после конца
+        // ролика переходим к следующему, сохраняя тот же параметр.
+        const PLAYLIST_ID = {{ collection_id|tojson }};
+        const PLAYLIST_ORDER = {{ collection_order|tojson }};
+
+        // Полосу показываем и для списка из одного видео: ссылка «К плейлисту»
+        // полезна всегда, а переход просто не на что вешать.
+        if (PLAYLIST_ID && PLAYLIST_ORDER.length) {
+            const player = document.getElementById('videoElement');
+            const at = PLAYLIST_ORDER.indexOf({{ video_id|tojson }});
+            const nextId = at !== -1 ? PLAYLIST_ORDER[at + 1] : null;
+            if (player && nextId) {
+                player.addEventListener('ended', () => {
+                    window.location.href = `/watch/${encodeURIComponent(nextId)}`
+                        + `?collection=${encodeURIComponent(PLAYLIST_ID)}`;
+                });
+            }
+            // Показываем, где мы в списке, и даём вернуться к плейлисту.
+            const strip = document.createElement('div');
+            strip.id = 'playlistStrip';
+            strip.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:12px;'
+                + 'padding:10px 14px;border-radius:10px;background:var(--yt-button-bg);font-size:14px;';
+            const info = document.createElement('span');
+            info.textContent = at !== -1
+                ? t('Плейлист: {current} из {total}').replace('{current}', at + 1).replace('{total}', PLAYLIST_ORDER.length)
+                : t('Плейлист: {count} видео').replace('{count}', PLAYLIST_ORDER.length);
+            const back = document.createElement('a');
+            back.href = '/collection/' + encodeURIComponent(PLAYLIST_ID);
+            back.textContent = t('К плейлисту');
+            back.style.cssText = 'color:#3ea6ff;text-decoration:none;';
+            strip.append(info, back);
+            const anchor = document.querySelector('.content-wrapper h1');
+            if (anchor) anchor.before(strip);
+        }
+
+        // ===== Сохранение в свой плейлист =====
+        // Своя коллекция — это ссылки на уже скачанные видео, к плейлистам,
+        // скачанным с YouTube, отношения не имеет.
+        // Разметку окна вставляем из скрипта: он выполняется по месту, а держать
+        // её ниже закрывающего тега скрипта нельзя — getElementById вернул бы null.
+        // Внимание: буквальная последовательность закрывающего тега в тексте
+        // скрипта обрывает его прямо там, поэтому здесь она не написана словами.
+        document.body.insertAdjacentHTML('beforeend', `
+            <div class="collection-modal" id="collectionModal">
+                <div class="collection-modal-box">
+                    <h3>${t('Сохранить в плейлист')}</h3>
+                    <div id="collectionList"></div>
+                    <div class="collection-new">
+                        <input type="text" id="collectionNewTitle" placeholder="${t('Название нового плейлиста')}" maxlength="100">
+                        <button type="button" id="collectionCreate">${t('Создать')}</button>
+                    </div>
+                    <p id="collectionModalStatus"></p>
+                    <div class="collection-modal-actions">
+                        <button type="button" id="watchLaterBtn">🕒 ${t('Смотреть позже')}</button>
+                        <button type="button" id="collectionModalClose">${t('Закрыть')}</button>
+                    </div>
+                </div>
+            </div>`);
+        const collectionModal = document.getElementById('collectionModal');
+        const collectionList = document.getElementById('collectionList');
+        const collectionStatus = document.getElementById('collectionModalStatus');
+        // Какое видео сохраняем. На обычной странице это одно видео, а в ленте
+        // Shorts кнопка есть у каждого ролика, поэтому id задаётся при открытии.
+        let collectionTargetId = {{ video_id|tojson }};
+
+        function openCollectionModal(videoId) {
+            collectionTargetId = videoId;
+            collectionModal.classList.add('active');
+            collectionStatus.textContent = '';
+            loadCollections();
+        }
+
+        function closeCollectionModal() {
+            collectionModal.classList.remove('active');
+        }
+
+        async function loadCollections() {
+            collectionList.textContent = t('Загрузка…');
+            try {
+                const res = await fetch('/api/collections');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                renderCollections(data.collections || []);
+            } catch (err) {
+                collectionList.textContent = t('Не удалось загрузить плейлисты.');
+            }
+        }
+
+        function renderCollections(items) {
+            collectionList.textContent = '';
+            if (!items.length) {
+                const note = document.createElement('div');
+                note.style.cssText = 'color: var(--yt-spec-text-secondary); font-size: 14px;';
+                note.textContent = t('Плейлистов пока нет. Создайте первый ниже.');
+                collectionList.append(note);
+                return;
+            }
+            // Через DOM, а не строкой: название плейлиста задаёт пользователь,
+            // и кавычка в нём сломала бы разметку.
+            for (const item of items) {
+                const label = document.createElement('label');
+                label.className = 'collection-option';
+                const box = document.createElement('input');
+                box.type = 'checkbox';
+                box.checked = (item.videos || []).includes(collectionTargetId);
+                box.dataset.collection = item.id;
+                box.addEventListener('change', () => toggleInCollection(item.id, box));
+                const text = document.createElement('span');
+                text.textContent = item.count ? `${item.title} (${item.count})` : item.title;
+                label.append(box, text);
+                collectionList.append(label);
+            }
+        }
+
+        async function toggleInCollection(collectionId, box) {
+            const wanted = box.checked;
+            box.disabled = true;
+            collectionStatus.textContent = '';
+            try {
+                const url = `/api/collections/${encodeURIComponent(collectionId)}/videos`;
+                const res = wanted
+                    ? await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ video_id: collectionTargetId }),
+                    })
+                    : await fetch(`${url}/${encodeURIComponent(collectionTargetId)}`, { method: 'DELETE' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось сохранить.'));
+                showToast(wanted ? t('Видео добавлено в плейлист') : t('Видео убрано из плейлиста'));
+                // Счётчик рядом с названием должен сойтись с новым состоянием.
+                const text = box.parentElement.querySelector('span');
+                if (text && data.collection) {
+                    text.textContent = data.collection.count
+                        ? `${data.collection.title} (${data.collection.count})`
+                        : data.collection.title;
+                }
+            } catch (err) {
+                // Возвращаем галочку: иначе интерфейс показывал бы состояние,
+                // которого нет на сервере.
+                box.checked = !wanted;
+                collectionStatus.textContent = err.message;
+            } finally {
+                box.disabled = false;
+            }
+        }
+
+        document.getElementById('saveToCollectionBtn')?.addEventListener('click', () => {
+            openCollectionModal({{ video_id|tojson }});
+        });
+
+        // Кнопки в ленте Shorts: у каждого ролика свой id в data-атрибуте.
+        document.querySelectorAll('.short-save-btn').forEach(button => {
+            button.addEventListener('click', event => {
+                event.stopPropagation();
+                openCollectionModal(button.dataset.videoId);
+            });
+        });
+        document.getElementById('collectionModalClose')?.addEventListener('click', closeCollectionModal);
+        collectionModal?.addEventListener('click', event => {
+            // Клик по затемнению закрывает окно, по самому окну — нет.
+            if (event.target === collectionModal) closeCollectionModal();
+        });
+
+        document.getElementById('watchLaterBtn')?.addEventListener('click', async event => {
+            const button = event.currentTarget;
+            button.disabled = true;
+            try {
+                const res = await fetch('/api/collections/watch-later/videos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ video_id: collectionTargetId }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось сохранить.'));
+                showToast(t('Добавлено в «Смотреть позже»'));
+                loadCollections();
+            } catch (err) {
+                collectionStatus.textContent = err.message;
+            } finally {
+                button.disabled = false;
+            }
+        });
+
+        document.getElementById('collectionCreate')?.addEventListener('click', async () => {
+            const input = document.getElementById('collectionNewTitle');
+            const title = input.value.trim();
+            if (!title) { collectionStatus.textContent = t('Введите название плейлиста.'); return; }
+            const button = document.getElementById('collectionCreate');
+            button.disabled = true;
+            try {
+                const res = await fetch('/api/collections', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось создать плейлист.'));
+                // Сразу кладём видео в новый плейлист: кнопку нажали, чтобы
+                // сохранить именно это видео.
+                await fetch(`/api/collections/${encodeURIComponent(data.collection.id)}/videos`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ video_id: collectionTargetId }),
+                });
+                input.value = '';
+                collectionStatus.textContent = '';
+                showToast(t('Плейлист «{title}» создан').replace('{title}', data.collection.title));
+                loadCollections();
+            } catch (err) {
+                collectionStatus.textContent = err.message;
+            } finally {
+                button.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

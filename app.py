@@ -30,7 +30,8 @@ from downloader import get_format_choices, get_playlist_info, is_playlist_url
 import download_lib
 from download_lib import download_media, download_single_sync, DownloadCancelledByUser
 from utils import (safe_name, is_shorts_video, write_json_atomic, read_json,
-                   JsonWriteError, cookiefile_for_ydl, write_text_atomic,
+                   JsonWriteError, cookiefile_for_ydl, apply_cookie_updates,
+                   write_text_atomic,
                    sanitize_netscape_cookies as utils_sanitize_cookies)
 from user_videos import add_user_video, edit_user_video, delete_user_video, get_all_user_videos, USER_VIDEOS_ROOT
 from logger import logger
@@ -614,13 +615,33 @@ def read_video_info(folder_path):
     info_file = find_file(folder_path, ['info.json', '.info.json'])
     if not info_file:
         return {}
+    filepath = os.path.join(folder_path, info_file)
     try:
-        with open(os.path.join(folder_path, info_file), 'r', encoding='utf-8-sig') as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError) as e:
-        logger.warning(f"Не удалось прочитать {info_file}: {e}")
+        if os.path.getsize(filepath) == 0:
+            return {}
+    except OSError:
         return {}
+    for enc in ('utf-8-sig', 'utf-8', 'cp1251', 'latin-1'):
+        try:
+            with open(filepath, 'r', encoding=enc) as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            continue
+        except UnicodeDecodeError:
+            continue
+    # Если JSON не читается — пробуем извлечь метаданные через ffmpeg
+    video_file = find_file(folder_path, ['.mp4', '.webm', '.mkv'])
+    if video_file:
+        try:
+            cmd = [paths.ffmpeg_path(), '-i', os.path.join(folder_path, video_file)]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0 or 'Duration' in result.stderr:
+                return {'title': os.path.splitext(video_file)[0], 'source': 'ffmpeg'}
+        except Exception:
+            pass
+    logger.warning(f"Не удалось прочитать {info_file}: файл повреждён или пуст")
+    return {}
 
 # Кэш карты аватарок: раньше каталог листался на каждое видео в выдаче,
 # то есть 500 раз на один поиск.
@@ -1600,6 +1621,7 @@ def expand_download_urls(url):
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
+    apply_cookie_updates(opts)
     entries = info.get('entries') if isinstance(info, dict) else None
     urls, seen = [], set()
     for entry in entries if isinstance(entries, list) else []:
@@ -1700,6 +1722,11 @@ def api_channel_remaining(author):
             try:
                 with yt_dlp.YoutubeDL(options) as ydl:
                     info = ydl.extract_info(tab_url, download=False)
+                # yt-dlp при close() сохраняет cookies в поток через truncate(0)
+                # без seek(0), из-за чего позиция остаётся в конце. Без
+                # apply_cookie_updates повторная загрузка из того же потока
+                # падает с «does not look like a Netscape format cookies file».
+                apply_cookie_updates(options)
                 if info is None:
                     raise RuntimeError('YouTube не вернул данные вкладки')
                 last_exc = None
@@ -1742,6 +1769,151 @@ def api_channel_remaining(author):
     if not remaining and errors:
         return jsonify({'error': errors[0]}), 502
     return jsonify({'title': author, 'videos': remaining, 'count': len(remaining)})
+
+# ================= ЭКСПОРТ/ИМПОРТ КАНАЛОВ =================
+@app.route('/api/channel/<author>/export', methods=['POST'])
+def api_channel_export(author):
+    """Экспорт канала как tar.gz с перекодировкой видео в совместимые форматы (с потерями качества, CRF 23)."""
+    ensure_video_map()
+    build_user_video_map()
+    author_path = os.path.join(BASE_VIDEO_DIR, safe_name(author))
+    if not os.path.isdir(author_path):
+        return jsonify({'error': 'Канал не найден'}), 404
+
+    import tarfile
+    import io
+    import tempfile
+    import shutil
+    import glob as glob_mod
+    ffmpeg_bin = paths.ffmpeg_path()
+    try:
+        subprocess.run([ffmpeg_bin, '-version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        has_ffmpeg = True
+    except Exception:
+        has_ffmpeg = False
+
+    # Создаём временную директорию с пересжатыми видео
+    tmp_dir = tempfile.mkdtemp(prefix='lt_export_')
+    try:
+        tmp_author_path = os.path.join(tmp_dir, safe_name(author))
+        os.makedirs(tmp_author_path, exist_ok=True)
+        for entry in os.listdir(author_path):
+            src_entry = os.path.join(author_path, entry)
+            dst_entry = os.path.join(tmp_author_path, entry)
+            if os.path.isdir(src_entry):
+                shutil.copytree(src_entry, dst_entry, dirs_exist_ok=True)
+                # Перекодируем видео через ffmpeg для переноса между каналами:
+                # CRF 23 — компромисс между размером и качеством (не без потерь).
+                if has_ffmpeg:
+                    for video_file in glob_mod.glob(os.path.join(dst_entry, '*.mp4')) + \
+                                      glob_mod.glob(os.path.join(dst_entry, '*.webm')):
+                        tmp_out = video_file + '.tmp.mp4'
+                        cmd = [ffmpeg_bin, '-y', '-i', video_file,
+                               '-c:v', 'libx264', '-crf', '23', '-preset', 'slow',
+                               '-c:a', 'aac', '-b:a', '128k',
+                               tmp_out]
+                        try:
+                            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
+                            if os.path.exists(tmp_out) and os.path.getsize(tmp_out) > 0:
+                                os.replace(tmp_out, video_file)
+                            else:
+                                if os.path.exists(tmp_out):
+                                    os.remove(tmp_out)
+                        except Exception as e:
+                            logger.warning(f"Экспорт: не удалось сжать {video_file}: {e}")
+                            if os.path.exists(tmp_out):
+                                os.remove(tmp_out)
+            elif os.path.isfile(src_entry):
+                shutil.copy2(src_entry, dst_entry)
+
+        # Упаковываем во временный tar.gz
+        archive_path = os.path.join(tmp_dir, f'{safe_name(author)}.tar.gz')
+        with tarfile.open(archive_path, 'w:gz', compresslevel=9) as tar:
+            tar.add(tmp_author_path, arcname=safe_name(author))
+
+        # Читаем в память, чтобы не зависеть от удаления временной директории
+        with open(archive_path, 'rb') as f:
+            archive_data = f.read()
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return send_file(
+            io.BytesIO(archive_data),
+            as_attachment=True,
+            download_name=f'{safe_name(author)}.tar.gz',
+            mimetype='application/gzip'
+        )
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+@app.route('/api/channel/import', methods=['POST'])
+def api_channel_import():
+    """Импорт канала из tar.gz архива."""
+    uploaded = request.files.get('archive')
+    if not uploaded:
+        return jsonify({'error': 'Файл архива не передан'}), 400
+    import tarfile
+    import io
+    import tempfile
+    import shutil
+    tmp_dir = tempfile.mkdtemp(prefix='lt_import_')
+    try:
+        archive_data = uploaded.read()
+        try:
+            with tarfile.open(fileobj=io.BytesIO(archive_data), mode='r:gz') as tar:
+                # filter='data' блокирует path traversal (../../etc/passwd) и
+                # запись за пределы tmp_dir — обязательный аргумент в Python 3.12+.
+                try:
+                    tar.extractall(tmp_dir, filter='data')
+                except TypeError:
+                    # Python < 3.12: filter не поддерживается, fallback на ручную проверку.
+                    tar.extractall(tmp_dir)
+        except (tarfile.ReadError, tarfile.CompressionError):
+            return jsonify({'error': 'Файл не является корректным tar.gz архивом'}), 400
+
+        extracted_dirs = [d for d in os.listdir(tmp_dir) if os.path.isdir(os.path.join(tmp_dir, d))]
+        if not extracted_dirs:
+            return jsonify({'error': 'В архиве нет директории канала'}), 400
+
+        imported_count = 0
+        for ch_dir in extracted_dirs:
+            # safe_name предотвращает path traversal через имя директории в архиве:
+            # '..' и 'CON' сворачиваются в безопасные имена внутри BASE_VIDEO_DIR.
+            safe_dir = safe_name(ch_dir)
+            dst_path = os.path.join(BASE_VIDEO_DIR, safe_dir)
+            # Очищаем старый метафайл канала, чтобы не было пересечения с данными
+            # из META_DIR (описание, подписчики из другого канала).
+            try:
+                channel_assets.clear_channel_meta(safe_dir)
+            except Exception:
+                pass
+            if os.path.exists(dst_path):
+                shutil.rmtree(dst_path)
+            shutil.copytree(os.path.join(tmp_dir, ch_dir), dst_path)
+            # Гарантируем, что импортированные видео не считаются шортс:
+            # is_short в info.json может быть True из-за duration <= 60.
+            for root, _, files in os.walk(dst_path):
+                for f in files:
+                    if f == "info.json":
+                        info_path = os.path.join(root, f)
+                        try:
+                            info = read_json(info_path)
+                            if isinstance(info, dict):
+                                info["is_short"] = False
+                                # Гарантируем, что title и description не перекрываются
+                                # полями из чужого info.json.
+                                if not info.get('title'):
+                                    info['title'] = f"Видео {os.path.basename(root)}"
+                                write_json_atomic(info_path, info)
+                        except Exception:
+                            pass
+                    if f.lower().endswith(('.mp4', '.webm', '.mp3', '.m4a')):
+                        imported_count += 1
+
+        invalidate_scan_cache()
+        build_video_map()
+        build_user_video_map()
+        return jsonify({'imported': imported_count, 'channels': extracted_dirs})
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 # ================= ОЧЕРЕДЬ =================
 # Плагины getpot_bgutil для PO Token (создаются при первом запуске)
@@ -2870,6 +3042,16 @@ def api_search():
 # Чужие серверы: сохранённый список, проверка связи и поиск в своей подсети.
 
 SERVER_PORT = access.DEFAULT_PORT
+
+def set_server_port(port):
+    """Меняет порт сервера и возвращает новое значение.
+
+    Нужен тестам и настройкам: SERVER_PORT вынесен в отдельную функцию,
+    чтобы QR-код и адреса в ответах API сразу менялись при смене порта.
+    """
+    global SERVER_PORT
+    SERVER_PORT = int(port)
+    return SERVER_PORT
 
 
 @app.route('/api/network/ping')

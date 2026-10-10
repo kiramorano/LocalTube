@@ -5,101 +5,117 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{ meta.get('title', 'Видео') }} - LocalTube</title>
     <link id="fonts-link" rel="stylesheet" href="/static/css/fonts.css">
-    <!-- mobile.js подключён и здесь: страница имеет тот же сайдбар-драйвер, но
-         скрипта не было, поэтому закрытие по Escape и возврат фокуса работали
-         на всех страницах, кроме этой. -->
     <script src="/static/js/mobile.js" defer></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
-        /* --yt-bg-solid — непрозрачная версия фона. Нужна там, где фон служит
-           цветом текста (инверсия на активных элементах): в frutiger-aero
-           --yt-bg равен transparent, и такой текст становился невидимым. */
         :root[data-theme="dark"] {
             --yt-bg: #0f0f0f; --yt-bg-solid: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa;
-            --yt-spec-border: #3f3f3f; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: #272727;
-            --yt-button-hover: #3f3f3f; --yt-header-height: 56px; --yt-search-bg: #121212;
+            --yt-spec-border: #3f3f3f; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: rgba(255, 255, 255, 0.1);
+            --yt-button-hover: rgba(255, 255, 255, 0.2); --yt-header-height: 56px; --yt-search-bg: #121212;
             --yt-modal-bg: #212121;
         }
         :root[data-theme="light"] {
             --yt-bg: #ffffff; --yt-bg-solid: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060;
-            --yt-spec-border: #e5e5e5; --yt-spec-icon-inactive: #030303; --yt-button-bg: #f2f2f2;
-            --yt-button-hover: #e0e0e0; --yt-header-height: 56px; --yt-search-bg: #f8f8f8;
+            --yt-spec-border: #e5e5e5; --yt-spec-icon-inactive: #030303; --yt-button-bg: rgba(0, 0, 0, 0.05);
+            --yt-button-hover: rgba(0, 0, 0, 0.1); --yt-header-height: 56px; --yt-search-bg: #f8f8f8;
             --yt-modal-bg: #ffffff;
         }
 
-        :root { --yt-font-family: 'Roboto', Arial, sans-serif; }
+        :root { --yt-font-family: 'Roboto', -apple-system, BlinkMacSystemFont, Arial, sans-serif; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; transition: background-color 0.5s ease, color 0.5s ease; position: relative; }
+        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; transition: background-color 0.5s ease, color 0.5s ease; position: relative; font-family: var(--yt-font-family); -webkit-font-smoothing: antialiased; }
+        
         #bg-layer-1, #bg-layer-2 {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-size: cover;
-            background-position: center center;
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-size: cover; background-position: center center;
             background-repeat: no-repeat;
             transition: opacity 1.5s ease-in-out;
-            pointer-events: none;
-            z-index: -3;
+            pointer-events: none; z-index: -3;
         }
         #bg-layer-2 { z-index: -2; }
-        body::after {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            background: rgba(0, 0, 0, 0.05);
-            pointer-events: none;
-            transition: background 1s ease;
+        /* В тёмных и светлых темах обои скрыты — фон задаётся через var(--yt-bg).
+           Только frutiger-aero рисует живые обои через bg-layer-1/bg-layer-2. */
+        [data-theme="dark"] #bg-layer-1, [data-theme="dark"] #bg-layer-2,
+        [data-theme="dark"] body::after,
+        [data-theme="light"] #bg-layer-1, [data-theme="light"] #bg-layer-2,
+        [data-theme="light"] body::after,
+        [data-theme="midnight"] #bg-layer-1, [data-theme="midnight"] #bg-layer-2,
+        [data-theme="midnight"] body::after,
+        [data-theme="glass"] #bg-layer-1, [data-theme="glass"] #bg-layer-2,
+        [data-theme="glass"] body::after {
+            display: none !important;
         }
-        [data-theme="frutiger-aero"] body::after {
-            background: rgba(0, 0, 0, 0.1);
-        }
-        header { position: fixed; top: 0; left: 0; right: 0; height: var(--yt-header-height); background-color: var(--yt-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 300; border-bottom: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; }
+
+        header { position: fixed; top: 0; left: 0; right: 0; height: var(--yt-header-height); background-color: var(--yt-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 300; border-bottom: 1px solid var(--yt-spec-border); }
         .header-left { display: flex; align-items: center; gap: 16px; }
-        .menu-icon { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); cursor: pointer; transition: fill 0.3s ease; }
-        .logo { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 500; text-decoration: none; color: var(--yt-spec-text-primary); transition: color 0.3s ease; }
+        .menu-icon { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); cursor: pointer; border-radius: 50%; padding: 0; }
+        .logo { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 600; text-decoration: none; color: var(--yt-spec-text-primary); letter-spacing: -0.5px; }
         .logo svg { width: 30px; height: 20px; fill: #FF0000; }
-        .user-profile-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 12px; border-radius: 20px; transition: background 0.3s ease; text-decoration: none; color: var(--yt-spec-text-primary);}
+        .user-profile-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 10px; border-radius: 24px; text-decoration: none; color: var(--yt-spec-text-primary);}
         .user-profile-btn:hover { background-color: var(--yt-button-hover); }
         .user-name-display { font-weight: 500; font-size: 14px; display: none; }
-        .user-avatar-placeholder { width: 32px; height: 32px; border-radius: 50%; background-color: #00897b; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; overflow: hidden; transition: border 0.3s ease; }
+        .user-avatar-placeholder { width: 32px; height: 32px; border-radius: 50%; background-color: #272727; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; overflow: hidden; border: 1px solid var(--yt-spec-border); }
         .user-avatar-placeholder img { width: 100%; height: 100%; object-fit: cover; }
         @media (min-width: 768px) { .user-name-display { display: block; } }
 
-        .sidebar-drawer { position: fixed; top: var(--yt-header-height); left: -240px; width: 240px; height: calc(100vh - var(--yt-header-height)); background: var(--yt-bg); z-index: 200; transition: left 0.3s ease, background-color 0.5s ease; padding: 12px; overflow-y: auto; }
+        .sidebar-drawer { position: fixed; top: var(--yt-header-height); left: -240px; width: 240px; height: calc(100vh - var(--yt-header-height)); background: var(--yt-bg); z-index: 200; transition: left 0.3s ease; padding: 12px 0; overflow-y: auto; border-right: 1px solid var(--yt-spec-border); }
         .sidebar-drawer.active { left: 0; }
-        .sidebar-overlay { position: fixed; top: var(--yt-header-height); left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .sidebar-overlay { position: fixed; top: var(--yt-header-height); left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
         .sidebar-overlay.active { opacity: 1; pointer-events: all; }
-        .sidebar-item { display: flex; align-items: center; gap: 16px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; text-decoration: none; transition: background 0.2s, color 0.5s ease; }
+        .sidebar-item { display: flex; align-items: center; gap: 16px; padding: 10px 12px; margin: 0 12px 4px 12px; border-radius: 10px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; text-decoration: none; }
         .sidebar-item:hover { background-color: var(--yt-button-hover); }
-        .sidebar-item svg { width: 24px; height: 24px; fill: currentColor; transition: fill 0.3s ease; }
-        .sidebar-divider { height: 1px; background-color: var(--yt-spec-border); margin: 12px 0; transition: background-color 0.5s ease; }
+        .sidebar-item svg { width: 24px; height: 24px; fill: currentColor; }
+        .sidebar-divider { height: 1px; background-color: var(--yt-spec-border); margin: 12px 0; }
 
         .page-content { padding-top: calc(var(--yt-header-height) + 24px); padding-bottom: 40px; }
-        .watch-layout { display: flex; gap: 24px; max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+        .watch-layout { display: flex; gap: 24px; max-width: 1400px; margin: 0 auto; padding: 0 24px; }
         .primary-column { flex: 1; min-width: 0; }
         .secondary-column { width: 400px; flex-shrink: 0; display: flex; flex-direction: column; gap: 16px; }
+        
         .page-content.theater-mode-active { padding-top: var(--yt-header-height); }
         .page-content.theater-mode-active .watch-layout { flex-wrap: wrap; max-width: 100%; padding: 0; }
         .page-content.theater-mode-active .primary-column { flex: 0 0 100%; max-width: 100%; }
-        .page-content.theater-mode-active .yt-player-container { height: calc(100vh - var(--yt-header-height)); aspect-ratio: auto; margin-bottom: 24px; width: 100%; background: #000; }
-        .page-content.theater-mode-active .content-wrapper { max-width: 1280px; margin: 0 auto; padding: 0 24px; width: 100%; }
-        .page-content.theater-mode-active .secondary-column { max-width: 1280px; margin: 0 auto; padding: 0 24px; flex-direction: column; width: 100%; }
+        .page-content.theater-mode-active .yt-player-container { height: calc(100vh - var(--yt-header-height)); aspect-ratio: auto; margin-bottom: 24px; width: 100%; border-radius: 0; border: none; }
+        .page-content.theater-mode-active .content-wrapper { max-width: 1400px; margin: 0 auto; padding: 0 24px; width: 100%; }
+        .page-content.theater-mode-active .secondary-column { max-width: 1400px; margin: 0 auto; padding: 0 24px; flex-direction: column; width: 100%; }
         @media (max-width: 1000px) { .watch-layout { flex-direction: column; } .secondary-column { width: 100%; } }
 
-        .yt-player-container { position: relative; width: 100%; max-width: 100%; background: #000; margin-bottom: 20px; display: flex; justify-content: center; align-items: center; overflow: hidden; aspect-ratio: 16/9; }
+        .yt-player-container { position: relative; width: 100%; max-width: 100%; background: #000; margin-bottom: 20px; display: flex; justify-content: center; align-items: center; overflow: hidden; aspect-ratio: 16/9; border-radius: 12px; }
+        
+        /* Исправленные стили для субтитров и плеера */
         video { width: 100%; height: 100%; display: block; cursor: pointer; object-fit: contain; }
-        video::cue { background-color: rgba(0,0,0,0.7); color: white; font-size: 1.2em; font-family: 'Roboto', sans-serif; line-height: 1.4; text-align: center; text-shadow: 1px 1px 0px black; bottom: 10px; }
+        video::cue { 
+            background-color: rgba(0,0,0,0.75) !important; 
+            color: white !important; 
+            font-size: 1.3em !important; 
+            font-family: 'Roboto', sans-serif !important; 
+            line-height: 1.4 !important; 
+            text-align: center !important; 
+            text-shadow: 0 1px 2px rgba(0,0,0,1) !important; 
+        }
+        /* Поднимаем субтитры над нашими контролами */
+        video::-webkit-media-text-track-container { 
+            transform: translateY(-55px) !important; 
+        }
+        /* Принудительно выравниваем по центру, игнорируя настройки VTT файла */
+        video::-webkit-media-text-track-display { 
+            text-align: center !important; 
+            display: flex !important; 
+            justify-content: center !important; 
+            width: 100% !important; 
+        }
+
         .player-gradient { position: absolute; bottom: 0; width: 100%; height: 30%; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); pointer-events: none; z-index: 1; transition: opacity 0.3s; }
         .player-controls { position: absolute; bottom: 0; left: 0; right: 0; z-index: 2; padding: 0 12px; display: flex; flex-direction: column; transition: opacity 0.3s; opacity: 1; }
         .yt-player-container.idle .player-controls, .yt-player-container.idle .player-gradient { opacity: 0; pointer-events: none; }
         .yt-player-container.idle { cursor: none; }
         .progress-container { width: 100%; height: 5px; background: rgba(255,255,255,0.2); cursor: pointer; position: relative; margin-bottom: 8px; transition: height 0.1s; transform-origin: bottom; }
-        .progress-container:hover { height: 8px; }
+        .progress-container:hover { height: 6px; }
         .progress-loaded { position: absolute; top: 0; left: 0; height: 100%; background: rgba(255,255,255,0.4); width: 0%; pointer-events: none; }
         .progress-fill { position: absolute; top: 0; left: 0; height: 100%; background: #FF0000; width: 0%; pointer-events: none; }
         .progress-scrubber { position: absolute; top: 50%; width: 13px; height: 13px; background: #FF0000; border-radius: 50%; transform: translate(-50%, -50%); opacity: 0; transition: opacity 0.1s; pointer-events: none; }
@@ -110,148 +126,140 @@
         .progress-container:hover .progress-scrubber { opacity: 1; }
         .controls-row { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; }
         .controls-left, .controls-right { display: flex; align-items: center; gap: 8px; }
-        .control-btn { background: none; border: none; cursor: pointer; width: 46px; height: 36px; display: flex; justify-content: center; align-items: center; opacity: 0.9; transition: opacity 0.2s; color: white; }
-        .control-btn:hover { opacity: 1; }
+        .control-btn { background: none; border: none; cursor: pointer; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; opacity: 0.9; color: white; border-radius: 50%; }
+        .control-btn:hover { background: rgba(255,255,255,0.1); opacity: 1; }
         .control-btn svg { width: 24px; height: 24px; fill: #fff; }
         .volume-container { display: flex; align-items: center; }
         .volume-slider { width: 0; overflow: hidden; transition: width 0.2s; height: 100%; display: flex; align-items: center; }
         .volume-container:hover .volume-slider { width: 60px; }
-        input[type="range"] { -webkit-appearance: none; width: 100%; height: 3px; background: rgba(255,255,255,0.2); outline: none; cursor: pointer; }
+        input[type="range"] { -webkit-appearance: none; width: 100%; height: 3px; background: rgba(255,255,255,0.2); outline: none; cursor: pointer; accent-color: #fff; }
         input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff; }
         input[type="range"]::-webkit-slider-runnable-track { height: 3px; background: linear-gradient(to right, #fff var(--vol, 100%), rgba(255,255,255,0.2) var(--vol, 100%)); }
         .time-display { color: #fff; font-size: 13px; margin-left: 8px; font-variant-numeric: tabular-nums; user-select: none; }
-        .seek-animation { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; padding: 20px; border-radius: 50%; font-size: 14px; display: flex; flex-direction: column; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 10; }
+        .seek-animation { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.6); color: white; padding: 20px; border-radius: 50%; font-size: 14px; display: flex; flex-direction: column; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 10; }
         .seek-left { left: 10%; } .seek-right { right: 10%; }
         .seek-animation.active { opacity: 1; }
         .seek-animation svg { width: 24px; height: 24px; fill: #fff; margin-bottom: 4px; }
 
-        h1 { font-size: 20px; font-weight: 700; line-height: 28px; margin-bottom: 12px; word-break: break-word; transition: color 0.5s ease; }
-        .meta-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
-        .channel-info { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .channel-avatar { width: 40px; height: 40px; border-radius: 50%; background-color: #8e24aa; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: white; overflow: hidden; transition: border 0.3s ease; }
+        /* ===== ОБНОВЛЕННАЯ ИНФОРМАЦИЯ О ВИДЕО И КНОПКИ ===== */
+        .video-page-title { font-size: 20px; font-weight: 700; line-height: 28px; margin-bottom: 12px; color: var(--yt-spec-text-primary); overflow-wrap: anywhere; }
+        
+        .video-primary-info { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; }
+        
+        .channel-owner-info { display: flex; align-items: center; gap: 12px; flex-shrink: 0; text-decoration: none; cursor: pointer; }
+        .channel-avatar { width: 40px; height: 40px; border-radius: 50%; background-color: #272727; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: white; overflow: hidden; }
         .channel-avatar img { width: 100%; height: 100%; object-fit: cover; }
-        .channel-details { display: flex; flex-direction: column; gap: 2px; }
-        .channel-name { font-size: 16px; font-weight: 500; color: var(--yt-spec-text-primary); transition: color 0.5s ease; }
-        .channel-subscribers { font-size: 12px; color: var(--yt-spec-text-secondary); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; transition: color 0.5s ease; }
-        .publish-date { font-size: 12px; color: var(--yt-spec-text-secondary); transition: color 0.5s ease; }
-        .edit-buttons { display: flex; gap: 12px; margin-left: auto; }
-        .edit-btn { background: #3ea6ff; color: #000; border: none; border-radius: 20px; padding: 6px 12px; cursor: pointer; font-weight: 500; font-size: 13px; transition: background 0.3s ease; }
-        .edit-btn:hover { background: #65b8ff; }
-        .delete-btn { background: #ff4d4d; color: white; }
-        .delete-btn:hover { background: #ff1a1a; }
-        .hide-channel-btn { background: none; border: none; cursor: pointer; padding: 6px 12px; border-radius: 20px; background-color: var(--yt-button-bg); color: var(--yt-spec-text-primary); font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: background 0.3s ease, color 0.5s ease; }
-        .hide-channel-btn:hover { background-color: var(--yt-button-hover); }
-        .hide-channel-btn svg { width: 18px; height: 18px; fill: currentColor; transition: fill 0.3s ease; }
+        .channel-details { display: flex; flex-direction: column; }
+        .channel-name { font-size: 16px; font-weight: 500; color: var(--yt-spec-text-primary); }
+        .channel-subscribers { font-size: 12px; color: var(--yt-spec-text-secondary); }
 
-        /* Сохранение видео в свой плейлист. Стилем повторяет кнопку скрытия
-           канала: обе стоят в одном ряду под названием видео. */
-        .save-btn { background: none; border: none; cursor: pointer; padding: 6px 12px; border-radius: 20px; background-color: var(--yt-button-bg); color: var(--yt-spec-text-primary); font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; }
-        .save-btn:hover { background-color: var(--yt-button-hover); }
-        .save-btn svg { width: 18px; height: 18px; fill: currentColor; }
+        .video-action-buttons { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .yt-action-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--yt-button-bg); color: var(--yt-spec-text-primary); border: none; border-radius: 18px; height: 36px; padding: 0 16px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; transition: background 0.2s; text-decoration: none; }
+.download-file-btn { display: inline-block; margin-top: 12px; margin-bottom: 12px; padding: 8px 16px; background: #3ea6ff; color: #000; border-radius: 20px; text-decoration: none; font-weight: 500; transition: background 0.3s ease; }
+
+        .yt-action-btn:hover { background: var(--yt-button-hover); }
+        .yt-action-btn svg { width: 20px; height: 20px; fill: currentColor; }
+        .yt-action-btn.delete-btn:hover { background: #ff4d4d; color: white; }
+
+        .description-box { background: var(--yt-button-bg); border-radius: 12px; padding: 12px; font-size: 14px; line-height: 20px; color: var(--yt-spec-text-primary); margin-bottom: 24px; transition: background 0.2s; }
+        .description-box:hover { background: var(--yt-button-hover); }
+        .description-meta { font-weight: 600; margin-bottom: 8px; color: var(--yt-spec-text-primary); display: flex; justify-content: flex-start; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .description-text { color: var(--yt-spec-text-primary); overflow-wrap: anywhere; white-space: pre-wrap; }
+
+        /* ===== СУБТИТРЫ (ИНТЕГРАЦИЯ С ОПИСАНИЕМ) ===== */
+        .subtitles-section { background: var(--yt-button-bg); border-radius: 12px; padding: 12px; margin-bottom: 24px; transition: background 0.2s; }
+        .subtitles-section:hover { background: var(--yt-button-hover); }
+        .subtitles-section h3 { margin-bottom: 12px; font-size: 16px; font-weight: 600; color: var(--yt-spec-text-primary); }
+        .subtitle-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .subtitle-item { background: rgba(255,255,255,0.1); border-radius: 18px; padding: 6px 12px; display: flex; align-items: center; gap: 8px; font-size: 13px; }
+        .subtitle-item button { background: none; border: none; color: var(--yt-spec-text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0.7; transition: opacity 0.2s, color 0.2s; }
+        .subtitle-item button:hover { color: #ff4d4d; opacity: 1; }
+        .subtitle-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .subtitle-actions input[type="text"] { background: var(--yt-button-bg); border: 1px solid transparent; border-radius: 18px; padding: 0 16px; height: 36px; color: var(--yt-spec-text-primary); font-size: 14px; font-weight: 500; font-family: inherit; outline: none; transition: border-color 0.2s; }
+        .subtitle-actions input[type="text"]:focus { border-color: #3ea6ff; }
+
+        /* ===== ПРАВАЯ КОЛОНКА (РЕКОМЕНДАЦИИ) ===== */
+        .related-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; scrollbar-width: none; }
+        .related-tabs::-webkit-scrollbar { display: none; }
+        .related-tab { background-color: var(--yt-button-bg); border: none; color: var(--yt-spec-text-primary); padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: background 0.2s; }
+        .related-tab:hover { background: var(--yt-button-hover); }
+        .related-tab.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg-solid, #0f0f0f); }
+        
+        .related-list { display: flex; flex-direction: column; gap: 8px; }
+        .related-card { display: flex; gap: 8px; text-decoration: none; cursor: pointer; border-radius: 8px; transition: background 0.2s; }
+        .related-thumb { width: 168px; aspect-ratio: 16/9; background-color: #272727; border-radius: 8px; overflow: hidden; flex-shrink: 0; position: relative; }
+        .related-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .duration-badge { position: absolute; bottom: 6px; right: 6px; background: rgba(0,0,0,0.8); color: #fff; font-size: 12px; font-weight: 500; padding: 3px 4px; border-radius: 4px; line-height: 1; letter-spacing: 0.5px; z-index: 2;}
+        .related-info { display: flex; flex-direction: column; gap: 4px; overflow: hidden; padding: 4px 0; }
+        .related-title { color: var(--yt-spec-text-primary); font-size: 14px; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; }
+        .related-author { color: var(--yt-spec-text-secondary); font-size: 12px; line-height: 1.4; margin-top: 4px; }
+
+        /* ---------- Collection modal ---------- */
         .collection-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1500; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
         .collection-modal.active { opacity: 1; pointer-events: all; }
-        .collection-modal-box { background: var(--yt-modal-bg); width: 90%; max-width: 420px; max-height: 80vh; overflow-y: auto; border-radius: 12px; padding: 20px; border: 1px solid var(--yt-spec-border); }
-        .collection-modal-box h3 { margin-bottom: 14px; font-size: 18px; }
-        .collection-option { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .collection-modal-box { background: var(--yt-modal-bg); width: 90%; max-width: 420px; max-height: 80vh; overflow-y: auto; border-radius: 12px; padding: 24px; border: 1px solid var(--yt-spec-border); box-shadow: 0 12px 40px rgba(0,0,0,.58); }
+        .collection-modal-box h3 { margin-bottom: 16px; font-size: 18px; color: var(--yt-spec-text-primary); }
+        .collection-option { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--yt-spec-text-primary); }
         .collection-option:hover { background: var(--yt-button-hover); }
         .collection-option input { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
         .collection-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .collection-new { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--yt-spec-border); }
-        .collection-new input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--yt-spec-border); background: var(--yt-bg); color: var(--yt-spec-text-primary); font-family: inherit; font-size: 14px; }
-        .collection-new button { padding: 9px 14px; border: none; border-radius: 8px; background: #3ea6ff; color: #000; cursor: pointer; font-family: inherit; font-size: 14px; }
-        .collection-modal-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 16px; }
-        .collection-modal-actions button { padding: 8px 14px; border: none; border-radius: 18px; background: var(--yt-button-bg); color: var(--yt-spec-text-primary); cursor: pointer; font-family: inherit; font-size: 14px; }
-        #collectionModalStatus { font-size: 13px; color: var(--yt-spec-text-secondary); min-height: 18px; margin-top: 10px; }
-
-        .description-box { background-color: var(--yt-button-bg); border-radius: 12px; padding: 12px; font-size: 14px; line-height: 20px; color: var(--yt-spec-text-primary); white-space: pre-wrap; margin-bottom: 16px; transition: background-color 0.5s ease, color 0.5s ease; }
-        .subtitles-section { background-color: var(--yt-button-bg); border-radius: 12px; padding: 12px; margin-bottom: 20px; transition: background-color 0.5s ease; }
-        .subtitles-section h3 { margin-bottom: 12px; font-size: 16px; transition: color 0.5s ease; }
-        .subtitle-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-        .subtitle-item { background: var(--yt-search-bg); border-radius: 20px; padding: 4px 12px; display: flex; align-items: center; gap: 8px; transition: background-color 0.5s ease; }
-        .subtitle-item button { background: none; border: none; color: var(--yt-spec-text-secondary); cursor: pointer; font-size: 14px; transition: color 0.3s ease; }
-        .subtitle-item button:hover { color: #ff4d4d; }
-        .subtitle-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
-        .subtitle-actions input, .subtitle-actions button { background: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); border-radius: 20px; padding: 6px 12px; color: var(--yt-spec-text-primary); font-size: 13px; cursor: pointer; transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; }
-        .subtitle-actions input { cursor: text; width: 80px; }
-        .subtitle-actions button:hover { background: var(--yt-button-hover); }
-
-        .related-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; }
-        .related-tab { background-color: var(--yt-button-bg); border: none; color: var(--yt-spec-text-primary); padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: background 0.3s ease, color 0.5s ease; }
-        .related-tab:hover { background-color: var(--yt-button-hover); }
-        .related-tab.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg-solid, #0f0f0f); }
-        .related-list { display: flex; flex-direction: column; gap: 8px; }
-        .related-card { display: flex; gap: 8px; text-decoration: none; cursor: pointer; border-radius: 8px; padding: 4px; transition: background 0.3s ease; }
-        .related-card:hover { background-color: var(--yt-button-hover); }
-        .related-thumb { width: 168px; height: 94px; background-color: #272727; border-radius: 8px; overflow: hidden; flex-shrink: 0; position: relative; }
-        .related-thumb img { width: 100%; height: 100%; object-fit: cover; }
-        .related-info { display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
-        .related-title { color: var(--yt-spec-text-primary); font-size: 14px; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; transition: color 0.5s ease; }
-        .related-author { color: var(--yt-spec-text-secondary); font-size: 12px; transition: color 0.5s ease; }
+        .collection-new { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--yt-spec-border); }
+        .collection-new input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--yt-spec-border); background: var(--yt-search-bg); color: var(--yt-spec-text-primary); font-family: inherit; font-size: 14px; }
+        .collection-new button { padding: 10px 16px; border: none; border-radius: 8px; background: var(--yt-spec-text-primary); color: var(--yt-bg-solid, #000); cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 500; }
+        .collection-modal-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 20px; }
+        .collection-modal-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 16px; height: 36px; border: none; border-radius: 18px; background: var(--yt-button-bg); color: var(--yt-spec-text-primary); cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 500; transition: background 0.2s; }
+        .collection-modal-actions button:hover { background: var(--yt-button-hover); }
+        .collection-modal-actions svg { width: 20px; height: 20px; fill: currentColor; }
 
         .svg-defs { display: none; }
         #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
-        .toast { background: var(--yt-button-hover); color: var(--yt-spec-text-primary); padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid var(--yt-spec-border); animation: slideIn 0.3s ease forwards; transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease; }
+        .toast { background: var(--yt-modal-bg); color: var(--yt-spec-text-primary); padding: 12px 20px; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.5); border: 1px solid var(--yt-spec-border); animation: slideIn 0.3s ease forwards; font-weight: 500; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        .download-file-btn { display: inline-block; margin-top: 12px; margin-bottom: 12px; padding: 8px 16px; background: #3ea6ff; color: #000; border-radius: 20px; text-decoration: none; font-weight: 500; transition: background 0.3s ease; }
-        .player-settings-menu { display: none; position: absolute; bottom: 60px; right: 12px; background: var(--yt-modal-bg); border: 1px solid var(--yt-spec-border); border-radius: 12px; padding: 8px; min-width: 200px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: background-color 0.5s ease, border-color 0.5s ease; }
-        .settings-menu-header { padding: 10px 16px; font-weight: 500; cursor: pointer; border-bottom: 1px solid var(--yt-spec-border); margin-bottom: 4px; transition: border-color 0.5s ease; }
-        .settings-menu-item { padding: 10px 16px; cursor: pointer; border-radius: 8px; transition: background 0.3s ease; }
-        .settings-menu-item:hover { background-color: var(--yt-button-hover); }
+        
+        .player-settings-menu { display: none; position: absolute; bottom: 60px; right: 12px; background: var(--yt-modal-bg); border: 1px solid var(--yt-spec-border); border-radius: 12px; padding: 8px; min-width: 220px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.5); color: var(--yt-spec-text-primary); }
+        .settings-menu-header { display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-weight: 500; cursor: pointer; border-bottom: 1px solid var(--yt-spec-border); margin-bottom: 4px; }
+        .settings-menu-header svg { width: 20px; height: 20px; fill: currentColor; }
+        .settings-menu-item { padding: 10px 16px; cursor: pointer; border-radius: 8px; transition: background 0.2s; }
+        .settings-menu-item:hover { background: var(--yt-button-hover); }
         .settings-menu-item.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg-solid, #0f0f0f); }
-        /* Меню качества насчитывает 11 ступеней (оригинал, 2160p...144p и два
-           улучшайзера) и в высоту не влезает в плеер: верхние пункты выезжали за
-           его край, попадали под содержимое страницы и не нажимались. Ограничение
-           по высоте плеера с прокруткой держит меню внутри. */
+        
         #playerQualityMenu #qualityOptionsList { max-height: min(50vh, 320px); overflow-y: auto; }
-        .quality-option { padding: 8px 16px; cursor: pointer; border-radius: 6px; transition: background 0.3s ease; }
-        .quality-option:hover { background-color: var(--yt-button-hover); }
-        .quality-option.active { background-color: #3ea6ff; color: #000; }
+        .quality-option { padding: 10px 16px; cursor: pointer; border-radius: 8px; transition: background 0.2s; }
+        .quality-option:hover { background: var(--yt-button-hover); }
+        .quality-option.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg-solid, #0f0f0f); }
         .quality-res { font-weight: 500; }
         .quality-codec { margin-left: 8px; }
-        .equalizer-slider { width: 100%; margin: 8px 0; }
-        .description-box, .related-info, .channel-details { min-width: 0; overflow-wrap: anywhere; }
-        button:focus-visible, a:focus-visible, input:focus-visible, .menu-icon:focus-visible { outline: 2px solid #3ea6ff; outline-offset: 2px; }
+        
+        button:focus-visible, a:focus-visible, input:focus-visible, .menu-icon:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+        
         @media (max-width: 700px) {
             header { padding-inline: 12px; }
             .logo { font-size: 18px; }
             .user-profile-btn { padding-inline: 6px; }
-            .page-content { padding-top: calc(var(--yt-header-height) + 12px); }
-            .watch-layout { padding-inline: 0; gap: 20px; }
+            .page-content { padding-top: calc(var(--yt-header-height) + 12px); padding-bottom: 70px; }
+            .watch-layout { padding-inline: 0; gap: 16px; }
             .content-wrapper, .secondary-column { padding-inline: 12px; }
             .primary-column > .yt-player-container { border-radius: 0; margin-bottom: 16px; }
-            h1 { font-size: 18px; line-height: 24px; }
-            .meta-row { align-items: flex-start; }
-            .channel-info { width: 100%; }
-            .edit-buttons { width: 100%; margin-left: 0; overflow-x: auto; padding-bottom: 4px; }
-            .edit-buttons .edit-btn, .hide-channel-btn { flex: 0 0 auto; min-height: 36px; }
-            .related-thumb { width: 40%; height: auto; aspect-ratio: 16 / 9; }
-            .related-card { min-width: 0; }
-            .volume-slider { display: none; }
-            #toast-container { inset-inline: 12px; bottom: 12px; }
+            .video-page-title { font-size: 18px; line-height: 24px; }
+            .video-primary-info { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .channel-owner-info { width: 100%; }
+            .video-action-buttons { width: 100%; overflow-x: auto; padding-bottom: 4px; flex-wrap: nowrap; scrollbar-width: none; }
+            .yt-action-btn { flex: 0 0 auto; white-space: nowrap; }
+            .related-thumb { width: 140px; }
+            #toast-container { inset-inline: 12px; bottom: 70px; }
             .toast { width: 100%; }
-            .page-content.theater-mode-active .yt-player-container { height: auto; aspect-ratio: 16 / 9; }
-            .page-content.theater-mode-active .content-wrapper, .page-content.theater-mode-active .secondary-column { padding-inline: 12px; }
         }
         @media (max-width: 380px) {
             .time-display { max-width: 86px; overflow: hidden; text-overflow: ellipsis; }
             .related-title { -webkit-line-clamp: 2; }
+            .related-thumb { width: 120px; }
         }
     </style>
-    <!-- Файл темы после инлайновых стилей: специфичность :root[data-theme]
-         одинаковая, иначе токены шаблона перебивают midnight/glass/aero. -->
-    <link id="theme-style" rel="stylesheet">
-    <!-- ui.css после инлайновых стилей и до mobile.css: специфичность равная,
-         поэтому побеждает объявленный последним, а мобильные правки должны
-         оставаться сверху. -->
+
+    <link id="theme-style-link" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/ui.css">
     <link rel="stylesheet" href="/static/css/mobile.css">
-    <!-- Синхронно, после ссылки на файл темы и до разметки: иначе
-         applyStylesheet не находит элемент, а тема встаёт после первой
-         отрисовки. -->
-    <!-- Перевод строк, которые собирает клиентский код. До theme.js:
-         t() должна быть готова к первому вызову. -->
-    {# Словарь идёт вместе со страницей: отдельный запрос приходил позже
-       первой отрисовки, и подписи из скриптов оставались русскими. #}
+
     {% if ui_strings %}<script>
         window.LT_I18N = {{ ui_strings|tojson }};
     </script>{% endif %}
@@ -259,7 +267,6 @@
     <script src="/static/js/theme.js"></script>
 </head>
 <body>
-    <!-- Фоновые слои -->
     <div id="bg-layer-1" style="background-image:none; opacity:0;"></div>
     <div id="bg-layer-2" style="background-image:none; opacity:1;"></div>
 
@@ -275,7 +282,8 @@
             <g id="icon-rewind-left"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"></path></g>
             <g id="icon-rewind-right"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"></path></g>
             <g id="icon-pip"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zm-10-7h8v6h-8z"></path></g>
-            <g id="icon-settings"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></g>
+            <g id="icon-settings"><path d="M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5m0 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m1.45-7.59L12.7 3.5h-1.4l-.75 2.41a6.6 6.6 0 0 0-1.8.76l-2.38-.85-1 1 1.01 2.3A6.6 6.6 0 0 0 5.6 11H3.1v1.4h2.5a6.6 6.6 0 0 0 .78 1.8l-1.01 2.3 1 1 2.38-.85a6.6 6.6 0 0 0 1.8.76l.75 2.41h1.4l.75-2.41a6.6 6.6 0 0 0 1.8-.76l2.38.85 1-1-1.01-2.3a6.6 6.6 0 0 0 .78-1.8h2.5v-1.4h-2.5a6.6 6.6 0 0 0-.78-1.8l1.01-2.3-1-1-2.38.85a6.6 6.6 0 0 0-1.8-.76"/></g>
+            <g id="icon-back"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"></path></g>
         </defs>
     </svg>
 
@@ -302,42 +310,68 @@
                 body { overflow: hidden; }
                 .page-content { padding: var(--yt-header-height) 0 0 !important; margin: 0 !important; max-width: 100% !important; height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; background: var(--yt-bg); display: flex; flex-direction: column; align-items: center; }
                 .short-item { height: calc(100vh - var(--yt-header-height)); width: 100%; scroll-snap-align: start; display: flex; justify-content: center; align-items: center; position: relative; padding: 12px 0; flex-shrink: 0; background: transparent; }
-                .short-video-wrapper { position: relative; height: 100%; aspect-ratio: 9 / 16; max-width: 100%; background: #000; border-radius: 12px; overflow: visible; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
-                .short-video-wrapper video { border-radius: 12px; }
-                [data-theme="frutiger-aero"] .short-video-wrapper { background: rgba(255,255,255,0.18); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); border: 1px solid rgba(255,255,255,0.3); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
-                .short-video-wrapper video { width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
-                .short-overlay { position: absolute; bottom: 20px; left: 16px; right: 80px; z-index: 2; pointer-events: none; }
-                .short-title { color: white; font-size: 16px; font-weight: 500; margin-bottom: 8px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
-                .short-author { color: #ddd; font-size: 14px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
-                .sidebar-drawer { display: none !important; }
-                .short-controls-row { position: absolute; bottom: 20px; right: 16px; display: flex; flex-direction: row; gap: 12px; z-index: 10; align-items: center; }
-                .short-btn { background: rgba(0,0,0,0.6); border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; cursor: pointer; fill: white; transition: background 0.2s; backdrop-filter: blur(4px); }
-                .short-vol-wrapper { display: flex; flex-direction: column; align-items: center; position: relative; }
-                .short-vol-slider-container { position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%); height: 124px; width: 44px; background: rgba(0,0,0,0.7); border-radius: 22px; backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s ease, visibility 0.2s ease; z-index: 12; }
+                .short-video-wrapper { position: relative; height: 100%; aspect-ratio: 9 / 16; max-width: 100%; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+                .short-video-wrapper video { width: 100%; height: 100%; object-fit: contain; cursor: pointer; border-radius: 12px; }
+                .short-video-wrapper::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 40%; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%); pointer-events: none; z-index: 1; }
+                .short-overlay { position: absolute; bottom: 24px; left: 16px; right: 72px; z-index: 2; pointer-events: none; display: flex; flex-direction: column; gap: 8px; }
+                .short-author-row { display: flex; align-items: center; gap: 10px; pointer-events: auto; text-decoration: none; cursor: pointer; }
+                .short-author-avatar { width: 32px; height: 32px; border-radius: 50%; background: #272727; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+                .short-author { color: #fff; font-size: 15px; font-weight: 500; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+                .short-title { color: white; font-size: 15px; font-weight: 400; line-height: 1.4; text-shadow: 0 1px 3px rgba(0,0,0,0.8); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+                .short-controls-row { position: absolute; bottom: 24px; right: 12px; display: flex; flex-direction: column; gap: 20px; z-index: 10; align-items: center; }
+                .short-btn-wrapper { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+                .short-btn { background: rgba(255, 255, 255, 0.1); border: none; border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 500; font-size: 15px; cursor: pointer; fill: white; transition: background 0.2s; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+                .short-btn:hover { background: rgba(255, 255, 255, 0.2); }
+                .short-btn-label { color: #fff; font-size: 13px; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.8); user-select: none; }
+                .short-vol-wrapper { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+                .short-vol-slider-container { position: absolute; right: 48px; top: 0; height: 48px; width: 124px; background: rgba(0,0,0,0.7); border-radius: 24px; backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s ease, visibility 0.2s ease; z-index: 12; }
                 .short-vol-slider-container.active { opacity: 1; visibility: visible; pointer-events: auto; }
-                input[type="range"].short-vol-slider { width: 104px; height: 24px; margin: 0; padding: 0; -webkit-appearance: none; appearance: none; background: transparent; outline: none; transform: rotate(-90deg); cursor: pointer; touch-action: none; }
+                input[type="range"].short-vol-slider { width: 90px; height: 24px; margin: 0; padding: 0; -webkit-appearance: none; appearance: none; background: transparent; outline: none; cursor: pointer; touch-action: none; }
                 input[type="range"].short-vol-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.35); }
                 input[type="range"].short-vol-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-top: -5px; border: none; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); cursor: pointer; }
                 input[type="range"].short-vol-slider::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.35); }
                 input[type="range"].short-vol-slider::-moz-range-thumb { width: 14px; height: 14px; border: none; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); cursor: pointer; }
-                input[type="range"].short-vol-slider:focus-visible::-webkit-slider-thumb { outline: 2px solid #3ea6ff; outline-offset: 2px; }
+                .sidebar-drawer { display: none !important; }
             </style>
             {% for s in shorts_feed %}
             <div class="short-item" data-id="{{ s.id }}">
                 <div class="short-video-wrapper">
-                    <video class="short-video" src="{{ url_for('media', filename=s.url) }}" loop playsinline></video>
+                    <video class="short-video" src="{{ url_for('media', filename=s.url) }}" preload="metadata" loop playsinline></video>
+                    
                     <div class="short-overlay">
+                        <a href="/channel/{{ s.author|urlencode }}" class="short-author-row">
+                            <div class="short-author-avatar">{{ s.author[:1]|upper }}</div>
+                            <div class="short-author">@{{ s.author }}</div>
+                        </a>
                         <div class="short-title">{{ s.title }}</div>
-                        <div class="short-author">{{ s.author }} • {{ s.size_mb }} {{ 'МБ'|t }}</div>
                     </div>
+                    
                     <div class="short-controls-row">
-                        <button class="short-btn short-speed-btn">1x</button>
-                        <div class="short-vol-wrapper">
-                            <div class="short-vol-slider-container"><input type="range" class="short-vol-slider" min="0" max="1" step="0.05" value="0.5"></div>
-                            <button class="short-btn short-mute-btn"><svg viewBox="0 0 24 24"><use href="#icon-vol-high"></use></svg></button>
+                        {% if is_owner|default(true) %}
+                        <div class="short-btn-wrapper">
+                            <button class="short-btn short-save-btn" data-video-id="{{ s.id }}" title="{{ 'Сохранить'|t }}">
+                                <svg viewBox="0 0 24 24" width="24" height="24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zM2 16h8v-2H2v2zm19.5-4.5L23 13l-6.99 7-4.51-4.5L13 14l3.01 3 5.49-5.5z"/></svg>
+                            </button>
+                            <span class="short-btn-label">{{ 'Сохранить'|t }}</span>
                         </div>
-                        {% if is_owner|default(true) %}<button class="short-btn short-save-btn" data-video-id="{{ s.id }}" title="{{ 'Сохранить в плейлист'|t }}">🔖</button>{% endif %}
+                        {% endif %}
+
+                        <div class="short-btn-wrapper">
+                            <button class="short-btn short-speed-btn">1x</button>
+                            <span class="short-btn-label">{{ 'Скорость'|t }}</span>
+                        </div>
+                        
+                        <div class="short-btn-wrapper short-vol-wrapper">
+                            <div class="short-vol-slider-container">
+                                <input type="range" class="short-vol-slider" min="0" max="1" step="0.05" value="0.5">
+                            </div>
+                            <button class="short-btn short-mute-btn">
+                                <svg viewBox="0 0 24 24" width="24" height="24"><use href="#icon-vol-high"></use></svg>
+                            </button>
+                            <span class="short-btn-label">{{ 'Звук'|t }}</span>
+                        </div>
                     </div>
+
                 </div>
             </div>
             {% endfor %}
@@ -347,16 +381,12 @@
                     const shortSpeeds = [0.5, 1, 1.5, 2];
                     let globalShortVol = 0.5, globalShortMute = true;
                     const shortWatchedSent = new Set();
-                    // Гость из локальной сети историю владельца не пополняет.
                     const shortsOwner = {{ 'true' if is_owner|default(true) else 'false' }};
                     function markShortWatched(id) {
                         if (!id || shortWatchedSent.has(id)) return;
-                        // Наблюдатель срабатывает при каждой прокрутке — отправляем
-                        // отметку один раз на сессию.
                         shortWatchedSent.add(id);
                         if (!shortsOwner) return;
-                        fetch(`/api/userdata/watched/${encodeURIComponent(id)}`, { method: 'POST' })
-                            .catch(err => console.error('Не удалось отметить просмотр:', err));
+                        fetch(`/api/userdata/watched/${encodeURIComponent(id)}`, { method: 'POST' }).catch(() => {});
                     }
                     const observer = new IntersectionObserver((entries) => {
                         entries.forEach(entry => {
@@ -387,8 +417,18 @@
                             speedBtn.textContent = shortSpeeds[currentSpeedIdx] + 'x';
                         });
                         const volWrapper = item.querySelector('.short-vol-wrapper');
-                        volWrapper.addEventListener('mouseenter', () => volSliderContainer.classList.add('active'));
-                        volWrapper.addEventListener('mouseleave', () => volSliderContainer.classList.remove('active'));
+                        let shortHideTimeout;
+                        function showVolumeSlider() {
+                            clearTimeout(shortHideTimeout);
+                            volSliderContainer.classList.add('active');
+                        }
+                        function hideVolumeSlider() {
+                            shortHideTimeout = setTimeout(() => volSliderContainer.classList.remove('active'), 150);
+                        }
+                        volWrapper.addEventListener('mouseenter', showVolumeSlider);
+                        volWrapper.addEventListener('mouseleave', hideVolumeSlider);
+                        volSliderContainer.addEventListener('mouseenter', showVolumeSlider);
+                        volSliderContainer.addEventListener('mouseleave', hideVolumeSlider);
 
                         muteBtn.addEventListener('click', (e) => {
                             e.stopPropagation();
@@ -433,6 +473,8 @@
                 })();
             </script>
         {% else %}
+        
+        <!-- ===== Обычный плеер ===== -->
         <div class="watch-layout">
             <div class="primary-column">
                 {% if video_url %}
@@ -454,100 +496,172 @@
                                 <button class="control-btn" id="subtitlesBtn" title="{{ 'Субтитры'|t }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6v-2zm4 0h8v2h-8v-2zm0 4h6v2h-6v-2z"/></svg></button>
                                 <button class="control-btn" id="pipBtn"><svg viewBox="0 0 24 24"><use href="#icon-pip"></use></svg></button>
                                  <button class="control-btn" id="theaterBtn"><svg viewBox="0 0 24 24"><use href="#icon-theater"></use></svg></button>
-                                 <button class="control-btn" id="settingsBtn" title="{{ 'Настройки (Качество/Шакализатор/Улучшайзер)'|t }}"><svg viewBox="0 0 24 24"><use href="#icon-settings"></use></svg></button>
+                                 <button class="control-btn" id="settingsBtn" title="{{ 'Настройки'|t }}"><svg viewBox="0 0 24 24"><use href="#icon-settings"></use></svg></button>
                                  <button class="control-btn" id="fullscreenBtn"><svg viewBox="0 0 24 24" id="fullscreenIconSvg"><use href="#icon-fullscreen"></use></svg></button>
                              </div>
                          </div>
 
                           <!-- Меню качества (Шакализатор / Улучшайзер) -->
                           <div id="playerSettingsMenu" class="player-settings-menu">
-                              <div class="settings-menu-header" onclick="document.getElementById('playerSettingsMenu').style.display='none'">{{ '⚙️ Настройки'|t }}</div>
+                              <div class="settings-menu-header" onclick="document.getElementById('playerSettingsMenu').style.display='none'">{{ 'Настройки'|t }}</div>
                               <div class="settings-menu-item" id="menuQualityBtn">{{ 'Качество'|t }} <span id="currentQualityLabel" style="color:#aaa;">{{ 'Оригинал'|t }}</span></div>
                               <div class="settings-menu-item" id="menuEqualizerBtn">{{ 'Шакализатор'|t }}</div>
-                              <div class="settings-menu-item" id="menuBassBoosterBtn">{{ 'Улучшайзер (Басы)'|t }}</div>
+                              <div class="settings-menu-item" id="menuBassBoosterBtn">{{ 'Улучшайзер'|t }}</div>
                           </div>
                           <div id="playerQualityMenu" class="player-settings-menu" style="display:none;">
-                              <div class="settings-menu-header" id="backToSettingsBtn">{{ '← Назад к настройкам'|t }}</div>
+                              <div class="settings-menu-header" id="backToSettingsBtn"><svg viewBox="0 0 24 24"><use href="#icon-back"></use></svg> {{ 'Назад'|t }}</div>
                              <div id="qualityOptionsList"></div>
                           </div>
                           <!-- Меню шакализатора -->
                           <div id="playerEqualizerMenu" class="player-settings-menu" style="display:none; max-width: 240px;">
-                              <div class="settings-menu-header" onclick="showPlayerSettingsMenu()">{{ '← Назад к настройкам'|t }}</div>
+                              <div class="settings-menu-header" onclick="showPlayerSettingsMenu()"><svg viewBox="0 0 24 24"><use href="#icon-back"></use></svg> {{ 'Назад'|t }}</div>
                               <div id="equalizerPresets" style="padding: 8px;">
-                                  <div class="quality-option" onclick="setEqualizerPreset('flat')">{{ '🔊 Плоский (выключен)'|t }}</div>
-                                  <div class="quality-option" onclick="setEqualizerPreset('pop')">{{ '🎤 Поп'|t }}</div>
-                                  <div class="quality-option" onclick="setEqualizerPreset('rock')">{{ '🎸 Рок'|t }}</div>
-                                  <div class="quality-option" onclick="setEqualizerPreset('bass')">{{ '🎵 Басы в унисон'|t }}</div>
-                                  <div class="quality-option" onclick="setEqualizerPreset('dance')">{{ '💃 Танцы'|t }}</div>
-                                  <div class="quality-option" onclick="setEqualizerPreset('acoustic')">{{ '🎸 Акустика'|t }}</div>
-                                  <div class="quality-option" onclick="setEqualizerPreset('classical')">{{ '🎼 Классика'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('flat')">{{ 'Плоский (выключен)'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('pop')">{{ 'Поп'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('rock')">{{ 'Рок'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('bass')">{{ 'Басы в унисон'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('dance')">{{ 'Танцы'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('acoustic')">{{ 'Акустика'|t }}</div>
+                                  <div class="quality-option" onclick="setEqualizerPreset('classical')">{{ 'Классика'|t }}</div>
                               </div>
                           </div>
                           <!-- Меню улучшайзера -->
                           <div id="playerBassMenu" class="player-settings-menu" style="display:none; max-width: 220px;">
-                              <div class="settings-menu-header" onclick="showPlayerSettingsMenu()">{{ '← Назад к настройкам'|t }}</div>
+                              <div class="settings-menu-header" onclick="showPlayerSettingsMenu()"><svg viewBox="0 0 24 24"><use href="#icon-back"></use></svg> {{ 'Назад'|t }}</div>
                               <div id="bassBoostOptions" style="padding: 8px;">
-                                  <div class="quality-option" onclick="setBassBoost(0)">{{ '🔊 Выключен'|t }}</div>
-                                  <div class="quality-option" onclick="setBassBoost(3)">{{ '🔊 Слабый (+3 дБ)'|t }}</div>
-                                  <div class="quality-option" onclick="setBassBoost(6)">{{ '🔊 Средний (+6 дБ)'|t }}</div>
-                                  <div class="quality-option" onclick="setBassBoost(10)">{{ '🔊 Сильный (+10 дБ)'|t }}</div>
+                                  <div class="quality-option" onclick="setBassBoost(0)">{{ 'Выключен'|t }}</div>
+                                  <div class="quality-option" onclick="setBassBoost(3)">{{ 'Слабый (+3 дБ)'|t }}</div>
+                                  <div class="quality-option" onclick="setBassBoost(6)">{{ 'Средний (+6 дБ)'|t }}</div>
+                                  <div class="quality-option" onclick="setBassBoost(10)">{{ 'Сильный (+10 дБ)'|t }}</div>
                               </div>
                           </div>
                       </div>
                  </div>
-                {% if is_owner|default(true) %}<a href="{{ video_url }}" download class="download-file-btn">{{ '📥 Скачать видео (исходный файл)'|t }}</a>{% endif %}
                 {% else %}
                 <div style="height: 50vh; display:flex; align-items:center; justify-content:center; color:#aaa; margin-bottom: 24px;">{{ 'Видеофайл не найден'|t }}</div>
                 {% endif %}
+                
                 <div class="content-wrapper">
-                    <h1>{{ meta.get('title', folder) }}</h1>
-                    <div class="meta-row">
-                        <div class="channel-info">
+                    <h1 class="video-page-title">{{ meta.get('title', folder) }}</h1>
+                    <div class="video-primary-info">
+                        
+                        <!-- Кликабельный канал -->
+                        <a href="/channel/{{ meta.get('uploader', author)|urlencode }}" class="channel-owner-info">
                             <div class="channel-avatar">{% if author_avatar %}<img src="{{ author_avatar }}" alt="{{ author }}">{% else %}{{ meta.get('uploader', author)[:1]|upper if meta.get('uploader', author) else 'U' }}{% endif %}</div>
-                            <div class="channel-details"><span class="channel-name" id="channelName">{{ meta.get('uploader', author) }}</span><span class="channel-subscribers">LocalTube • {{ file_size_mb }} {{ 'МБ'|t }}{% if publish_date %} • <span class="publish-date">📅 {{ publish_date }}</span>{% endif %}</span></div>
-                            {# Скрытие канала, плейлисты и правка — только владельцу. #}
+                            <div class="channel-details">
+                                <span class="channel-name" id="channelName">{{ meta.get('uploader', author) }}</span>
+                                <span class="channel-subscribers">LocalTube • {% if file_size_mb %}{{ file_size_mb }} {{ 'МБ'|t }}{% else %}{{ 'Загружается'|t }}{% endif %}</span>
+                            </div>
+                        </a>
+                        
+                        <div class="video-action-buttons">
                             {% if is_owner|default(true) %}
-                            <button class="hide-channel-btn" id="hideChannelBtn" title="{{ 'Скрыть канал'|t }}"><svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg><span id="hideChannelText">{{ 'Скрыть канал'|t }}</span></button>
-                            <button type="button" class="save-btn" id="saveToCollectionBtn" title="{{ 'Сохранить в плейлист'|t }}"><svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zM2 16h8v-2H2v2zm19.5-4.5L23 13l-6.99 7-4.51-4.5L13 14l3.01 3 5.49-5.5z"/></svg><span>{{ 'Сохранить'|t }}</span></button>
-                            {% if meta.get('source') == 'user' %}<div class="edit-buttons"><button class="edit-btn" onclick="window.location.href='/edit/{{ meta.id }}'">{{ '✏️ Редактировать'|t }}</button><button class="edit-btn delete-btn" onclick="deleteUserVideo('{{ meta.id }}', '{{ meta.get('uploader', author) }}')">{{ '🗑️ Удалить'|t }}</button></div>{% endif %}
+                                {% if video_url %}
+                    <a href="{{ video_url }}" download class="download-file-btn yt-action-btn" title="{{ 'Скачать файл'|t }}">
+                        <svg viewBox="0 0 24 24"><path d="M17 18v1H6v-1h11zm-.5-6.6-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-4.9z"/></svg>
+                                        <span>{{ 'Скачать'|t }}</span>
+                                    </a>
+                                {% endif %}
+                                <button type="button" class="yt-action-btn" id="saveToCollectionBtn" title="{{ 'Сохранить в плейлист'|t }}">
+                                    <svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zM2 16h8v-2H2v2zm19.5-4.5L23 13l-6.99 7-4.51-4.5L13 14l3.01 3 5.49-5.5z"/></svg>
+                                    <span>{{ 'Сохранить'|t }}</span>
+                                </button>
+                                <button class="yt-action-btn" id="hideChannelBtn" title="{{ 'Скрыть канал'|t }}">
+                                    <svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+                                    <span id="hideChannelText">{{ 'Скрыть'|t }}</span>
+                                </button>
+                                {% if meta.get('source') == 'user' %}
+                                    <button class="yt-action-btn edit-btn" onclick="window.location.href='/edit/{{ meta.id }}'">
+                                        <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                                        <span>{{ 'Изменить'|t }}</span>
+                                    </button>
+                                    <button class="yt-action-btn delete-btn" onclick="deleteUserVideo('{{ meta.id }}', '{{ meta.get('uploader', author) }}')">
+                                        <svg viewBox="0 0 24 24"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z"/></svg>
+                                        <span>{{ 'Удалить'|t }}</span>
+                                    </button>
+                                {% endif %}
                             {% endif %}
                         </div>
                     </div>
-                    <div class="description-box">{{ meta.get('description') or 'Нет описания' }}</div>
+                    
+                    <div class="description-box">
+                        <div class="description-meta">
+                            {% if meta.get('view_count') %}<span id="videoViewCount" data-views="{{ meta.get('view_count') }}">{{ meta.get('view_count') }} {{ 'просмотров'|t }}</span> &nbsp;•&nbsp; {% endif %}
+                            <span id="videoPublishDate">{{ publish_date|default('', true) }}</span>
+                        </div>
+                        <div class="description-text">{{ meta.get('description') or 'Нет описания' }}</div>
+                    </div>
 
                     <div class="subtitles-section" id="subtitlesSection">
-                        <h3>{{ '📝 Субтитры и аудио'|t }}</h3>
+                        <h3>{{ 'Субтитры и аудио'|t }}</h3>
                         <div id="subtitleList" class="subtitle-list"></div>
-                        {# Загрузка субтитров и MP3 пишет файлы на диск владельца:
-                           гостю показываем только уже готовые дорожки. #}
                         {% if is_owner|default(true) %}
                         <div class="subtitle-actions">
                             <input type="text" id="subtitleLang" placeholder="{{ 'Код языка (ru, en)'|t }}" value="ru" size="5">
                             <input type="file" id="subtitleFile" accept=".vtt,.srt" style="display:none;">
-                            <button id="uploadSubtitleBtn">{{ '📁 Загрузить свой файл'|t }}</button>
-                            {% if video_source == 'youtube' %}<button id="downloadSubtitleBtn">{{ '⬇️ Скачать с YouTube'|t }}</button>{% endif %}
-                            <button id="downloadAudioBtn">{{ '🎵 Скачать аудио (MP3)'|t }}</button>
+                            <button id="uploadSubtitleBtn" class="yt-action-btn">
+                                <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10zM8 13h2v-2h4v2h2l-4 4-4-4z"/></svg>
+                                <span>{{ 'Загрузить файл'|t }}</span>
+                            </button>
+                            {% if video_source == 'youtube' %}
+                            <button id="downloadSubtitleBtn" class="yt-action-btn">
+                                <svg viewBox="0 0 24 24"><path d="M17 18v1H6v-1h11zm-.5-6.6-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-4.9z"/></svg>
+                                <span>{{ 'С YouTube'|t }}</span>
+                            </button>
+                            {% endif %}
+                            <button id="downloadAudioBtn" class="yt-action-btn">
+                                <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6zM10 16.5c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+                                <span>{{ 'MP3 Audio'|t }}</span>
+                            </button>
                         </div>
                         {% endif %}
                     </div>
                 </div>
             </div>
+            
             <div class="secondary-column">
-                {# data-filter, а не подпись кнопки: раньше активная вкладка
-                   определялась сравнением textContent с «Все видео», и перевод
-                   интерфейса сбрасывал бы фильтр на «От автора». #}
                 <div class="related-tabs"><button class="related-tab active" data-filter="all" onclick="filterRelated('all', this)">{{ 'Все видео'|t }}</button><button class="related-tab" data-filter="author" onclick="filterRelated('author', this)">{{ 'От автора'|t }}</button></div>
                 <div class="related-list" id="relatedList">
                     {% for rv in recommended_videos %}
                     <a href="{{ url_for('watch', vid_id=rv.id) }}" class="related-card" data-author="{{ rv.author }}">
-                        <div class="related-thumb">{% if rv.thumb %}<img src="{{ url_for('media', filename=rv.author ~ '/' ~ rv.folder ~ '/' ~ rv.thumb) }}" loading="lazy">{% else %}<div style="background:#272727; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет'|t }}</div>{% endif %}</div>
-                        <div class="related-info"><div class="related-title">{{ rv.title }}</div><div class="related-author">{{ rv.author }}</div></div>
+                        <div class="related-thumb">
+                            {% if rv.thumb %}<img src="{{ url_for('media', filename=rv.author ~ '/' ~ rv.folder ~ '/' ~ rv.thumb) }}" loading="lazy">{% else %}<div style="background:#272727; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет'|t }}</div>{% endif %}
+                            {% if rv.duration %}<span class="duration-badge">{{ "%d:%02d"|format(rv.duration // 60, rv.duration % 60) }}</span>{% endif %}
+                        </div>
+                        <div class="related-info">
+                            <div class="related-title">{{ rv.title }}</div>
+                            <div class="related-author">
+                                {{ rv.author }}
+                                {% if rv.size_mb %}<br>{{ rv.size_mb }} {{ 'МБ'|t }}{% endif %}
+                            </div>
+                        </div>
                     </a>
                     {% endfor %}
                 </div>
             </div>
         </div>
         <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const dateEl = document.getElementById('videoPublishDate');
+                if (dateEl) {
+                    let text = dateEl.textContent.trim();
+                    if (/^\d{8}$/.test(text)) {
+                        const y = text.substring(0,4);
+                        const m = parseInt(text.substring(4,6), 10) - 1;
+                        const d = parseInt(text.substring(6,8), 10);
+                        const months = [t('янв.'), t('февр.'), t('мар.'), t('апр.'), t('мая'), t('июн.'), t('июл.'), t('авг.'), t('сент.'), t('окт.'), t('нояб.'), t('дек.')];
+                        dateEl.textContent = \`${d} ${months[m]} ${y} ${t('г.')}\`;
+                    }
+                }
+                const viewEl = document.getElementById('videoViewCount');
+                if (viewEl) {
+                    let views = parseInt(viewEl.dataset.views, 10);
+                    if (!isNaN(views)) {
+                        viewEl.textContent = views.toLocaleString('ru-RU') + ' ' + t('просмотров');
+                    }
+                }
+            });
+
             function filterRelated(type, button) {
                 const tabs = document.querySelectorAll('.related-tab');
                 tabs.forEach(btn => btn.classList.remove('active'));
@@ -574,9 +688,6 @@
     <div id="toast-container"></div>
 
     <script>
-        // Тема, стиль и обои — /static/js/theme.js (единая реализация для всех
-        // страниц). Раньше здесь была своя копия на 110 строк.
-
         // ========== ПРОФИЛЬ ==========
         const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"avatar":""}');
         function applyProfileUI() {
@@ -597,15 +708,8 @@
         }
         applyProfileUI();
 
-        // ========== САЙДБАР ==========
-        // Переключение панели живёт в /static/js/mobile.js (общий слой).
-
         // ========== СКРЫТЫЕ КАНАЛЫ ==========
-        // Владелец или гость из локальной сети. Гость только смотрит: его
-        // просмотры не попадают в историю владельца.
         const IS_OWNER = {{ 'true' if is_owner|default(true) else 'false' }};
-        // Список хранится на сервере; здесь держим локальную копию для
-        // мгновенной реакции интерфейса.
         let hiddenChannels = [];
         function getHiddenChannels() { return hiddenChannels; }
         function isChannelHidden(channelName) { return hiddenChannels.includes(channelName); }
@@ -613,17 +717,13 @@
         function refreshHiddenChannelUI(channelName) {
             updateHideChannelButton(channelName);
             const activeTab = document.querySelector('.related-tab.active');
-            filterRelated(activeTab?.dataset.filter || 'all', activeTab);
+            if(typeof filterRelated === 'function') filterRelated(activeTab?.dataset.filter || 'all', activeTab);
         }
 
         let hiddenChannelsReady = null;
 
         async function toggleHideChannel(channelName) {
-            // Скрытие каналов — настройка владельца. Кнопка гостю не показана,
-            // но защита нужна и здесь: иначе при сбое запроса список владельца
-            // перезаписался бы из браузера гостя.
             if (!IS_OWNER) return;
-            // Ждём загрузки списка: иначе он пуст и сервер сделает обратное.
             await hiddenChannelsReady;
             const shouldHide = !hiddenChannels.includes(channelName);
             if (shouldHide) {
@@ -638,7 +738,6 @@
                 const res = await fetch('/api/userdata/hidden-channel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    // Явное состояние, а не «переключи».
                     body: JSON.stringify({ author: channelName, hidden: shouldHide }),
                 });
                 if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -649,7 +748,6 @@
                 }
             } catch (err) {
                 console.error('Не удалось сохранить скрытые каналы:', err);
-                // Сохраняем локально, чтобы изменение не пропало до перезагрузки.
                 try {
                     localStorage.setItem('lt_hidden_channels', JSON.stringify(hiddenChannels));
                 } catch (e) { console.error('Локальное сохранение не удалось:', e); }
@@ -658,8 +756,6 @@
         }
 
         async function loadHiddenChannels() {
-            // Скрытые каналы — настройка владельца. Гостю сервер их уже
-            // отфильтровал, а /api/userdata для него закрыт.
             if (!IS_OWNER) { hiddenChannels = []; return; }
             try {
                 const res = await fetch('/api/userdata');
@@ -675,36 +771,29 @@
             const btn = document.getElementById('hideChannelBtn');
             const textSpan = document.getElementById('hideChannelText');
             if (!btn || !textSpan) return;
-            if (isChannelHidden(channelName)) { textSpan.innerText = t('Показать канал'); btn.title = t('Показать канал'); }
-            else { textSpan.innerText = t('Скрыть канал'); btn.title = t('Скрыть канал'); }
+            if (isChannelHidden(channelName)) { textSpan.innerText = t('Показать'); btn.title = t('Показать канал'); }
+            else { textSpan.innerText = t('Скрыть'); btn.title = t('Скрыть канал'); }
         }
         {% if not is_short %}
         const currentChannelName = {{ meta.get('uploader', author)|tojson }};
         document.getElementById('hideChannelBtn')?.addEventListener('click', () => toggleHideChannel(currentChannelName));
-        // Список приходит с сервера, поэтому кнопка и лента обновляются после загрузки.
         hiddenChannelsReady = loadHiddenChannels();
         hiddenChannelsReady.then(() => refreshHiddenChannelUI(currentChannelName));
         {% endif %}
 
-        // Отмечаем просмотр на сервере: раньше история пополнялась только при
-        // клике из каталога, поэтому прямой переход по ссылке в неё не попадал.
         (function markCurrentVideoWatched() {
             const videoId = {{ video_id|tojson }};
             if (!videoId) return;
             if (!IS_OWNER) {
-                // Гость ведёт свою историю в своём же браузере, и в отдельном
-                // ключе: lt_history читает перенос старых данных на сервер, так
-                // что при входе по PIN история гостя уехала бы к владельцу.
                 try {
                     const key = 'lt_guest_history';
                     const local = JSON.parse(localStorage.getItem(key) || '[]');
                     const next = [videoId].concat(local.filter(x => x !== videoId)).slice(0, 500);
                     localStorage.setItem(key, JSON.stringify(next));
-                } catch (err) { console.error('Не удалось сохранить историю локально:', err); }
+                } catch (err) {}
                 return;
             }
-            fetch(`/api/userdata/watched/${encodeURIComponent(videoId)}`, { method: 'POST' })
-                .catch(err => console.error('Не удалось отметить просмотр:', err));
+            fetch(`/api/userdata/watched/${encodeURIComponent(videoId)}`, { method: 'POST' }).catch(() => {});
         })();
 
         function showToast(msg) {
@@ -910,12 +999,7 @@
                 }
             }
             // ===== Выбор качества: 144p-2160p =====
-            // Скачанный файл лежит в одном качестве. Остальные ступени сервер
-            // пересобирает через ffmpeg и складывает рядом с исходником, поэтому
-            // готовое качество открывается сразу, а новое — после пересборки.
             const QUALITY_VIDEO_ID = {{ video_id|tojson }};
-            // Текущее качество держим отдельно от подписи: подпись переводится,
-            // а сравнивать нужно ключ.
             let currentQuality = 'original';
             let qualityPollTimer = null;
 
@@ -937,8 +1021,6 @@
                         return;
                     }
                     renderQualityOptions(data);
-                    // Пересборка, начатая раньше, продолжается на сервере:
-                    // подхватываем её прогресс, а не показываем «Пересобрать».
                     if (Object.keys(data.tasks || {}).length) scheduleQualityPoll();
                 } catch(e) {
                     qualityOptionsList.innerHTML = '<div style="padding: 8px 16px; color: #ff4d4d;">'
@@ -948,8 +1030,6 @@
 
             function renderQualityOptions(data) {
                 if (!qualityOptionsList) return;
-                // Порядок берём из ответа: перебор ключей JSON-объекта даёт
-                // алфавитный порядок, и 1080p оказывался ниже 144p.
                 const order = data.order || Object.keys(data.qualities);
                 const tasks = data.tasks || {};
                 qualityOptionsList.innerHTML = '';
@@ -979,9 +1059,6 @@
                     }
                     row.appendChild(note);
 
-                    // Гостю пересборка закрыта (/api/convert отвечает 403):
-                    // готовые качества он смотрит, недоступные не предлагаем —
-                    // кнопка с гарантированной ошибкой хуже её отсутствия.
                     if (!item.available && !IS_OWNER) return;
                     row.addEventListener('click', () => {
                         if (item.available && item.url) applyQuality(key, item.url, t(item.label));
@@ -1000,26 +1077,15 @@
             }
 
             function applyQuality(key, url, label) {
-                // Смена src сбрасывает плеер: позиция уходит в ноль, скорость
-                // возвращается к 1x, а атрибут autoplay запускает
-                // воспроизведение заново, даже если стояла пауза. Поэтому
-                // состояние снимается до переключения и возвращается после
-                // загрузки метаданных.
                 const wasPlaying = !video.paused;
                 const position = video.currentTime;
                 const rate = video.playbackRate;
-                // Громкость и выбранные субтитры переживают смену src сами:
-                // элементы <track> остаются в DOM, восстанавливать их не нужно.
                 currentQuality = key;
                 video.src = url;
                 video.addEventListener('loadedmetadata', function restore() {
                     video.removeEventListener('loadedmetadata', restore);
                     if (position > 0) video.currentTime = position;
-                    // Скорость возвращаем всегда: кнопка продолжала показывать
-                    // «2x», пока плеер уже играл на обычной скорости.
                     video.playbackRate = rate;
-                    // Пауза сохраняется: с атрибутом autoplay браузер иначе
-                    // начинал играть остановленный ролик.
                     if (wasPlaying) video.play();
                     else video.pause();
                 });
@@ -1060,14 +1126,9 @@
                     if (playerQualityMenu && playerQualityMenu.style.display !== 'none') {
                         renderQualityOptions(data);
                     }
-                    // Опрос продолжаем, пока есть незавершённые задачи:
-                    // пересборка идёт минутами, и без опроса пункт замирал бы
-                    // на «Пересобрать» до перезагрузки страницы.
-                    const running = Object.values(data.tasks || {})
-                        .some(p => p >= 0 && p < 100);
+                    const running = Object.values(data.tasks || {}).some(p => p >= 0 && p < 100);
                     if (running) qualityPollTimer = setTimeout(pollQuality, 2000);
                 } catch(e) {
-                    // Сеть моргнула: пробуем ещё раз, задача на сервере не пропала.
                     qualityPollTimer = setTimeout(pollQuality, 5000);
                 }
             }
@@ -1160,10 +1221,6 @@
             }, { once: true });
             document.addEventListener('click', (e) => {
                 if (settingsBtn && settingsBtn.contains(e.target)) return;
-                // Меню качества лежит рядом с меню настроек, а не внутри него:
-                // без отдельной проверки клик по ступени качества считался
-                // «кликом снаружи» и закрывал меню сразу после выбора — прогресс
-                // пересборки становилось не видно.
                 if (playerQualityMenu && playerQualityMenu.contains(e.target)) return;
                 if (playerSettingsMenu && !playerSettingsMenu.contains(e.target)) {
                     playerSettingsMenu.style.display = 'none';
@@ -1210,7 +1267,7 @@
                 if (!container) return;
                 if (data.subtitles && data.subtitles.length > 0) {
                     let html = '';
-                    for (let s of data.subtitles) html += `<div class="subtitle-item"><span>${s.label} (${s.lang})</span><button onclick="deleteSubtitle('${s.lang}')" title="${t('Удалить')}">🗑️</button></div>`;
+                    for (let s of data.subtitles) html += `<div class="subtitle-item"><span>${s.label} (${s.lang})</span><button onclick="deleteSubtitle('${s.lang}')" title="${t('Удалить')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z"/></svg></button></div>`;
                     container.innerHTML = html;
                 } else container.innerHTML = '<div style="color: #aaa;">Нет субтитров</div>';
             } catch(e) { console.error(e); }
@@ -1292,13 +1349,9 @@
         {% endif %}
 
         // ===== Просмотр плейлиста по порядку =====
-        // Страница открыта из своего плейлиста (?collection=<id>): после конца
-        // ролика переходим к следующему, сохраняя тот же параметр.
         const PLAYLIST_ID = {{ collection_id|tojson }};
         const PLAYLIST_ORDER = {{ collection_order|tojson }};
 
-        // Полосу показываем и для списка из одного видео: ссылка «К плейлисту»
-        // полезна всегда, а переход просто не на что вешать.
         if (PLAYLIST_ID && PLAYLIST_ORDER.length) {
             const player = document.getElementById('videoElement');
             const at = PLAYLIST_ORDER.indexOf({{ video_id|tojson }});
@@ -1309,7 +1362,6 @@
                         + `?collection=${encodeURIComponent(PLAYLIST_ID)}`;
                 });
             }
-            // Показываем, где мы в списке, и даём вернуться к плейлисту.
             const strip = document.createElement('div');
             strip.id = 'playlistStrip';
             strip.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:12px;'
@@ -1328,12 +1380,6 @@
         }
 
         // ===== Сохранение в свой плейлист =====
-        // Своя коллекция — это ссылки на уже скачанные видео, к плейлистам,
-        // скачанным с YouTube, отношения не имеет.
-        // Разметку окна вставляем из скрипта: он выполняется по месту, а держать
-        // её ниже закрывающего тега скрипта нельзя — getElementById вернул бы null.
-        // Внимание: буквальная последовательность закрывающего тега в тексте
-        // скрипта обрывает его прямо там, поэтому здесь она не написана словами.
         document.body.insertAdjacentHTML('beforeend', `
             <div class="collection-modal" id="collectionModal">
                 <div class="collection-modal-box">
@@ -1345,7 +1391,10 @@
                     </div>
                     <p id="collectionModalStatus"></p>
                     <div class="collection-modal-actions">
-                        <button type="button" id="watchLaterBtn">🕒 ${t('Смотреть позже')}</button>
+                        <button type="button" id="watchLaterBtn">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.14-8-8s3.58-8 8-8 8 3.14 8 8-3.14 8-8 8zm.5-13H11v6h3V7h-2V4z"/></svg>
+                            ${t('Смотреть позже')}
+                        </button>
                         <button type="button" id="collectionModalClose">${t('Закрыть')}</button>
                     </div>
                 </div>
@@ -1353,8 +1402,6 @@
         const collectionModal = document.getElementById('collectionModal');
         const collectionList = document.getElementById('collectionList');
         const collectionStatus = document.getElementById('collectionModalStatus');
-        // Какое видео сохраняем. На обычной странице это одно видео, а в ленте
-        // Shorts кнопка есть у каждого ролика, поэтому id задаётся при открытии.
         let collectionTargetId = {{ video_id|tojson }};
 
         function openCollectionModal(videoId) {
@@ -1389,8 +1436,6 @@
                 collectionList.append(note);
                 return;
             }
-            // Через DOM, а не строкой: название плейлиста задаёт пользователь,
-            // и кавычка в нём сломала бы разметку.
             for (const item of items) {
                 const label = document.createElement('label');
                 label.className = 'collection-option';
@@ -1422,7 +1467,6 @@
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok || data.error) throw new Error(data.error || t('Не удалось сохранить.'));
                 showToast(wanted ? t('Видео добавлено в плейлист') : t('Видео убрано из плейлиста'));
-                // Счётчик рядом с названием должен сойтись с новым состоянием.
                 const text = box.parentElement.querySelector('span');
                 if (text && data.collection) {
                     text.textContent = data.collection.count
@@ -1430,8 +1474,6 @@
                         : data.collection.title;
                 }
             } catch (err) {
-                // Возвращаем галочку: иначе интерфейс показывал бы состояние,
-                // которого нет на сервере.
                 box.checked = !wanted;
                 collectionStatus.textContent = err.message;
             } finally {
@@ -1443,7 +1485,6 @@
             openCollectionModal({{ video_id|tojson }});
         });
 
-        // Кнопки в ленте Shorts: у каждого ролика свой id в data-атрибуте.
         document.querySelectorAll('.short-save-btn').forEach(button => {
             button.addEventListener('click', event => {
                 event.stopPropagation();
@@ -1452,7 +1493,6 @@
         });
         document.getElementById('collectionModalClose')?.addEventListener('click', closeCollectionModal);
         collectionModal?.addEventListener('click', event => {
-            // Клик по затемнению закрывает окно, по самому окну — нет.
             if (event.target === collectionModal) closeCollectionModal();
         });
 
@@ -1490,8 +1530,6 @@
                 });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok || data.error) throw new Error(data.error || t('Не удалось создать плейлист.'));
-                // Сразу кладём видео в новый плейлист: кнопку нажали, чтобы
-                // сохранить именно это видео.
                 await fetch(`/api/collections/${encodeURIComponent(data.collection.id)}/videos`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

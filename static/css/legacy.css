@@ -1,0 +1,154 @@
+/* legacy.css — правки вёрстки для старых движков.
+ *
+ * Подключается из compat.js, а не тегом <link>, и только если браузер не знает
+ * хотя бы одно из свойств ниже. На WebView2, WebKitGTK и современных телефонах
+ * файл не загружается вовсе и ничего сломать не может.
+ *
+ * Кому нужен: встроенный Chromium 66 в сборке для Windows 7 (WebView2 на
+ * «семёрке» нет) и очень старые мобильные браузеры. Свойства появились позже:
+ *   aspect-ratio  — Chrome 88
+ *   min() / max() — Chrome 79
+ *   inset         — Chrome 87
+ *
+ * Отдельно от этого файла compat.js заменяет flex gap (Chrome 84) расчётом
+ * margin по фактическому направлению оси. В grid gap работает с Chrome 66, там
+ * ничего менять не нужно.
+ *
+ * Без этого файла страница выглядела так: превью схлопывались в полоску (высоту
+ * им задавал только aspect-ratio), а содержимое шапки, панелей и карточек
+ * слипалось в одну строку без отступов.
+ *
+ * Правила разделены по классам на <html>, которые ставит compat.js. Одного
+ * общего флага мало: flex gap и aspect-ratio появились в разные годы, и на
+ * движках между ними (Chrome 84–87, Safari 14.1) отступы наложились бы поверх
+ * работающего gap — получилось бы вдвое.
+ */
+
+/* --- Пропорции превью (нет aspect-ratio) ------------------------------ */
+
+/* height:0 обязателен: иначе к padding добавилась бы высота содержимого, и блок
+   получился бы выше нужного. Текст-заглушку «Нет превью» приходится позиционировать
+   отдельно — в потоке её при height:0 не видно.
+   Приём: padding-top в процентах от ШИРИНЫ (работает с CSS 1) плюс дочерний слой
+   в absolute. Поэтому родителю здесь всегда добавляется position: relative. */
+.lt-no-aspect-ratio .video-thumb,
+.lt-no-aspect-ratio .short-thumb,
+.lt-no-aspect-ratio .mp-video-wrapper,
+.lt-no-aspect-ratio .thumb,
+.lt-no-aspect-ratio .yt-player-container,
+.lt-no-aspect-ratio .related-thumb,
+.lt-no-aspect-ratio .seek-preview {
+    position: relative;
+    height: 0;
+    overflow: hidden;
+}
+
+/* 16:9 → 9/16 = 56.25% */
+.lt-no-aspect-ratio .video-thumb,
+.lt-no-aspect-ratio .mp-video-wrapper,
+.lt-no-aspect-ratio .thumb,
+.lt-no-aspect-ratio .featured-card .thumb,
+.lt-no-aspect-ratio .yt-player-container,
+.lt-no-aspect-ratio .related-thumb,
+.lt-no-aspect-ratio .seek-preview {
+    padding-top: 56.25%;
+}
+
+/* 9:16 → 16/9 = 177.78% */
+.lt-no-aspect-ratio .short-thumb,
+.lt-no-aspect-ratio .short-grid .thumb {
+    padding-top: 177.78%;
+}
+
+/* Всё внутреннее уходит в absolute: при height:0 поток не отводит места. Правила
+   перечислены поимённо, а не через `> *`, чтобы не задеть абсолютные наложения
+   (.duration, .card-actions, .player-controls) — у них свои координаты. */
+.lt-no-aspect-ratio .video-thumb > img,
+.lt-no-aspect-ratio .short-thumb > img,
+.lt-no-aspect-ratio .thumb > img,
+.lt-no-aspect-ratio .related-thumb > img,
+.lt-no-aspect-ratio .mp-video-wrapper > video,
+.lt-no-aspect-ratio .yt-player-container > video,
+.lt-no-aspect-ratio .seek-preview > .seek-preview-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* Заглушки «Нет превью» — это div или текстовый узел без класса. Растягиваем по
+   родителю тем же способом, иначе подпись оказывалась за границей блока. */
+.lt-no-aspect-ratio .video-thumb > div:not(.card-actions),
+.lt-no-aspect-ratio .short-thumb > div,
+.lt-no-aspect-ratio .related-thumb > div,
+.lt-no-aspect-ratio .thumb > div:not(.duration) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+/* Плеер: video должен лежать по центру, поэтому центрирование переносим на
+   абсолютный слой — flex-контейнер с height:0 центрировать нечего. */
+.lt-no-aspect-ratio .yt-player-container > video {
+    object-fit: contain;
+}
+
+/* Театральный режим задаёт высоту явно (height: calc(100vh - ...)), и приём с
+   padding там лишний: он добавил бы к этой высоте ещё 56%. */
+.lt-no-aspect-ratio .page-content.theater-mode-active .yt-player-container {
+    height: calc(100vh - 56px);
+    padding-top: 0;
+}
+
+/* Список вместо сетки: превью получает фиксированную ширину, пропорции считаются
+   от неё же, так что padding-top остаётся верным. */
+.lt-no-aspect-ratio .video-grid.list-view .video-thumb {
+    width: 360px;
+}
+
+/* Шорты в ленте просмотра — единственное место, где высота известна (100% от
+   .short-item), а ширина считалась из неё. Обратный приём невозможен: процент в
+   padding всегда берётся от ширины. Поэтому просто фиксируем ширину по типовому
+   вертикальному видео, чтобы кадр не растягивался на весь экран. */
+.lt-no-aspect-ratio .short-video-wrapper {
+    width: 315px;
+    max-width: 100%;
+}
+
+/* --- Отступы вместо flex gap ------------------------------------------ */
+
+/* Здесь правил нет намеренно. gap во flex (Chrome 84) заменяется не CSS, а
+   расчётом в compat.js: он читает у каждого flex-контейнера фактические gap и
+   flex-direction и ставит детям margin в нужную сторону.
+   Списком селекторов это делать нельзя — направление у одного класса зависит от
+   страницы и медиазапроса (.video-details на главной ряд, .card-actions
+   колонка, у label вообще нет flex), и отступы уезжали не туда. */
+
+/* --- min() и max() ----------------------------------------------------- */
+
+/* Значение с неизвестной функцией движок отбрасывает целиком, и свойство
+   оставалось незаданным: main расползался на всю ширину, боковая панель теряла
+   ширину вовсе. Заменяем на ближайший фиксированный вариант. */
+.lt-no-min-max main {
+    width: 90%;
+    max-width: 1280px;
+}
+
+.lt-no-min-max .sidebar-drawer {
+    width: 300px;
+    left: -300px;
+}
+
+/* --- inset ------------------------------------------------------------- */
+
+/* inset:0 у модальных подложек не понимался, и затемнение не растягивалось. */
+.lt-no-inset .dl-overlay,
+.lt-no-inset .collection-modal {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+}

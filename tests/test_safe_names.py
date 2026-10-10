@@ -65,33 +65,47 @@ def test_normal_names_are_untouched():
 
 # --- is_shorts_video ---
 
-def test_vertical_video_is_short():
-    assert is_shorts_video({"height": 1920, "width": 1080})
-
-
-def test_short_duration_without_dimensions_is_short():
-    """Ветка по длительности была недостижима: h > w уже возвращало True выше.
-
-    Тот же порядок проверок используется в Android-клиенте (Library.kt).
+def test_local_video_without_is_short_flag_is_not_short():
+    """Локальные видео (без extractor_key и webpage_url): шортсом считаем только
+    если явно пометили is_short в info.json. Соотношение сторон и длительность
+    больше не используются — вертикальное кулинарное видео вовсе не значит shorts.
     """
-    assert is_shorts_video({"duration": 30})
-    assert is_shorts_video({"duration": 30, "height": 0, "width": 0})
+    assert not is_shorts_video({"height": 1920, "width": 1080})
+    assert not is_shorts_video({"duration": 30})
+    assert not is_shorts_video({"duration": 30, "height": 0, "width": 0})
+    assert not is_shorts_video({"duration": 600, "height": 1920, "width": 1080})
+    assert not is_shorts_video({"title": "Смешное видео #shorts"})
+
+
+def test_local_video_with_is_short_flag_is_short():
+    """Явный флаг is_short в info.json работает даже без extractor_key."""
+    assert is_shorts_video({"is_short": True})
+    assert is_shorts_video({"height": 1920, "width": 1080, "is_short": True})
+    assert is_shorts_video({"duration": 30, "is_short": True})
 
 
 def test_landscape_short_duration_is_not_short():
     assert not is_shorts_video({"duration": 30, "height": 1080, "width": 1920})
 
 
-def test_long_vertical_video_is_still_short():
-    assert is_shorts_video({"duration": 600, "height": 1920, "width": 1080})
-
-
 @pytest.mark.parametrize("info", [
-    {"title": "Смешное видео #shorts"},
     {"webpage_url": "https://www.youtube.com/shorts/abc"},
 ])
-def test_markers_detect_shorts(info):
+def test_remote_markers_detect_shorts(info):
+    """Для видео с источником (extractor_key или webpage_url) работают прежние
+    проверки: aspect ratio, #shorts в названии, /shorts/ в URL.
+    """
     assert is_shorts_video(info)
+
+
+def test_remote_vertical_video_is_short():
+    """Видео с extractor_key: вертикальное соотношение сторон — признак short.
+    """
+    assert is_shorts_video({"height": 1920, "width": 1080, "extractor_key": "youtube"})
+
+
+def test_remote_short_duration_is_short():
+    assert is_shorts_video({"duration": 30, "extractor_key": "youtube"})
 
 
 @pytest.mark.parametrize("info", [{}, None, "not a dict", {"duration": 0}, {"duration": 3600}])

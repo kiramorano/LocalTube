@@ -416,6 +416,10 @@ def is_shorts_video(info: dict) -> bool:
     webpage = str(info.get('webpage_url') or '').lower()
     if extractor.startswith('tiktok') or 'tiktok.com/' in webpage:
         return True
+    # Локальные видео (без extractor_key): шортсом считаем только если
+    # явно пометили is_short в info.json.
+    if not extractor and not webpage:
+        return bool(info.get('is_short'))
     if info.get('height') and info.get('width') and info['height'] > info['width']:
         return True
     title = info.get('title', '').lower()

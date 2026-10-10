@@ -4,68 +4,580 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{ author }} — LocalTube</title>
+    
+    <!-- Подключение оригинального шрифта Roboto (как на YouTube) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/fonts.css">
+    
     <style>
-        /* --link задан отдельно от акцента кнопок: #3ea6ff на белом фоне даёт
-           контраст 2,6:1, ниже порога WCAG AA (4,5:1) для текста ссылок. */
-        :root { --link:#3ea6ff; }
-        :root[data-theme="dark"] { --bg:#0f0f0f; --text:#f1f1f1; --muted:#aaa; --border:#3f3f3f; --card:#1d1d1d; --button:#272727; }
-        :root[data-theme="light"] { --bg:#fff; --text:#0f0f0f; --muted:#606060; --border:#e5e5e5; --card:#f8f8f8; --button:#f2f2f2; --link:#0b63ce; }
-        #bg-layer-1, #bg-layer-2 { position:fixed; top:0; left:0; width:100%; height:100%; background-size:cover; background-position:center center; background-repeat:no-repeat; transition:opacity 1.5s ease-in-out; pointer-events:none; z-index:-3; }
-        #bg-layer-2 { z-index:-2; }
-        :root[data-theme="frutiger-aero"] { --bg:transparent; --text:#fff; --muted:#e3f2fd; --border:rgba(255,255,255,.35); --card:rgba(255,255,255,.18); --button:rgba(255,255,255,.22); }
-        :root[data-theme="frutiger-aero"] body { background-color:#b3d9f0; }
-        :root[data-theme="frutiger-aero"] header { background:rgba(255,255,255,.2); backdrop-filter:blur(16px) saturate(180%); -webkit-backdrop-filter:blur(16px) saturate(180%); }
-        :root[data-theme="frutiger-aero"] .playlist-card { backdrop-filter:blur(12px) saturate(180%); -webkit-backdrop-filter:blur(12px) saturate(180%); }
-        :root[data-theme="frutiger-aero"] option { color:#0f0f0f; }
-        * { box-sizing:border-box; } body { margin:0; min-height:100vh; color:var(--text); background:var(--bg); } a { color:inherit; text-decoration:none; } button, select { font:inherit; }
-        header { height:56px; display:flex; align-items:center; gap:16px; padding:0 20px; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:3; background:var(--bg); } .logo { font-size:20px; font-weight:700; } .spacer { flex:1; } .header-link { color:var(--muted); font-size:14px; }
-        main { width:min(1280px, calc(100% - 40px)); margin:0 auto 48px; } .banner { height:220px; margin-top:20px; border-radius:14px; border:1px solid var(--border); background:linear-gradient(120deg, #3a3a3a, #202020); } .banner.has-image { border-color:transparent; background-position:center; background-size:cover; background-repeat:no-repeat; } .channel-head { display:flex; gap:22px; padding:20px 0; align-items:flex-start; } .avatar { width:110px; height:110px; border-radius:50%; flex:0 0 auto; overflow:hidden; display:grid; place-items:center; background:#6b4aa0; color:#fff; font-size:40px; } .avatar img { width:100%; height:100%; object-fit:cover; } .head-copy { min-width:0; flex:1; } h1 { margin:0 0 8px; font-size:32px; } .stats, .muted { color:var(--muted); font-size:14px; } .actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; } .button { border:0; border-radius:20px; padding:10px 16px; background:var(--button); color:var(--text); cursor:pointer; } .button.primary { color:#000; background:#3ea6ff; } .tabs { display:flex; gap:24px; border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; } .tabs::-webkit-scrollbar { display:none; } .tab { border:0; color:var(--muted); background:transparent; padding:14px 2px 12px; border-bottom:3px solid transparent; cursor:pointer; white-space:nowrap; } .tab.active { color:var(--text); border-color:var(--text); } .panel { display:none; padding-top:24px; } .panel.active { display:block; } .section-head { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:18px; } .section-head h2 { margin:0; font-size:20px; } select { padding:8px 10px; color:var(--text); background:var(--button); border:1px solid var(--border); border-radius:8px; }
-        .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:20px; } .card { position:relative; min-width:0; } .thumb { width:100%; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#303030; position:relative; display:grid; place-items:center; color:#bbb; } .thumb img { width:100%; height:100%; object-fit:cover; } .duration { position:absolute; right:6px; bottom:6px; padding:3px 5px; border-radius:4px; background:rgba(0,0,0,.85); color:#fff; font-size:12px; } .card h3 { margin:9px 0 4px; line-height:1.35; font-size:15px; } .card .meta { color:var(--muted); font-size:13px; } .short-grid .thumb { aspect-ratio:9/16; }
-        .featured { display:grid; grid-template-columns:minmax(300px, 2fr) minmax(240px, 1fr); gap:20px; } .featured-card .thumb { aspect-ratio:16/9; } .about { max-width:760px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; } .about a { color:var(--link); text-decoration:underline; } .about-meta { margin-top:22px; display:grid; gap:8px; color:var(--muted); } .tag-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; } .tag { padding:5px 12px; border-radius:14px; font-size:13px; color:var(--muted); background:var(--button); border:1px solid var(--border); } .fact-grid { margin-top:22px; display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; max-width:760px; } .fact { display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--card); } .fact-label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); } .fact-value { font-size:18px; font-weight:600; } .about-links { display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:18px; } .about-links .handle { color:var(--muted); } .about-links a { color:var(--link); } .about-subhead { margin:24px 0 10px; font-size:15px; color:var(--muted); font-weight:600; } .link-list { display:flex; flex-wrap:wrap; gap:10px; max-width:760px; } .channel-link { display:inline-flex; align-items:center; min-height:36px; padding:8px 14px; border-radius:18px; border:1px solid var(--border); background:var(--card); color:var(--link); text-decoration:none; overflow-wrap:anywhere; } .channel-link:hover { border-color:var(--link); } .playlist-card { background:var(--card); border:1px solid var(--border); padding:10px; border-radius:12px; } .empty { padding:36px; text-align:center; color:var(--muted); border:1px dashed var(--border); border-radius:12px; }
-         #toast { position:fixed; right:20px; bottom:20px; z-index:8; background:#222; color:#fff; padding:12px 16px; border-radius:8px; opacity:0; pointer-events:none; transition:opacity .2s; } #toast.visible { opacity:1; }
-         /* ===== Выбор видео и качества перед загрузкой ===== */
-         .dl-overlay { position:fixed; inset:0; z-index:30; background:rgba(0,0,0,.65); display:flex; align-items:center; justify-content:center; padding:20px; }
-         .dl-overlay[hidden] { display:none; }
-         .dl-modal { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:14px; width:min(860px,100%); max-height:min(88vh,860px); display:flex; flex-direction:column; box-shadow:0 18px 48px rgba(0,0,0,.45); }
-         :root[data-theme="frutiger-aero"] .dl-modal { background:rgba(255,255,255,.92); color:#0f0f0f; backdrop-filter:blur(16px) saturate(180%); }
-         .dl-head { padding:18px 20px 12px; border-bottom:1px solid var(--border); }
-         .dl-head h2 { margin:0 0 4px; font-size:19px; }
-         .dl-head .dl-sub { color:var(--muted); font-size:13px; }
-         .dl-controls { display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid var(--border); }
-         .dl-field { display:flex; flex-direction:column; gap:5px; }
-         .dl-field label { font-size:12px; color:var(--muted); }
-         .dl-field select { background:var(--button); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:14px; min-width:180px; }
-         .dl-pick { display:flex; gap:8px; margin-left:auto; flex-wrap:wrap; }
-         .dl-list { overflow-y:auto; padding:8px 12px; flex:1 1 auto; min-height:120px; }
-         .dl-row { display:flex; gap:12px; align-items:center; padding:9px 8px; border-radius:8px; }
-         .dl-row:hover { background:var(--card); }
-         .dl-row input[type=checkbox] { width:17px; height:17px; flex:none; cursor:pointer; }
-         .dl-row .dl-title { flex:1 1 auto; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-         .dl-row a.dl-ext { color:var(--muted); font-size:12px; text-decoration:none; flex:none; }
-         .dl-row a.dl-ext:hover { text-decoration:underline; }
-         .dl-foot { display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px 20px; border-top:1px solid var(--border); flex-wrap:wrap; }
-         .dl-count { font-size:13px; color:var(--muted); }
-         .dl-empty { padding:28px 8px; text-align:center; color:var(--muted); }
-         @media (max-width:640px) { .dl-controls { gap:10px; } .dl-field select { min-width:140px; } .dl-pick { margin-left:0; } }
-         .sync-panel { margin:0 0 18px; padding:14px 16px; border:1px solid var(--border); border-radius:10px; background:var(--card); display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-         .sync-status { font-size:13px; font-weight:600; }
-         .sync-status.success { color:#00b86b; } .sync-status.checking { color:#3ea6ff; } .sync-status.error { color:#e05252; } .sync-status.interrupted { color:#d99000; } .sync-status.never, .sync-status.unknown { color:var(--muted); }
-         .sync-details { flex:1; min-width:220px; color:var(--muted); font-size:13px; }
-         .sync-error { width:100%; color:#e05252; font-size:12px; overflow-wrap:anywhere; }
-         .sync-button { border:1px solid var(--border); border-radius:18px; padding:8px 13px; background:var(--button); color:var(--text); cursor:pointer; }
-         .sync-button:disabled { cursor:wait; opacity:.65; }
-         :root[data-theme="frutiger-aero"] .sync-panel { backdrop-filter:blur(12px) saturate(180%); -webkit-backdrop-filter:blur(12px) saturate(180%); }
+/* ===== LocalTube / clean YouTube-style visual layer =====
+   Только оформление. Разметка, Jinja, id, классы и JavaScript не меняются. */
+:root {
+    --bg: #0f0f0f;
+    --surface: #181818;
+    --surface-2: #212121;
+    --surface-hover: #272727;
+    --text: #f1f1f1;
+    --muted: #aaaaaa;
+    --border: #303030;
+    --button: #272727;
+    --button-hover: #3a3a3a;
+    --link: #f1f1f1;
+    --accent-logo: #ff0000;
+    --shadow: 0 2px 8px rgba(0,0,0,.28);
+}
 
-        @media (max-width:700px) { main { width:min(100%, calc(100% - 24px)); } .tabs-wrap { position:relative; } .tabs-wrap::after { content:''; position:absolute; top:0; right:0; width:28px; height:100%; pointer-events:none; background:linear-gradient(to right, transparent, var(--bg)); } :root[data-theme="frutiger-aero"] .tabs-wrap::after { background:none; } .tabs { gap:18px; }             .tab { padding:14px 2px 12px; min-height:44px; } .button { min-height:44px; } .sync-button { min-height:44px; } .header-link { display:inline-flex; align-items:center; min-height:44px; } .banner { height:130px; margin-top:12px; } .channel-head { gap:14px; } .avatar { width:72px; height:72px; font-size:28px; } h1 { font-size:24px; } .featured { grid-template-columns:1fr; } .grid { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; } .card h3 { font-size:14px; } }
+:root[data-theme="dark"] {
+    --bg: #0f0f0f;
+    --surface: #181818;
+    --surface-2: #212121;
+    --surface-hover: #272727;
+    --text: #f1f1f1;
+    --muted: #aaaaaa;
+    --border: #303030;
+    --button: #272727;
+    --button-hover: #3a3a3a;
+    --link: #f1f1f1;
+}
+
+:root[data-theme="light"] {
+    --bg: #ffffff;
+    --surface: #f8f8f8;
+    --surface-2: #f2f2f2;
+    --surface-hover: #e5e5e5;
+    --text: #0f0f0f;
+    --muted: #606060;
+    --border: #d9d9d9;
+    --button: #f2f2f2;
+    --button-hover: #e5e5e5;
+    --link: #0f0f0f;
+}
+
+/* Any legacy glass/aero theme remains functionally selectable, but the page itself
+   stays visually monochrome instead of becoming glass, blue, green, etc. */
+:root[data-theme="frutiger-aero"] {
+    /* Прозрачный фон — чтобы сквозь разметку были видны обои из bg-layer-1/2,
+       которые theme.js рисует поверх #b3d9f0. Цвет текста и элементы управления
+       перекрашивает frutiger-aero.css (стекло + белый текст). */
+    --bg: transparent;
+    --surface: rgba(255, 255, 255, 0.25);
+    --surface-2: rgba(255, 255, 255, 0.15);
+    --surface-hover: rgba(255, 255, 255, 0.3);
+    --text: #ffffff;
+    --muted: #e3f2fd;
+    --border: rgba(255, 255, 255, 0.35);
+    --button: rgba(255, 255, 255, 0.2);
+    --button-hover: rgba(255, 255, 255, 0.3);
+    --link: #f1f1f1;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--text);
+    background: var(--bg);
+    /* Точный стек шрифтов YouTube */
+    font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+a { color: inherit; text-decoration: none; }
+button, select { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+
+#bg-layer-1, #bg-layer-2 {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    transition: opacity 1.5s ease-in-out;
+    pointer-events: none;
+    z-index: -3;
+}
+#bg-layer-2 { z-index: -2; }
+
+header {
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 24px;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+}
+.logo {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -.35px;
+}
+.logo::first-letter { color: var(--accent-logo); }
+.spacer { flex: 1; }
+.header-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 10px;
+    border-radius: 20px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    transition: background .18s ease;
+}
+.header-link:hover { background: var(--button-hover); }
+
+main {
+    width: min(1280px, calc(100% - 48px));
+    margin: 0 auto 56px;
+}
+.banner {
+    height: 220px;
+    margin-top: 24px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    overflow: hidden;
+}
+.banner.has-image {
+    border-color: var(--border);
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+}
+
+.channel-head {
+    display: flex;
+    gap: 24px;
+    padding: 28px 0 24px;
+    align-items: flex-start;
+}
+.avatar {
+    width: 112px;
+    height: 112px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background: #303030;
+    color: #fff;
+    font-size: 40px;
+    font-weight: 500;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.head-copy { min-width: 0; flex: 1; padding-top: 3px; }
+h1 {
+    margin: 0 0 8px;
+    color: var(--text);
+    font-size: 32px;
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -.4px;
+    overflow-wrap: anywhere;
+}
+.stats, .muted {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.4;
+}
+.actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+}
+.button {
+    border: 0;
+    border-radius: 20px;
+    padding: 10px 16px;
+    min-height: 40px;
+    background: var(--button);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background .18s ease, transform .05s ease;
+}
+.button:hover { background: var(--button-hover); }
+.button:active { transform: translateY(1px); }
+.button.primary {
+    color: var(--text);
+    background: var(--text);
+}
+:root[data-theme="light"] .button.primary { color: #fff; background: #0f0f0f; }
+.button.primary:hover { opacity: .9; }
+
+.tabs-wrap {
+    border-bottom: 1px solid var(--border);
+}
+.tabs {
+    display: flex;
+    gap: 28px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+    position: relative;
+    border: 0;
+    color: var(--muted);
+    background: transparent;
+    padding: 16px 2px 14px;
+    min-height: 48px;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color .18s ease;
+}
+.tab:hover { color: var(--text); }
+.tab.active {
+    color: var(--text);
+    border-color: var(--text);
+}
+
+.panel { display: none; padding-top: 28px; }
+.panel.active { display: block; }
+.section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 20px;
+}
+.section-head h2, #about > h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: 20px;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -.15px;
+}
+select {
+    padding: 8px 34px 8px 11px;
+    min-height: 38px;
+    color: var(--text);
+    background: var(--button);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: 0;
+}
+select:hover { background: var(--button-hover); }
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 26px 18px;
+}
+.card { position: relative; min-width: 0; }
+.card:hover .thumb { background: var(--surface-hover); }
+.thumb {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--surface-2);
+    position: relative;
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+    transition: background .18s ease;
+}
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.duration {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    padding: 3px 5px;
+    border-radius: 3px;
+    background: rgba(0,0,0,.86);
+    color: #fff;
+    font-size: 12px;
+    line-height: 1;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+.card h3 {
+    margin: 9px 0 4px;
+    color: var(--text);
+    line-height: 1.4;
+    font-size: 15px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+.card .meta { color: var(--muted); font-size: 13px; line-height: 1.4; }
+.short-grid .thumb { aspect-ratio: 9 / 16; }
+
+/* Обновленная секция Рекомендуемое (Главная) */
+.featured {
+    display: grid;
+    grid-template-columns: minmax(300px, 1.8fr) minmax(280px, 1fr);
+    gap: 32px;
+    align-items: flex-start;
+}
+.featured-card { display: flex; flex-direction: column; min-width: 0; }
+.featured-card:hover .thumb { background: var(--surface-hover); }
+.featured-card h3 { margin: 12px 0 4px; font-size: 20px; line-height: 1.3; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.featured-card .meta { color: var(--muted); font-size: 14px; }
+
+.featured-sidebar { display: flex; flex-direction: column; min-width: 0; }
+.featured-sidebar h2 { margin: 0 0 16px 0; font-size: 18px; color: var(--text); }
+.featured-list { display: flex; flex-direction: column; gap: 12px; }
+.featured-list-item {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 8px; border-radius: 8px; transition: background .18s ease;
+    text-decoration: none;
+}
+.featured-list-item:hover { background: var(--surface-hover); }
+.mini-thumb {
+    width: 140px; flex-shrink: 0; aspect-ratio: 16 / 9;
+    background: var(--surface-2); border-radius: 8px; overflow: hidden;
+    position: relative; display: grid; place-items: center; color: var(--muted); font-size: 12px;
+}
+.mini-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mini-info { display: flex; flex-direction: column; gap: 4px; overflow: hidden; min-width: 0; }
+.mini-info strong {
+    font-size: 14px; font-weight: 500; line-height: 1.4; color: var(--text);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; overflow-wrap: anywhere; word-break: break-word;
+}
+.mini-info .meta { font-size: 13px; color: var(--muted); }
+
+.about {
+    max-width: 780px;
+    margin-top: 18px;
+    color: var(--text);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.about a {
+    color: var(--link);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.about-meta { margin-top: 22px; display: grid; gap: 8px; color: var(--muted); }
+.tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.tag {
+    padding: 6px 11px;
+    border-radius: 16px;
+    font-size: 13px;
+    color: var(--muted);
+    background: var(--button);
+    border: 1px solid var(--border);
+}
+.fact-grid {
+    margin-top: 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    max-width: 780px;
+}
+.fact {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+}
+.fact-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+}
+.fact-value { font-size: 18px; font-weight: 600; color: var(--text); }
+.about-links { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 20px; }
+.about-links .handle { color: var(--muted); }
+.about-links a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
+.about-subhead { margin: 26px 0 10px; font-size: 15px; color: var(--muted); font-weight: 600; }
+.link-list { display: flex; flex-wrap: wrap; gap: 10px; max-width: 780px; }
+.channel-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 8px 14px;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--link);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+    transition: background .18s ease;
+}
+.channel-link:hover { background: var(--surface-hover); border-color: var(--border); }
+.playlist-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 10px;
+    border-radius: 10px;
+}
+.playlist-card:hover { background: var(--surface-2); }
+.empty {
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+/* ===== Sync/status: deliberately monochrome ===== */
+.sync-panel {
+    margin: 0 0 22px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.sync-status { font-size: 13px; font-weight: 600; color: var(--text) !important; }
+.sync-status.success,
+.sync-status.checking,
+.sync-status.error,
+.sync-status.interrupted,
+.sync-status.never,
+.sync-status.unknown { color: var(--text) !important; }
+.sync-details { flex: 1; min-width: 220px; color: var(--muted); font-size: 13px; }
+.sync-error { width: 100%; color: var(--text) !important; font-size: 12px; overflow-wrap: anywhere; }
+.sync-button {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 8px 13px;
+    min-height: 36px;
+    background: var(--button);
+    color: var(--text);
+    cursor: pointer;
+}
+.sync-button:hover { background: var(--button-hover); }
+.sync-button:disabled { cursor: wait; opacity: .65; }
+
+/* ===== Download dialog: same monochrome system ===== */
+#toast {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 80;
+    background: #181818;
+    color: #fff;
+    padding: 12px 16px;
+    border: 1px solid #383838;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s;
+}
+#toast.visible { opacity: 1; }
+
+.dl-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0,0,0,.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.dl-overlay[hidden] { display: none; }
+.dl-modal {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    width: min(860px, 100%);
+    max-height: min(88vh, 860px);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 18px 48px rgba(0,0,0,.48);
+    overflow: hidden;
+}
+.dl-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--border); }
+.dl-head h2 { margin: 0 0 4px; font-size: 19px; font-weight: 600; }
+.dl-head .dl-sub { color: var(--muted); font-size: 13px; }
+.dl-controls { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.dl-field { display: flex; flex-direction: column; gap: 5px; }
+.dl-field label { font-size: 12px; color: var(--muted); }
+.dl-field select { background: var(--button); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 14px; min-width: 180px; }
+.dl-pick { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.dl-list { overflow-y: auto; padding: 8px 12px; flex: 1 1 auto; min-height: 120px; }
+.dl-row { display: flex; gap: 12px; align-items: center; padding: 10px 8px; border-radius: 8px; }
+.dl-row:hover { background: var(--surface-hover); }
+.dl-row input[type=checkbox] { width: 17px; height: 17px; flex: none; cursor: pointer; accent-color: #ffffff; }
+:root[data-theme="light"] .dl-row input[type=checkbox] { accent-color: #0f0f0f; }
+.dl-row .dl-title { flex: 1 1 auto; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-row a.dl-ext { color: var(--muted); font-size: 12px; text-decoration: none; flex: none; }
+.dl-row a.dl-ext:hover { text-decoration: underline; }
+.dl-foot { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 20px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.dl-count { font-size: 13px; color: var(--muted); }
+.dl-empty { padding: 28px 8px; text-align: center; color: var(--muted); }
+
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+    .featured { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 700px) {
+    header { padding-inline: 16px; }
+    main { width: min(100%, calc(100% - 24px)); }
+    .banner { height: 130px; margin-top: 12px; border-radius: 10px; }
+    .channel-head { gap: 14px; padding: 22px 0 20px; }
+    .avatar { width: 72px; height: 72px; font-size: 28px; }
+    h1 { font-size: 24px; }
+    .actions { margin-top: 14px; }
+    .button { min-height: 42px; }
+    .tabs { gap: 22px; }
+    .tab { min-height: 46px; padding: 14px 2px 12px; }
+    .panel { padding-top: 22px; }
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; }
+    .card h3 { font-size: 14px; }
+    .sync-button { min-height: 42px; }
+    .header-link { min-height: 42px; }
+    #toast { left: 12px; right: 12px; bottom: 12px; }
+}
+
+@media (max-width: 480px) {
+    .channel-head { align-items: flex-start; }
+    .head-copy { padding-top: 0; }
+    .stats { font-size: 13px; }
+    .actions { width: 100%; }
+    .actions .button { flex: 0 0 auto; }
+    .section-head { align-items: flex-start; flex-direction: column; }
+    .section-head select { width: 100%; }
+    .dl-controls { gap: 10px; }
+    .dl-field { width: 100%; }
+    .dl-field select { width: 100%; min-width: 0; }
+    .dl-pick { margin-left: 0; }
+    .dl-foot > span:last-child { width: 100%; justify-content: flex-end; }
+}
     </style>
-    <!-- Файл темы после инлайновых стилей: иначе токены шаблона перебивают
-         midnight/glass/aero. -->
-    <link id="theme-style" rel="stylesheet">
-    <!-- ui.css и mobile.css после инлайновых стилей: правила имеют равную
-         специфичность, поэтому побеждает тот, кто идёт последним. -->
-    <link rel="stylesheet" href="/static/css/ui.css">
-    <link rel="stylesheet" href="/static/css/mobile.css">
     <!-- Синхронно, после ссылки на файл темы и до разметки. -->
     <!-- Перевод строк, которые собирает клиентский код. До theme.js:
          t() должна быть готова к первому вызову. -->
@@ -74,6 +586,314 @@
     {% if ui_strings %}<script>
         window.LT_I18N = {{ ui_strings|tojson }};
     </script>{% endif %}
+<style id="final-monochrome-fixes">
+/* ===== FINAL MONOCHROME / LAYOUT FIXES =====
+   Only visual CSS. Existing HTML/Jinja/JS and IDs stay untouched.
+*/
+
+/* Force a clean neutral palette even if theme.js switches data-theme. */
+html, html[data-theme="dark"], html[data-theme="light"], html[data-theme="frutiger-aero"] {
+    --mono-bg: #0f0f0f;
+    --mono-panel: #181818;
+    --mono-panel-2: #212121;
+    --mono-border: #303030;
+    --mono-text: #f5f5f5;
+    --mono-muted: #aaa;
+    --mono-hover: #2b2b2b;
+    --mono-black: #0f0f0f;
+    --mono-white: #fff;
+}
+
+html[data-theme="dark"] body {
+    background: var(--mono-bg) !important;
+    color: var(--mono-text) !important;
+}
+
+html[data-theme="light"] body {
+    background: #fff !important;
+    color: #0f0f0f !important;
+}
+
+/* В тёмных и светлых темах обои скрыты — фон задаётся через var(--bg).
+   Только frutiger-aero рисует живые обои через bg-layer-1/bg-layer-2. */
+[data-theme="dark"] #bg-layer-1,
+[data-theme="dark"] #bg-layer-2,
+[data-theme="light"] #bg-layer-1,
+[data-theme="light"] #bg-layer-2,
+[data-theme="midnight"] #bg-layer-1,
+[data-theme="midnight"] #bg-layer-2,
+[data-theme="glass"] #bg-layer-1,
+[data-theme="glass"] #bg-layer-2 {
+    display: none !important;
+}
+
+[data-theme="dark"] body::after,
+[data-theme="light"] body::after,
+[data-theme="midnight"] body::after,
+[data-theme="glass"] body::after {
+    display: none !important;
+}
+
+/* Header: simple, flat, readable. */
+header {
+    background: var(--mono-bg) !important;
+    border-bottom: 1px solid var(--mono-border) !important;
+    box-shadow: none !important;
+}
+
+.logo,
+.header-link {
+    color: var(--mono-text) !important;
+}
+
+.header-link:hover {
+    background: var(--mono-hover) !important;
+}
+
+/* Banner stays an image, but its container remains flat and aligned. */
+.banner {
+    border: 1px solid var(--mono-border) !important;
+    box-shadow: none !important;
+}
+
+/* Channel head. */
+.channel-head {
+    padding-top: 24px !important;
+    padding-bottom: 22px !important;
+}
+
+.avatar {
+    background: #303030 !important;
+    box-shadow: none !important;
+}
+
+/* ===== BUTTON FIX =====
+   The old dark-theme primary button inherited white text + white background,
+   which created the "white on white" blank pill.
+*/
+.button {
+    background: #212121 !important;
+    color: #f5f5f5 !important;
+    border: 1px solid #303030 !important;
+    box-shadow: none !important;
+}
+
+.button:hover {
+    background: #2d2d2d !important;
+}
+
+.button.primary,
+html[data-theme="dark"] .button.primary,
+html[data-theme="frutiger-aero"] .button.primary {
+    background: #fff !important;
+    color: #0f0f0f !important;
+    border-color: #fff !important;
+}
+
+.button.primary:hover {
+    background: #e6e6e6 !important;
+    color: #0f0f0f !important;
+}
+
+/* ===== TABS ===== */
+.tabs-wrap {
+    border-bottom: 1px solid var(--mono-border) !important;
+}
+
+.tab {
+    color: #aaa !important;
+    background: transparent !important;
+}
+
+.tab:hover,
+.tab.active {
+    color: #fff !important;
+}
+
+.tab.active {
+    border-color: #fff !important;
+}
+
+/* ===== HOME / FEATURED VIDEO ===== */
+.featured {
+    grid-template-columns: minmax(0, 1.65fr) minmax(320px, 0.95fr) !important;
+    gap: 32px !important;
+    align-items: start !important;
+    width: 100% !important;
+}
+
+.featured-card {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+}
+
+.featured-card .thumb {
+    width: 100% !important;
+    aspect-ratio: 16 / 9 !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    background: #181818 !important;
+}
+
+.featured-card h3 {
+    margin: 12px 0 4px !important;
+    font-size: 22px !important;
+    line-height: 1.3 !important;
+    font-weight: 600 !important;
+    color: #fff !important;
+}
+
+.featured-card .meta {
+    color: #aaa !important;
+    font-size: 14px !important;
+}
+
+/* Right-hand Sidebar */
+.featured-sidebar {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+}
+
+.featured-sidebar h2 {
+    margin: 0 0 16px !important;
+    font-size: 20px !important;
+    color: #fff !important;
+}
+
+.featured-list-item {
+    padding: 8px !important;
+    border-radius: 8px !important;
+    border: none !important;
+}
+
+.featured-list-item:hover {
+    background: #181818 !important;
+}
+
+.mini-thumb {
+    background: #181818 !important;
+}
+
+.mini-info strong {
+    color: #f5f5f5 !important;
+    font-size: 15px !important;
+}
+
+.mini-info .meta {
+    color: #888 !important;
+}
+
+/* ===== VIDEO GRIDS ===== */
+.grid {
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)) !important;
+    gap: 26px 18px !important;
+}
+
+.card {
+    min-width: 0 !important;
+    max-width: 100% !important;
+}
+
+.thumb {
+    background: #181818 !important;
+    border-radius: 10px !important;
+}
+
+.card h3,
+.card .meta {
+    overflow-wrap: anywhere !important;
+}
+
+.card h3 {
+    color: #f5f5f5 !important;
+}
+
+.card .meta {
+    color: #8f8f8f !important;
+}
+
+/* ===== SELECT / SYNC / MODALS ===== */
+select,
+.dl-field select,
+.sync-button {
+    background: #212121 !important;
+    color: #f5f5f5 !important;
+    border-color: #303030 !important;
+}
+
+select:hover,
+.dl-field select:hover,
+.sync-button:hover {
+    background: #2d2d2d !important;
+}
+
+.sync-panel,
+.playlist-card,
+.fact {
+    background: #181818 !important;
+    border-color: #303030 !important;
+    box-shadow: none !important;
+}
+
+.sync-status,
+.sync-status.success,
+.sync-status.checking,
+.sync-status.error,
+.sync-status.interrupted,
+.sync-status.never,
+.sync-status.unknown,
+.sync-error {
+    color: #f5f5f5 !important;
+}
+
+.dl-modal {
+    background: #181818 !important;
+    color: #f5f5f5 !important;
+    border-color: #303030 !important;
+    box-shadow: 0 18px 48px rgba(0,0,0,.45) !important;
+}
+
+.dl-row:hover {
+    background: #212121 !important;
+}
+
+/* ===== MOBILE ===== */
+@media (max-width: 900px) {
+    .featured {
+        grid-template-columns: 1fr !important;
+        gap: 24px !important;
+    }
+    .featured-sidebar h2 {
+        margin-top: 12px !important;
+    }
+}
+
+@media (max-width: 640px) {
+    main {
+        width: min(100%, calc(100% - 24px)) !important;
+    }
+
+    .channel-head {
+        padding-top: 18px !important;
+    }
+
+    .featured-card h3 {
+        font-size: 18px !important;
+    }
+
+    .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 20px 12px !important;
+    }
+}
+    </style>
+    <!-- ui.css и mobile.css после всех <style>: правила имеют равную специфичность -->
+    <link id="theme-style" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/ui.css">
+    <link rel="stylesheet" href="/static/css/mobile.css">
     <script src="/static/js/i18n.js"></script>
     <script src="/static/js/theme.js"></script>
 </head>
@@ -95,12 +915,52 @@
     {% endif %}
     <section class="channel-head">
         <div class="avatar">{% if author_avatar %}<img src="{{ author_avatar }}" alt="{{ author }}">{% else %}{{ author[:1]|upper }}{% endif %}</div>
-        <div class="head-copy"><h1>{{ author }}</h1><div class="stats">{{ total_videos }} видео{% if subscribers %} · {{ subscribers }} подписчиков{% endif %}</div><div class="actions">{% if is_owner|default(true) %}{% if channel_url %}<button class="button primary" id="downloadRemaining">{{ 'Скачать остальные видео'|t }}</button>{% endif %}{% endif %}<button class="button" data-tab="about">{{ 'О канале'|t }}</button>{% if is_owner|default(true) %}<button class="button" type="button" id="hideChannelBtn" aria-pressed="{{ 'true' if is_hidden else 'false' }}">{{ 'Показать канал' if is_hidden else 'Скрыть канал' }}</button>{% endif %}</div></div>
+        <div class="head-copy"><h1>{{ author }}</h1><div class="stats">{{ total_videos }} видео{% if subscribers %} · {{ subscribers }} подписчиков{% endif %}</div><div class="actions">{% if is_owner|default(true) %}<button class="button primary" id="downloadRemaining">{{ 'Скачать остальные видео'|t }}</button> <button class="button" id="exportChannel">{{ 'Экспорт канала'|t }}</button>{% if channel_url %}<button class="button" data-tab="about">{{ 'О канале'|t }}</button>{% endif %}<button class="button" type="button" id="hideChannelBtn" aria-pressed="{{ 'true' if is_hidden else 'false' }}">{{ 'Показать канал' if is_hidden else 'Скрыть канал' }}</button>{% endif %}</div></div>
     </section>
     <div class="tabs-wrap"><nav class="tabs" aria-label="{{ 'Разделы канала'|t }}"><button class="tab active" data-tab="home">{{ 'Главная'|t }}</button><button class="tab" data-tab="videos">{{ 'Видео'|t }}</button><button class="tab" data-tab="shorts">Shorts{% if total_shorts %} ({{ total_shorts }}){% endif %}</button><button class="tab" data-tab="playlists">Плейлисты{% if playlists %} ({{ playlists|length }}){% endif %}</button><button class="tab" data-tab="about">{{ 'О канале'|t }}</button></nav></div>
     <section id="home" class="panel active">
         {% set regular = videos|rejectattr('is_short')|list %}
-        {% if regular %}<div class="section-head"><h2>{{ 'Рекомендуемое'|t }}</h2></div><div class="featured"><a class="featured-card" href="/watch/{{ regular[0].id }}"><div class="thumb">{% if regular[0].thumb %}<img src="/media/{{ regular[0].author|urlencode }}/{{ regular[0].folder|urlencode }}/{{ regular[0].thumb|urlencode }}" alt="">{% else %}{{ 'Нет превью'|t }}{% endif %}{% if regular[0].duration %}<span class="duration">{{ regular[0].duration|human_duration }}</span>{% endif %}</div><h3>{{ regular[0].title }}</h3><div class="meta">{{ regular[0].upload_date|human_date or 'Локальное видео'|t }}</div></a><div><h2>{{ 'Последние видео'|t }}</h2>{% for v in regular[1:5] %}<a href="/watch/{{ v.id }}" style="display:block;padding:10px 0;border-bottom:1px solid var(--border)"><strong>{{ v.title }}</strong><div class="meta">{{ v.upload_date|human_date }}</div></a>{% endfor %}</div></div>{% else %}<div class="empty">{{ 'Обычных видео пока нет.'|t }}</div>{% endif %}
+        {% if regular %}
+        <div class="section-head"><h2>{{ 'Рекомендуемое'|t }}</h2></div>
+        <div class="featured">
+            <a class="featured-card" href="/watch/{{ regular[0].id }}">
+                <div class="thumb">
+                    {% if regular[0].thumb %}
+                        <img src="/media/{{ regular[0].author|urlencode }}/{{ regular[0].folder|urlencode }}/{{ regular[0].thumb|urlencode }}" alt="">
+                    {% else %}
+                        {{ 'Нет превью'|t }}
+                    {% endif %}
+                    {% if regular[0].duration %}<span class="duration">{{ regular[0].duration|human_duration }}</span>{% endif %}
+                </div>
+                <h3>{{ regular[0].title }}</h3>
+                <div class="meta">{{ regular[0].upload_date|human_date or 'Локальное видео'|t }}</div>
+            </a>
+            
+            <div class="featured-sidebar">
+                <h2>{{ 'Последние видео'|t }}</h2>
+                <div class="featured-list">
+                    {% for v in regular[1:5] %}
+                    <a href="/watch/{{ v.id }}" class="featured-list-item">
+                        <div class="mini-thumb">
+                            {% if v.thumb %}
+                                <img loading="lazy" src="/media/{{ v.author|urlencode }}/{{ v.folder|urlencode }}/{{ v.thumb|urlencode }}" alt="">
+                            {% else %}
+                                {{ 'Нет'|t }}
+                            {% endif %}
+                            {% if v.duration %}<span class="duration">{{ v.duration|human_duration }}</span>{% endif %}
+                        </div>
+                        <div class="mini-info">
+                            <strong>{{ v.title }}</strong>
+                            <div class="meta">{{ v.upload_date|human_date or 'Локальное видео'|t }}</div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty">{{ 'Обычных видео пока нет.'|t }}</div>
+        {% endif %}
     </section>
     <section id="videos" class="panel"><div class="section-head"><h2>{{ 'Видео'|t }}</h2><select data-sort="videos"><option value="new">{{ 'Сначала новые'|t }}</option><option value="old">{{ 'Сначала старые'|t }}</option></select></div><div class="grid" id="videosGrid">{% for v in videos if not v.is_short %}<a href="/watch/{{ v.id }}" class="card" data-date="{{ v.upload_date }}"><div class="thumb">{% if v.thumb %}<img loading="lazy" src="/media/{{ v.author|urlencode }}/{{ v.folder|urlencode }}/{{ v.thumb|urlencode }}" alt="">{% else %}{{ 'Нет превью'|t }}{% endif %}{% if v.duration %}<span class="duration">{{ v.duration|human_duration }}</span>{% endif %}</div><h3>{{ v.title }}</h3><div class="meta">{{ v.upload_date|human_date or 'Дата неизвестна'|t }} · {{ v.size_mb }} {{ 'МБ'|t }}</div></a>{% endfor %}</div></section>
     <section id="shorts" class="panel"><div class="section-head"><h2>Shorts</h2><select data-sort="shorts"><option value="new">{{ 'Сначала новые'|t }}</option><option value="old">{{ 'Сначала старые'|t }}</option></select></div><div class="grid short-grid" id="shortsGrid">{% for v in videos if v.is_short %}<a href="/watch/{{ v.id }}" class="card" data-date="{{ v.upload_date }}"><div class="thumb">{% if v.thumb %}<img loading="lazy" src="/media/{{ v.author|urlencode }}/{{ v.folder|urlencode }}/{{ v.thumb|urlencode }}" alt="">{% else %}{{ 'Нет превью'|t }}{% endif %}{% if v.duration %}<span class="duration">{{ v.duration|human_duration }}</span>{% endif %}</div><h3>{{ v.title }}</h3><div class="meta">{{ v.upload_date|human_date or 'Дата неизвестна'|t }}</div></a>{% endfor %}</div>{% if not total_shorts %}<div class="empty">{{ 'Shorts пока нет.'|t }}</div>{% endif %}</section>
@@ -183,9 +1043,9 @@
 <script>
     const toast = text => { const el = document.getElementById('toast'); el.textContent = text; el.classList.add('visible'); setTimeout(() => el.classList.remove('visible'), 3200); };
     const channelAuthor = {{ author|tojson }};
-    const channelRemainingUrl = {{ ('/api/channel/' ~ author ~ '/remaining')|tojson }};
-    const channelSyncStatusUrl = {{ ('/api/channel/' ~ author ~ '/sync-status')|tojson }};
-    const channelSyncUrl = {{ ('/api/channel/' ~ author ~ '/sync')|tojson }};
+    const channelRemainingUrl = {{ ('/api/channel/' ~ author|urlencode ~ '/remaining')|tojson }};
+    const channelSyncStatusUrl = {{ ('/api/channel/' ~ author|urlencode ~ '/sync-status')|tojson }};
+    const channelSyncUrl = {{ ('/api/channel/' ~ author|urlencode ~ '/sync')|tojson }};
     const initialSyncStatus = {{ sync_status|tojson }};
 
     // ===== Скрытие канала =====
@@ -470,6 +1330,27 @@
         finally { button.disabled = false; button.textContent = t('Скачать остальные видео'); }
     }
     document.getElementById('downloadRemaining')?.addEventListener('click', event => fetchRemainingVideos(event.currentTarget));
+    // Экспорт канала
+    const exportUrl = {{ ('/api/channel/' ~ author|urlencode ~ '/export')|tojson }};
+    document.getElementById('exportChannel')?.addEventListener('click', () => {
+        const btn = document.getElementById('exportChannel');
+        btn.disabled = true;
+        btn.textContent = t('Экспорт...');
+        fetch(exportUrl, { method: 'POST' })
+            .then(r => {
+                if (!r.ok) throw new Error(t('Ошибка экспорта.'));
+                const cd = r.headers.get('Content-Disposition') || '';
+                const fn = cd.match(/filename="([^"]+)"/)?.[1] || cd.match(/filename=([^";\s]+)/)?.[1] || 'channel.tar.gz';
+                return r.blob().then(blob => {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = fn;
+                    a.click();
+                });
+            })
+            .catch(e => toast(e.message || t('Ошибка экспорта.')))
+            .finally(() => { btn.disabled = false; btn.textContent = t('Экспорт канала'); });
+    });
     // Тема и обои — /static/js/theme.js (единая реализация для всех страниц).
 </script>
 </body>

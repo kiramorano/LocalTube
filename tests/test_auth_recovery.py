@@ -291,6 +291,7 @@ def test_download_retries_after_refresh(cookies_file, monkeypatch):
     """Отказ по возрасту -> обновление cookies -> повтор -> успех."""
     import download_lib
 
+    monkeypatch.setattr(download_lib, "_sleep_cancellable", lambda *a, **k: None)
     attempts = {"n": 0}
     refreshed = {"n": 0}
 
@@ -341,6 +342,8 @@ def test_retry_reads_refreshed_cookies(cookies_file, monkeypatch):
     содержимым, и обновление окажется бесполезным.
     """
     import download_lib
+
+    monkeypatch.setattr(download_lib, "_sleep_cancellable", lambda *a, **k: None)
 
     def fake_refresh():
         # Экспорт из браузера: в файле появляется токен авторизации.
@@ -446,6 +449,7 @@ def test_refresh_happens_once_per_video(cookies_file, monkeypatch):
     """Обновлять cookies по кругу нельзя: браузер читается небыстро."""
     import download_lib
 
+    monkeypatch.setattr(download_lib, "_sleep_cancellable", lambda *a, **k: None)
     refreshed = {"n": 0}
     monkeypatch.setattr(download_lib, "refresh_cookies_from_browser",
                         lambda: (refreshed.__setitem__("n", refreshed["n"] + 1), True)[1])
@@ -536,6 +540,7 @@ def test_download_step_also_recovers(cookies_file, monkeypatch, tmp_path):
     """
     import download_lib
 
+    monkeypatch.setattr(download_lib, "_sleep_cancellable", lambda *a, **k: None)
     refreshed = {"n": 0}
     monkeypatch.setattr(download_lib, "refresh_cookies_from_browser",
                         lambda: (refreshed.__setitem__("n", refreshed["n"] + 1), True)[1])

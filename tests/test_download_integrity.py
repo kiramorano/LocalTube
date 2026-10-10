@@ -184,7 +184,8 @@ class _ShortsYDL:
 
     downloads = 0
     info = {"id": "sh1", "title": "Вертикаль", "uploader": "Канал",
-            "width": 720, "height": 1280, "duration": 30}
+            "width": 720, "height": 1280, "duration": 30,
+            "extractor_key": "Youtube"}
 
     def __init__(self, opts):
         self.opts = opts

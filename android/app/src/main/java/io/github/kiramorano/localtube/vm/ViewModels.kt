@@ -32,7 +32,10 @@ import io.github.kiramorano.localtube.data.VideoItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -129,6 +132,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 class ChannelViewModel(app: Application) : AndroidViewModel(app) {
     var author by mutableStateOf("")
         private set
+    private var assetsJob: Job? = null
     var videos by mutableStateOf<List<VideoItem>>(emptyList())
         private set
     var shorts by mutableStateOf<List<VideoItem>>(emptyList())
@@ -148,6 +152,9 @@ class ChannelViewModel(app: Application) : AndroidViewModel(app) {
 
     fun load(name: String) {
         author = name
+        // Отписываемся от старого канала: событие того — не должно перезаписать
+        // показанное сейчас.
+        assetsJob?.cancel()
         viewModelScope.launch {
             loading = true
             try {
@@ -161,6 +168,16 @@ class ChannelViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 loading = false
             }
+        }
+        // Подписка на обновление оформления: без неё экран держит старую
+        // аватарку и описание до перезахода, хотя они уже скачаны на диск.
+        assetsJob = viewModelScope.launch {
+            repo(getApplication()).channels.assetsUpdated
+                .filter { it == name }
+                .collectLatest {
+                    val lib = repo(getApplication()).library
+                    meta = withContext(Dispatchers.IO) { lib.channelMeta(name) }
+                }
         }
     }
 
@@ -304,7 +321,7 @@ class DownloadsViewModel(app: Application) : AndroidViewModel(app) {
                     phase = "yt-dlp не удалось обновить, пробую встроенную версию..."
                 }
                 val settings = repo(app).settings
-                if (UrlKind.isTikTokProfile(target)) {
+                if (UrlKind.isProfile(target)) {
                     phase = "Читаю профиль TikTok..."
                     val listing = Engine.listChannel(
                         channelUrl = target,

@@ -20,6 +20,7 @@
 """
 import json
 import os
+from urllib.parse import quote
 
 import pytest
 
@@ -392,7 +393,7 @@ def test_channel_page_shows_banner(client, app_module, channel_assets, monkeypat
         with open(path, 'wb') as fh:
             fh.write(b'\xff\xd8\xff')
     try:
-        html = client.get(f'/channel/{author}').get_data(as_text=True)
+        html = client.get(f'/channel/{quote(author, safe=())}').get_data(as_text=True)
         assert 'class="banner' in html, 'на странице канала нет блока шапки'
         assert channel_assets.get_banner_url(author) in html, \
             'шапка не подставлена в разметку'
@@ -416,7 +417,7 @@ def test_channel_page_serves_banner_file(client, app_module, channel_assets):
         with open(path, 'wb') as fh:
             fh.write(b'\xff\xd8\xff')
     try:
-        assert client.get(f'/channel_banner/{safe}.jpg').status_code == 200
+        assert client.get(f'/channel_banner/{quote(safe, safe=())}.jpg').status_code == 200
     finally:
         if created and os.path.exists(path):
             os.remove(path)
@@ -445,7 +446,7 @@ def test_channel_page_shows_extra_channel_facts(client, app_module, channel_asse
         'channel_url': 'https://www.youtube.com/@url_marker',
         'verified': True,
     })
-    html = client.get(f'/channel/{author}').get_data(as_text=True)
+    html = client.get(f'/channel/{quote(author, safe=())}').get_data(as_text=True)
 
     assert '>8351<' in html, 'не показано число видео на канале'
     assert '9 млн' in html, 'просмотры не отформатированы'
@@ -472,7 +473,7 @@ def test_channel_page_shows_country_joined_and_links(client, app_module, channel
             {'title': 'Мой ВПН', 'url': 'https://t.me/marker_two'},
         ],
     })
-    html = client.get(f'/channel/{author}').get_data(as_text=True)
+    html = client.get(f'/channel/{quote(author, safe=())}').get_data(as_text=True)
 
     assert 'Грузия' in html, 'не показана страна канала'
     assert '2 янв. 2025 г.' in html, 'не показана дата регистрации'
@@ -492,7 +493,7 @@ def test_channel_page_escapes_link_titles(client, app_module, channel_assets, mo
     monkeypatch.setattr(channel_assets, 'load_channel_meta', lambda a: {
         'links': [{'title': '<img src=x onerror=alert(1)>', 'url': 'https://example.com'}],
     })
-    html = client.get(f'/channel/{author}').get_data(as_text=True)
+    html = client.get(f'/channel/{quote(author, safe=())}').get_data(as_text=True)
 
     assert '<img src=x onerror=alert(1)>' not in html, 'название ссылки не экранировано'
     assert '&lt;img' in html, 'название ссылки потерялось'
@@ -513,7 +514,7 @@ def test_channel_page_rejects_javascript_links(client, app_module, channel_asset
     monkeypatch.setattr(channel_assets, 'load_channel_meta', lambda a: {
         'links': [{'title': 'Плохая', 'url': 'javascript:alert(1)'}],
     })
-    html = client.get(f'/channel/{author}').get_data(as_text=True)
+    html = client.get(f'/channel/{quote(author, safe=())}').get_data(as_text=True)
 
     assert 'javascript:alert' not in html, 'опасная схема попала в href'
 

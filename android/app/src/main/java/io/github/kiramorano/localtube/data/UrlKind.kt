@@ -77,6 +77,11 @@ internal object UrlKind {
         // Куда ведёт vm/vt-ссылка, знает только редирект: проверяем, что за
         // доменом вообще что-то есть.
         if (host in SHORT_TIKTOK_HOSTS) return parts.isNotEmpty()
+        // Короткая ссылка «Поделиться»: tiktok.com/t/<code>. Раскрывает yt-dlp
+        // через редирект — задача попадает в очередь как есть.
+        if (parts.size == 2 && parts[0] == "t" && parts[1].length >= 3 &&
+            parts[1].all { it.isLetterOrDigit() }
+        ) return true
         // Обычный ролик: /@author/video/1234567890123456789.
         if (parts.size >= 3 && parts[0].startsWith("@") &&
             parts[1] == "video" && parts[2].all { it.isDigit() }
@@ -93,7 +98,7 @@ internal object UrlKind {
      *
      * Профиль нельзя скачать одной задачей: его разворачивают в список роликов.
      */
-    fun isTikTokProfile(url: String?): Boolean {
+    fun isProfile(url: String?): Boolean {
         if (host(url) != "tiktok.com") return false
         val parts = segments(url.orEmpty())
         return parts.size == 1 && parts[0].startsWith("@") && parts[0].length > 1
@@ -127,7 +132,7 @@ internal object UrlKind {
         if (source == "user" || id.isBlank()) return null
         if (source == "tiktok") {
             val profile = channelUrl.trim().trimEnd('/')
-            return if (isTikTokProfile(profile)) "$profile/video/$id" else null
+            return if (isProfile(profile)) "$profile/video/$id" else null
         }
         return "https://www.youtube.com/watch?v=$id"
     }
@@ -136,5 +141,5 @@ internal object UrlKind {
      * Сообщение об отказе: то же, что отдаёт сервер на неподдерживаемую ссылку
      * (app.py, «Поддерживаются ссылки YouTube и TikTok»).
      */
-    const val UNSUPPORTED_MESSAGE = "Поддерживаются ссылки YouTube и TikTok"
+    const val UNSUPPORTED_MESSAGE = "Ссылка не поддерживается"
 }

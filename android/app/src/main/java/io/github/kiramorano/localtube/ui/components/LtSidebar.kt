@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -77,6 +78,8 @@ fun LtSidebar(
     onNavigate: (String) -> Unit,
     onOpenChannel: (String) -> Unit,
     onUnhideChannel: (String) -> Unit,
+    onDonateClick: () -> Unit,
+    onDonateUnavailable: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = LtTheme.colors
@@ -149,6 +152,22 @@ fun LtSidebar(
             icon = Icons.Filled.Settings,
             selected = currentRoute == "settings",
             onClick = { onNavigate("settings") }
+        )
+        // Поддержка автора: как в веб-версии ссылка в сайдбаре и в настройках.
+        // На ТВ браузера может не быть — тогда коллбек сообщает об этом, и
+        // AppRoot показывает QR или направляет в настройки.
+        val ctx = LocalContext.current
+        SidebarItem(
+            label = "Поддержать автора",
+            icon = Icons.Filled.Star,
+            selected = false,
+            onClick = {
+                if (openExternalLink(ctx, DONATE_URL)) {
+                    onDonateClick()
+                } else {
+                    onDonateUnavailable()
+                }
+            }
         )
     }
 }

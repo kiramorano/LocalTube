@@ -16,14 +16,14 @@ import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 
 /**
- * TikTok и темы: правила, которые уже ломались на сервере и на телефоне.
+ * Разбор ссылок, селектор формата и палитры тем.
  *
- * Сеть не используется: проверяются разбор ссылок, селектор формата и палитры.
- * Эталон — tests/test_tiktok.py и файлы тем в static/css/themes.
+ * Сеть не используется: проверяются только разбор ссылок, селектор формата и
+ * палитры. Эталон — tests/test_tiktok.py и файлы тем в static/css/themes.
  * Звёздочку в пути к CSS писать нельзя: Kotlin считает вложенные блочные
- * комментарии, и последовательность из слэша со звездой открыла бы второй.
+ * комментарии, и последовательность из слэша со звёздой открыла бы второй.
  */
-class TikTokAndThemeTest {
+class UrlSupportAndThemeTest {
 
     // ---------- ссылки ----------
 
@@ -39,13 +39,19 @@ class TikTokAndThemeTest {
     }
 
     @Test
-    fun `tiktok urls are supported`() {
+    fun `second platform urls are supported`() {
         listOf(
             "https://www.tiktok.com/@creator/video/7461234567890123456",
             "https://m.tiktok.com/v/7461234567890123456.html",
             "https://vm.tiktok.com/ZM123AbCd/",
             "https://vt.tiktok.com/ZM123AbCd/",
-            "https://www.tiktok.com/@creator"
+            "https://www.tiktok.com/@creator",
+            // Короткая ссылка «Поделиться»: tiktok.com/t/ZP8ctXots. Раскрывает
+            // сам yt-dlp через редирект — задача должна попадать в очередь как есть.
+            "https://www.tiktok.com/t/ZP8ctXots",
+            "https://tiktok.com/t/ZP8ctXots",
+            "https://m.tiktok.com/t/ZP8ctXots",
+            "https://www.tiktok.com/t/ZP8ctXots?is_from_webapp=1"
         ).forEach { assertTrue(it, UrlKind.isSupported(it)) }
     }
 
@@ -62,12 +68,12 @@ class TikTokAndThemeTest {
     }
 
     @Test
-    fun `tiktok profile is recognised separately from a video`() {
-        assertTrue(UrlKind.isTikTokProfile("https://www.tiktok.com/@creator"))
-        assertFalse(UrlKind.isTikTokProfile("https://www.tiktok.com/@creator/video/7461234567890123456"))
-        assertFalse(UrlKind.isTikTokProfile("https://www.youtube.com/@someone"))
+    fun `profile is recognised separately from a video`() {
+        assertTrue(UrlKind.isProfile("https://www.tiktok.com/@creator"))
+        assertFalse(UrlKind.isProfile("https://www.tiktok.com/@creator/video/7461234567890123456"))
+        assertFalse(UrlKind.isProfile("https://www.youtube.com/@someone"))
         // Голый @ без имени — не профиль.
-        assertFalse(UrlKind.isTikTokProfile("https://www.tiktok.com/@"))
+        assertFalse(UrlKind.isProfile("https://www.tiktok.com/@"))
     }
 
     @Test
@@ -79,7 +85,7 @@ class TikTokAndThemeTest {
     // ---------- метаданные ----------
 
     @Test
-    fun `source is tiktok when extractor says so`() {
+    fun `source is set from extractor`() {
         assertEquals("tiktok", UrlKind.sourceOf("TikTok", ""))
         assertEquals("tiktok", UrlKind.sourceOf("tiktokuser", ""))
         assertEquals(
@@ -93,24 +99,24 @@ class TikTokAndThemeTest {
 
     @Test
     fun `catalog item keeps the platform from metadata`() {
-        // Раньше source был литералом "youtube": TikTok-ролик в каталоге
+        // Раньше source был литералом "youtube": ролик второго сервиса в каталоге
         // телефона и на сервере получал разный источник.
         val meta = JSONObject()
             .put("id", "7461234567890123456")
             .put("title", "Ролик")
-            .put("uploader", "TikToker")
+            .put("uploader", "Creator")
             .put("extractor_key", "TikTok")
             .put("webpage_url", "https://www.tiktok.com/@creator/video/7461234567890123456")
             .put("uploader_url", "https://www.tiktok.com/@creator")
         val item = Library.itemFromMeta(
             meta = meta,
             folderName = "7461234567890123456",
-            authorFallback = "TikToker",
+            authorFallback = "Creator",
             videoPath = "/tmp/video.mp4",
             sizeMb = 1.0
         )
         assertEquals("tiktok", item.source)
-        assertTrue("TikTok-ролик должен быть Shorts", item.isShort)
+        assertTrue("Вертикальный ролик должен быть Shorts", item.isShort)
         assertEquals("https://www.tiktok.com/@creator", item.channelUrl)
         // По сохранённому профилю ссылка на ролик собирается обратно.
         assertEquals(
@@ -141,10 +147,10 @@ class TikTokAndThemeTest {
 
     @Test
     fun `library source matches metadata`() {
-        val tiktok = JSONObject()
+        val second = JSONObject()
             .put("extractor_key", "TikTok")
             .put("webpage_url", "https://www.tiktok.com/@creator/video/1")
-        assertEquals("tiktok", Library.sourceOf(tiktok))
+        assertEquals("tiktok", Library.sourceOf(second))
         val youtube = JSONObject()
             .put("extractor_key", "Youtube")
             .put("webpage_url", "https://www.youtube.com/watch?v=abc")
@@ -152,7 +158,7 @@ class TikTokAndThemeTest {
     }
 
     @Test
-    fun `tiktok is a short even without dimensions`() {
+    fun `vertical video is a short even without dimensions`() {
         // extract_flat профиля часто не отдаёт width/height: без этого правила
         // ролик попадал бы в обычную сетку.
         val meta = JSONObject()
@@ -174,7 +180,7 @@ class TikTokAndThemeTest {
     // ---------- движок ----------
 
     @Test
-    fun `tiktok format selector is a single stream`() {
+    fun `second platform format selector is a single stream`() {
         val url = "https://www.tiktok.com/@creator/video/7461234567890123456"
         // YouTube-селектор (bestvideo+bestaudio) давал отказ формата.
         assertEquals("best", Engine.formatSelector("best", url))
@@ -196,7 +202,7 @@ class TikTokAndThemeTest {
     }
 
     @Test
-    fun `tiktok profile is listed once, without youtube tabs`() {
+    fun `second platform profile is listed once, without youtube tabs`() {
         val urls = Engine.channelTabUrls("https://www.tiktok.com/@creator")
         assertEquals(listOf("https://www.tiktok.com/@creator"), urls)
         assertTrue(urls.none { it.endsWith("/videos") })
@@ -212,7 +218,7 @@ class TikTokAndThemeTest {
     }
 
     @Test
-    fun `tiktok does not get youtube player client args`() {
+    fun `second platform does not get youtube player client args`() {
         val url = "https://www.tiktok.com/@creator/video/7461234567890123456"
         assertNull(Engine.extractorArgsFor(url, "web"))
         assertNull(Engine.extractorArgsFor(url, "android"))
@@ -224,7 +230,7 @@ class TikTokAndThemeTest {
     }
 
     @Test
-    fun `fallback url for a tiktok profile stays on tiktok`() {
+    fun `fallback url for a second platform profile stays on it`() {
         val profile = "https://www.tiktok.com/@creator"
         assertEquals(
             "$profile/video/7461234567890123456",
@@ -237,12 +243,12 @@ class TikTokAndThemeTest {
     }
 
     @Test
-    fun `watch url for tiktok uses the saved profile`() {
+    fun `watch url for second platform uses the saved profile`() {
         assertEquals(
             "https://www.tiktok.com/@creator/video/7461234567890123456",
             UrlKind.watchUrl("tiktok", "7461234567890123456", "https://www.tiktok.com/@creator")
         )
-        // Без профиля YouTube-ссылку из TikTok-id собирать нельзя.
+        // Без профиля ссылку по id собрать нельзя.
         assertNull(UrlKind.watchUrl("tiktok", "7461234567890123456", ""))
         assertEquals(
             "https://www.youtube.com/watch?v=abc",
@@ -329,12 +335,12 @@ class TikTokAndThemeTest {
 
     @Test
     fun `unsupported url message matches the server`() {
-        assertEquals("Поддерживаются ссылки YouTube и TikTok", UrlKind.UNSUPPORTED_MESSAGE)
+        assertEquals("Ссылка не поддерживается", UrlKind.UNSUPPORTED_MESSAGE)
     }
 }
 
 @RunWith(Parameterized::class)
-class TikTokUrlSupportCases(private val url: String, private val supported: Boolean) {
+class UrlSupportCases(private val url: String, private val supported: Boolean) {
 
     @Test
     fun `url support matches the web table`() {
@@ -350,6 +356,15 @@ class TikTokUrlSupportCases(private val url: String, private val supported: Bool
             arrayOf("https://vm.tiktok.com/ZM123AbCd/", true),
             arrayOf("https://vt.tiktok.com/ZM123AbCd/", true),
             arrayOf("https://www.tiktok.com/@creator", true),
+            arrayOf("https://www.tiktok.com/t/ZP8ctXots", true),
+            arrayOf("https://tiktok.com/t/ZP8ctXots", true),
+            arrayOf("https://www.tiktok.com/t/ZP8ctXots?is_from_webapp=1", true),
+            arrayOf("https://www.tiktok.com/t/", false),
+            arrayOf("https://www.tiktok.com/t/ab", false),
+            arrayOf("https://www.tiktok.com/t/ZP8ct.Xots", false),
+            arrayOf("https://www.tiktok.com/t/ZP8ctXots/extra", false),
+            arrayOf("https://www.tiktok.com/@creator/t", false),
+            arrayOf("https://not-tiktok.com/t/ZP8ctXots", false),
             arrayOf("ftp://www.tiktok.com/@creator/video/7461234567890123456", false),
             arrayOf("https://not-tiktok.com/@creator/video/7461234567890123456", false),
             arrayOf("https://www.tiktok.com/", false)

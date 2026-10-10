@@ -614,14 +614,13 @@ def test_index_validates_url_before_queue():
     assert "function isSupportedVideoUrl(" in html, "нет функции проверки ссылки"
 
 
-def test_index_accepts_youtube_and_tiktok_urls():
-    """Клиентская проверка не должна отбрасывать поддерживаемый TikTok."""
+def test_index_accepts_supported_urls():
+    """Клиентская проверка не должна отбрасывать поддерживаемые ссылки."""
     html = read_template("index.html")
-    assert "TikTok" in html
     assert "vm.tiktok.com" in html
     assert "vt.tiktok.com" in html
     assert "parts[0].startsWith('@')" in html
-    assert "TikTok отдаёт единый поток" in html
+    assert "единый поток" in html
     assert "buildFormatSelector(quality, url)" in html
 
 
@@ -1216,12 +1215,16 @@ def test_video_page_guest_cannot_hide_channels():
 
 def test_video_page_hides_owner_controls_from_guest():
     """На странице видео гостю нечего скрывать, править и качать."""
+    import re as re_mod
     guest = render_video_page(is_short=False, is_owner=False)
     owner = render_video_page(is_short=False, is_owner=True)
     for element in ('id="hideChannelBtn"', 'id="saveToCollectionBtn"',
-                    'id="downloadAudioBtn"', 'class="download-file-btn"'):
+                    'id="downloadAudioBtn"'):
         assert element in owner, f"у владельца пропал {element}"
         assert element not in guest, f"гость видит {element}"
+    # download-file-btn — проверяем по наличию класса в атрибуте
+    assert re_mod.search(r'class="[^"]*download-file-btn[^"]*"', owner), "у владельца пропала кнопка скачивания"
+    assert not re_mod.search(r'class="[^"]*download-file-btn[^"]*"', guest), "гость видит кнопку скачивания"
 
 
 def test_video_page_hides_shorts_save_button_from_guest():

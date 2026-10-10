@@ -20,6 +20,8 @@ import kotlinx.coroutines.sync.Mutex
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.UUID
 
 /**
@@ -100,6 +102,38 @@ class DownloadManager(
             subLangs = subLangs,
             priority = priority,
             mergeFormat = Engine.normalizeMergeFormat(mergeFormat)
+        )
+        _tasks.update { it + task }
+        persist()
+        ensureWorker()
+        return id
+    }
+
+    /**
+     * Оформление канала в очереди загрузок: аватарка, шапка и описание.
+     *
+     * Дедупликация по автору: для одного канала несколько задач оформления
+     * бессмысленно — вторая будет ждать, пока первая не завершится. Уже
+     * завершённую задачу не считаем — обновить оформление повторно должно быть
+     * можно, как и перезапустить видео.
+     */
+    fun addChannelAssets(author: String, url: String): String {
+        val existing = _tasks.value.firstOrNull {
+            it.kind == TaskKind.CHANNEL_ASSETS && it.author == author && !it.isFinished
+        }
+        if (existing != null) return existing.id
+        val id = UUID.randomUUID().toString().substring(0, 8)
+        val task = DownloadTask(
+            id = id,
+            title = "Оформление канала: $author",
+            url = url,
+            formatId = "",
+            status = TaskStatus.WAITING,
+            progress = 0f,
+            addedAt = System.currentTimeMillis(),
+            error = null,
+            kind = TaskKind.CHANNEL_ASSETS,
+            author = author
         )
         _tasks.update { it + task }
         persist()
@@ -283,6 +317,10 @@ class DownloadManager(
             return
         }
         update(task.id, TaskStatus.DOWNLOADING, 0f, attempts = task.attempts + 1)
+        if (task.kind == TaskKind.CHANNEL_ASSETS) {
+            runChannelAssetsTask(task)
+            return
+        }
         val outDir = File(library.tmpRoot, task.id).apply { mkdirs() }
         // Частичную загрузку сохраняем: yt-dlp запускается с -c и при повторе
         // продолжает с того же места вместо скачивания заново.
@@ -351,6 +389,88 @@ class DownloadManager(
         }
     }
 
+    /**
+     * Скачивание оформления канала через отдельный путь: без yt-dlp, без
+     * формата и процентов. Прогресс шаговый — запрос, аватарка, шапка.
+     */
+    private suspend fun runChannelAssetsTask(task: DownloadTask) {
+        if (cancelRequests.remove(task.id)) {
+            update(task.id, TaskStatus.CANCELED, 0f)
+            return
+        }
+        var keepPartial = false
+        val outDir = File(library.tmpRoot, task.id).apply { mkdirs() }
+        try {
+            // Шаг 1: метаданные канала.
+            updateProgress(task.id, 0f, 0, "")
+            val assets = Engine.fetchChannelAssets(
+                channelUrl = task.url,
+                processId = "assets_${task.id}_${System.currentTimeMillis()}",
+                cookiesPath = library.cookiesPath(),
+                playerClient = settings.playerClient
+            )
+            // Шаг 2: аватарка.
+            updateProgress(task.id, 34f, 0, "")
+            if (assets.avatarUrl.isNotBlank()) {
+                fetchImage(assets.avatarUrl, library.avatarTarget(task.author, assets.avatarUrl))
+            }
+            // Шаг 3: шапка.
+            updateProgress(task.id, 67f, 0, "")
+            if (assets.bannerUrl.isNotBlank()) {
+                fetchImage(assets.bannerUrl, library.bannerTarget(task.author, assets.bannerUrl))
+            }
+            library.saveChannelMeta(task.author, assets)
+            library.invalidateAvatars()
+            library.invalidate()
+            _libraryVersion.value = System.currentTimeMillis()
+            update(task.id, TaskStatus.COMPLETED, 100f)
+            notifyDone(task, "Оформление канала загружено")
+        } catch (e: Exception) {
+            if (cancelRequests.remove(task.id)) {
+                update(task.id, TaskStatus.CANCELED, 0f)
+                notifyDone(task, "Загрузка отменена")
+            } else {
+                keepPartial = true
+                update(task.id, TaskStatus.ERROR, 0f, error = (e.message ?: "ошибка").take(300))
+                notifyDone(task, "Ошибка загрузки")
+            }
+        } finally {
+            if (!keepPartial) outDir.deleteRecursively()
+            persist()
+        }
+    }
+
+    /** Прямая загрузка картинки по URL в файл: без yt-dlp и Coil. */
+    private fun fetchImage(url: String, dest: File): Boolean {
+        val tmp = File(dest.parentFile, dest.name + ".tmp")
+        var conn: HttpURLConnection? = null
+        return try {
+            dest.parentFile?.mkdirs()
+            conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 15_000
+                readTimeout = 30_000
+                instanceFollowRedirects = true
+            }
+            if (conn.responseCode !in 200..299) return false
+            conn.inputStream.use { input ->
+                tmp.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (tmp.length() <= 0) {
+                tmp.delete()
+                false
+            } else {
+                tmp.renameTo(dest) || runCatching {
+                    tmp.copyTo(dest, overwrite = true); tmp.delete(); true
+                }.getOrDefault(false)
+            }
+        } catch (e: Exception) {
+            runCatching { tmp.delete() }
+            false
+        } finally {
+            runCatching { conn?.disconnect() }
+        }
+    }
+
     // ---------- состояние ----------
 
     private fun update(
@@ -411,6 +531,8 @@ class DownloadManager(
                         put("priority", t.priority.name)
                         put("attempts", t.attempts)
                         put("merge_format", t.mergeFormat)
+                        put("kind", t.kind.name)
+                        put("author", t.author)
                     })
                 }
                 JsonStore.write(stateFile, JSONObject().apply {
@@ -453,7 +575,10 @@ class DownloadManager(
                     .getOrDefault(TaskPriority.NORMAL),
                 attempts = o.optInt("attempts", 0),
                 // Очередь с прошлой версии контейнера не знает: normalize вернёт mp4.
-                mergeFormat = Engine.normalizeMergeFormat(o.optString("merge_format"))
+                mergeFormat = Engine.normalizeMergeFormat(o.optString("merge_format")),
+                kind = runCatching { TaskKind.valueOf(o.optString("kind")) }
+                    .getOrDefault(TaskKind.VIDEO),
+                author = o.optString("author", "")
             )
         }
         _tasks.value = restored

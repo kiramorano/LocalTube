@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import paths
-from utils import safe_name, cookiefile_for_ydl
+from utils import safe_name, cookiefile_for_ydl, apply_cookie_updates
 from channel_assets import pick_avatar
 
 try:
@@ -118,6 +118,7 @@ def get_avatar_by_search(author_name):
                 channel_url = first.get('channel_url') or first.get('uploader_url')
                 if channel_url:
                     return _fetch_avatar_from_channel_url(channel_url, author_name)
+        apply_cookie_updates(ydl_opts)
     except Exception as e:
         print(f"  Ошибка поиска: {e}")
     return None
@@ -178,6 +179,7 @@ def _fetch_avatar_from_channel_url(channel_url, author_name):
             avatar_url = info.get('avatar_thumbnail_url') or info.get('thumbnail')
             if avatar_url:
                 return avatar_url
+        apply_cookie_updates(ydl_opts)
     except Exception as e:
         print(f"    Ошибка yt-dlp: {e}")
     return None

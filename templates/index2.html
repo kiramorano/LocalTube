@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html lang="{{ ui_lang }}" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>LocalTube</title>
+    
+    <!-- Подключение оригинального шрифта Roboto -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --yt-bg-solid — непрозрачная версия фона. Нужна там, где фон служит
+           цветом текста (инверсия на активных элементах): в frutiger-aero
+           --yt-bg равен transparent, и такой текст становился невидимым. */
+        :root[data-theme="dark"] { --yt-bg: #0f0f0f; --yt-bg-solid: #0f0f0f; --yt-spec-text-primary: #f1f1f1; --yt-spec-text-secondary: #aaaaaa; --yt-spec-border: #303030; --yt-spec-icon-inactive: #ffffff; --yt-button-bg: #272727; --yt-button-hover: #3f3f3f; --yt-header-height: 56px; --yt-search-bg: #121212; --yt-modal-bg: #212121; --yt-card-bg: transparent; }
+        :root[data-theme="light"] { --yt-bg: #ffffff; --yt-bg-solid: #ffffff; --yt-spec-text-primary: #0f0f0f; --yt-spec-text-secondary: #606060; --yt-spec-border: #cccccc; --yt-spec-icon-inactive: #030303; --yt-button-bg: #f2f2f2; --yt-button-hover: #e0e0e0; --yt-header-height: 56px; --yt-search-bg: #ffffff; --yt-modal-bg: #ffffff; --yt-card-bg: transparent; }
+        :root { --yt-sidebar-width: 240px; --video-card-min-width: 320px; }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; position: relative; transition: background-color 0.5s ease, color 0.5s ease; font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+        #bg-layer-1, #bg-layer-2 { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center center; background-repeat: no-repeat; transition: opacity 1.5s ease-in-out; pointer-events: none; z-index: -3; }
+        #bg-layer-2 { z-index: -2; }
+        body::after { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: rgba(0, 0, 0, 0.05); pointer-events: none; }
+        [data-theme="frutiger-aero"] body::after { background: rgba(0, 0, 0, 0.1); }
+
+        header { position: fixed; top: 0; left: 0; right: 0; height: var(--yt-header-height); background-color: var(--yt-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 100; border-bottom: 1px solid var(--yt-spec-border); transition: background-color 0.5s ease, border-color 0.5s ease; }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .menu-icon { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); cursor: pointer; transition: fill 0.3s ease; border-radius: 50%; padding: 0; }
+        .menu-icon:hover { background: var(--yt-button-hover); }
+        .logo { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 600; text-decoration: none; color: var(--yt-spec-text-primary); transition: color 0.3s ease; letter-spacing: -0.5px; }
+        .logo svg { width: 30px; height: 20px; fill: #FF0000; }
+        .header-center { display: flex; align-items: center; flex: 1; justify-content: center; padding: 0 12px; }
+        .search-container { display: flex; align-items: center; width: 100%; max-width: 650px; margin-left: 40px; }
+        .url-input { flex: 1; min-width: 0; background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); border-radius: 40px 0 0 40px; padding: 0 16px 0 24px; height: 40px; color: var(--yt-spec-text-primary); font-size: 16px; outline: none; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); }
+        .url-input:focus { border-color: #1c62b9; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1); }
+        .url-quality { background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); border-left: none; height: 40px; padding: 0 8px; color: var(--yt-spec-text-primary); font-size: 13px; outline: none; cursor: pointer; }
+        .download-btn { background-color: var(--yt-button-bg); border: 1px solid var(--yt-spec-border); border-left: none; height: 40px; width: 64px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 0 40px 40px 0; transition: background-color 0.3s ease; }
+        .download-btn:hover { background-color: var(--yt-button-hover); }
+        .download-btn[disabled] { cursor: progress; opacity: 0.6; }
+        .download-btn svg { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); transition: fill 0.3s ease; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .icon-btn { background: none; border: none; cursor: pointer; fill: var(--yt-spec-icon-inactive); width: 24px; height: 24px; transition: fill 0.3s ease; }
+        .user-profile-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 12px; border-radius: 20px; transition: background 0.3s ease; text-decoration: none; color: var(--yt-spec-text-primary); }
+        .user-profile-btn:hover { background-color: var(--yt-button-hover); }
+        .user-name-display { font-weight: 500; font-size: 14px; display: none; }
+        .user-avatar-placeholder { width: 32px; height: 32px; border-radius: 50%; background-color: #00897b; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; overflow: hidden; }
+        .user-avatar-placeholder img { width: 100%; height: 100%; object-fit: cover; }
+        @media (min-width: 768px) { .user-name-display { display: block; } }
+
+        .sidebar-drawer { position: fixed; top: var(--yt-header-height); left: -240px; width: 240px; height: calc(100vh - var(--yt-header-height)); background: var(--yt-bg); z-index: 200; transition: left 0.3s ease; padding: 12px 0; overflow-y: auto; }
+        .sidebar-drawer.active { left: 0; }
+        @media (min-width: 1000px) {
+            .sidebar-drawer { left: 0; }
+            .sidebar-overlay.active { opacity: 0; pointer-events: none; }
+        }
+        @media (max-width: 999px) {
+            #mainContent, #queueContainer { margin-left: 0 !important; }
+        }
+        .sidebar-overlay { position: fixed; top: var(--yt-header-height); left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .sidebar-overlay.active { opacity: 1; pointer-events: all; }
+        .sidebar-item { display: flex; align-items: center; gap: 16px; padding: 10px 12px; margin: 0 12px 4px 12px; border-radius: 10px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; font-weight: 400; text-decoration: none; transition: background 0.2s; }
+        .sidebar-item:hover { background-color: var(--yt-button-hover); }
+        .sidebar-item.active { background-color: var(--yt-button-bg); font-weight: 500; }
+        .sidebar-item svg { width: 24px; height: 24px; fill: currentColor; }
+        .sidebar-divider { height: 1px; background-color: var(--yt-spec-border); margin: 12px 0; }
+        .sidebar-title { padding: 8px 24px; font-size: 16px; font-weight: 600; margin-top: 8px; color: var(--yt-spec-text-primary); }
+
+        .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 24px; flex-wrap: wrap; background-color: var(--yt-bg); padding: 12px; border-radius: 12px; border: 1px solid var(--yt-spec-border); }
+        .toolbar input, .toolbar select, .toolbar button { background-color: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 8px 12px; border-radius: 8px; outline: none; cursor: pointer; }
+
+        /* ===== ОБНОВЛЕННАЯ СЕТКА ВИДЕО ===== */
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--video-card-min-width, 320px), 1fr)); column-gap: 16px; row-gap: 40px; }
+        .video-card { display: flex; flex-direction: column; text-decoration: none; cursor: pointer; background: transparent; }
+        .video-thumb { width: 100%; aspect-ratio: 16/9; background: #272727; border-radius: 12px; overflow: hidden; position: relative; transition: border-radius 0.2s ease; }
+        .video-card:hover .video-thumb { border-radius: 4px; }
+        
+        .duration-badge { position: absolute; bottom: 6px; right: 6px; background: rgba(0,0,0,0.8); color: #fff; font-size: 12px; font-weight: 500; padding: 3px 4px; border-radius: 4px; line-height: 1; letter-spacing: 0.5px; }
+
+        .video-details { display: flex; gap: 12px; margin-top: 12px; padding: 0; align-items: flex-start; }
+        .video-author-avatar { width: 36px; height: 36px; border-radius: 50%; background-color: #5c6bc0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: 500; overflow: hidden; margin-top: 0; }
+        .video-author-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .video-info { display: flex; flex-direction: column; min-width: 0; }
+        .video-title { font-size: 16px; font-weight: 500; line-height: 22px; color: var(--yt-spec-text-primary); margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+        .video-meta { color: var(--yt-spec-text-secondary); font-size: 14px; line-height: 20px; }
+
+        .video-grid.list-view { display: flex; flex-direction: column; gap: 16px; }
+        .video-grid.list-view .video-card { display: flex; flex-direction: row; gap: 16px; align-items: flex-start; }
+        .video-grid.list-view .video-thumb { width: min(360px, 42vw); flex-shrink: 0; }
+        .video-grid.list-view .video-details { flex: 1; padding: 0; gap: 12px; margin-top: 0; }
+        .video-grid.list-view .video-title { -webkit-line-clamp: 3; font-size: 18px; line-height: 1.4; }
+        
+        @media (max-width: 600px) {
+            .video-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+            .video-grid.list-view .video-card { flex-direction: column; gap: 12px; }
+            .video-grid.list-view .video-thumb { width: 100%; }
+        }
+
+        .video-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .card-actions { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; opacity: 0; z-index: 10; transition: opacity 0.2s; }
+        .action-btn { background: rgba(0,0,0,0.8); border: none; border-radius: 4px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; fill: white; transition: background 0.2s; }
+        .action-btn:hover { background: rgba(0,0,0,1); }
+        .fav-active { fill: #FFD700 !important; }
+        .video-card:hover .card-actions, .video-card:focus-within .card-actions, .short-card:hover .card-actions, .short-card:focus-within .card-actions { opacity: 1; }
+
+        /* ===== SHORTS ===== */
+        .shorts-shelf-container { margin: 32px 0 48px; padding: 24px 0 0 0; border-top: 4px solid var(--yt-spec-border); }
+        .shorts-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px; }
+        .shorts-title h2 { font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .shorts-shelf { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 16px; scrollbar-width: none; }
+        .shorts-shelf::-webkit-scrollbar { display: none; }
+        .short-card { flex: 0 0 auto; width: 210px; text-decoration: none; position: relative; display: flex; flex-direction: column; }
+        .short-thumb { width: 100%; aspect-ratio: 9/16; border-radius: 12px; overflow: hidden; background-color: #272727; margin-bottom: 12px; }
+        .short-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .short-title { font-size: 16px; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 22px; margin-bottom: 4px; color: var(--yt-spec-text-primary); }
+
+        .chips { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+        .chip { background-color: var(--yt-button-bg); padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; color: var(--yt-spec-text-primary); transition: background 0.2s; }
+        .chip:hover { background-color: var(--yt-button-hover); }
+        .chip.active { background-color: var(--yt-spec-text-primary); color: var(--yt-bg-solid, #0f0f0f); }
+
+        .empty-message { padding: 48px 16px; text-align: center; border: 1px dashed var(--yt-spec-border); border-radius: 12px; color: var(--yt-spec-text-secondary); margin-top: 24px; }
+
+        #miniplayer-container { position: fixed; bottom: 20px; right: 20px; width: 350px; min-width: 250px; max-width: 800px; resize: horizontal; background: var(--yt-bg); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.6); border: 1px solid var(--yt-spec-border); z-index: 1000; display: none; flex-direction: column; overflow: hidden; }
+        .mp-video-wrapper { width: 100%; aspect-ratio: 16/9; background: #000; cursor: pointer; }
+        .mp-video-wrapper video { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+        .mp-controls { padding: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .mp-info { flex: 1; overflow: hidden; margin-right: 8px; }
+        .mp-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+        .mp-author { font-size: 12px; color: var(--yt-spec-text-secondary); }
+        .mp-actions { display: flex; gap: 8px; }
+        .mp-btn { background: none; border: none; fill: var(--yt-spec-text-primary); cursor: pointer; width: 24px; height: 24px; opacity: 0.8; }
+        .mp-btn:hover { opacity: 1; }
+        .mp-close-btn:hover { fill: #FF0000; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-content { background: var(--yt-modal-bg); width: 90%; max-width: 550px; border-radius: 12px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid var(--yt-spec-border); }
+        .modal-content h2 { margin-bottom: 20px; font-size: 22px; }
+        .setting-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+        .setting-group label { font-size: 14px; }
+        .setting-group input[type="text"], .setting-group select, .setting-group textarea { background: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); padding: 10px; border-radius: 8px; width: 100%; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+        
+        .quality-card { display: flex; align-items: center; padding: 12px; border-radius: 8px; background: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); margin-bottom: 8px; cursor: pointer; }
+        .quality-status { color: var(--yt-spec-text-secondary); font-size: 13px; margin-bottom: 12px; }
+
+        .progress-bar-container { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+        .progress-fill { height: 100%; width: 0%; background: #FF0000; transition: width 0.3s; }
+
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: var(--yt-button-hover); color: var(--yt-spec-text-primary); padding: 12px 20px; border-radius: 8px; animation: slideIn 0.3s ease forwards; border: 1px solid var(--yt-spec-border); min-width: 200px; font-weight: 500; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        .playlist-item { padding: 8px; border-bottom: 1px solid var(--yt-spec-border); }
+        
+        /* Скрытые каналы - YouTube Style */
+        .hidden-channel-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; margin: 0 12px 4px 12px; transition: background 0.2s; cursor: default; justify-content: space-between; }
+        .hidden-channel-item:hover { background-color: var(--yt-button-hover); }
+
+        /* ===== Очередь (YouTube Style) ===== */
+        .queue-empty { padding: 48px 16px; text-align: center; color: var(--yt-spec-text-secondary); font-size: 15px; }
+        .queue-header { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+        .queue-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+        .queue-toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .queue-filter-label { color: var(--yt-spec-text-secondary); font-size: 14px; font-weight: 500; }
+        .queue-filter { color: var(--yt-spec-text-primary); background: var(--yt-button-bg); border: none; border-radius: 8px; padding: 8px 12px; font-family: inherit; font-size: 14px; outline: none; cursor: pointer; transition: background 0.2s; }
+        .queue-filter:hover { background: var(--yt-button-hover); }
+        .queue-summary { color: var(--yt-spec-text-secondary); font-size: 14px; margin-bottom: 16px; min-height: 18px; font-weight: 500; }
+        .queue-paused-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; padding: 12px 16px; border-radius: 8px; background: rgba(255, 193, 7, 0.15); border: 1px solid #ffc107; color: var(--yt-spec-text-primary); font-size: 14px; }
+        .queue-current-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--yt-spec-text-secondary); font-size: 12px; margin-top: 6px; font-family: monospace; }
+        .queue-attempts { color: var(--yt-spec-text-secondary); font-size: 12px; }
+        .queue-priority { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 4px; margin-top: 4px; font-weight: 500; background: var(--yt-button-bg); color: var(--yt-spec-text-primary); }
+        .queue-priority.priority-high { background: rgba(255, 77, 77, 0.15); color: #ff4d4d; }
+        .queue-priority.priority-low { opacity: 0.7; }
+        .queue-priority-select { color: var(--yt-spec-text-primary); background: var(--yt-button-bg); border: none; border-radius: 18px; padding: 6px 12px; font-size: 13px; font-weight: 500; font-family: inherit; cursor: pointer; outline: none; transition: background 0.2s; }
+        .queue-priority-select:hover { background: var(--yt-button-hover); }
+        .queue-priority-select option { color: #0f0f0f; }
+        
+        /* Общие кнопки (Применены как для очереди, так и для модальных окон) */
+        .btn-primary, .btn-secondary, .cancel-btn, .queue-clear-btn, .retry-btn, .remove-btn { font-family: inherit; font-size: 14px; font-weight: 500; border: none; border-radius: 18px; padding: 8px 16px; cursor: pointer; transition: background 0.2s, opacity 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-primary { background: #FF0000; color: #fff; }
+        .btn-primary:hover { background: #cc0000; }
+        .btn-secondary, .cancel-btn, .retry-btn, .remove-btn { background: var(--yt-button-bg); color: var(--yt-spec-text-primary); }
+        .btn-secondary:hover, .cancel-btn:hover, .retry-btn:hover, .remove-btn:hover { background: var(--yt-button-hover); }
+        .queue-clear-btn { color: #ff4d4d; background: rgba(255, 77, 77, 0.1); }
+        .queue-clear-btn:hover { background: rgba(255, 77, 77, 0.2); }
+        
+        /* Карточки очереди */
+        .queue-item { display: flex; align-items: flex-start; gap: 16px; padding: 16px; margin-bottom: 12px; background: transparent; border: 1px solid var(--yt-spec-border); border-radius: 12px; transition: background 0.2s; }
+        .queue-item:hover { background: var(--yt-button-bg); }
+        .queue-item-info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+        .queue-item-title { font-size: 16px; font-weight: 500; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; color: var(--yt-spec-text-primary); }
+        .queue-item-meta { font-size: 13px; color: var(--yt-spec-text-secondary); margin-bottom: 8px; line-height: 1.4; }
+        .queue-item-error { font-size: 13px; color: #ff4d4d; margin-bottom: 8px; background: rgba(255,77,77,0.1); padding: 8px; border-radius: 8px; }
+        
+        /* Статусы */
+        .queue-item-status { flex-shrink: 0; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px; white-space: nowrap; margin-top: 2px; }
+        .status-waiting { background-color: var(--yt-button-bg); color: var(--yt-spec-text-secondary); }
+        .status-downloading { background-color: rgba(255, 0, 0, 0.1); color: #ff4d4d; border: 1px solid rgba(255,0,0,0.2); }
+        .status-completed { background-color: rgba(0, 230, 118, 0.1); color: #00e676; }
+        .status-error { background-color: rgba(255, 77, 77, 0.1); color: #ff4d4d; }
+        .status-paused { background-color: var(--yt-button-bg); color: var(--yt-spec-text-secondary); }
+        .status-cancelled { color: var(--yt-spec-text-secondary); background: transparent; border: 1px solid var(--yt-spec-border); }
+        
+        .queue-item-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; align-items: flex-end; }
+        @media (min-width: 600px) { .queue-item-actions { flex-direction: row; align-items: center; } }
+        
+        /* Прогресс-бар загрузки */
+        .progress-bar { height: 4px; background-color: rgba(255, 255, 255, 0.1); border-radius: 2px; overflow: hidden; margin-top: 8px; width: 100%; }
+        .progress-fill-queue { height: 100%; background: #FF0000; border-radius: 2px; transition: width 0.4s ease; }
+
+         @media (max-width: 760px) {
+            header { padding: 0 12px; height: 56px; }
+            .header-center { padding: 0 8px; min-width: 0; margin-left: 0; }
+            .header-left { gap: 8px; flex-shrink: 0; }
+            .search-container { margin-left: 0; }
+            .menu-icon { flex-shrink: 0; }
+            .url-quality { display: none; }
+            .url-input { font-size: 14px; padding: 0 12px; }
+            .header-right { gap: 8px; flex-shrink: 0; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .video-grid { grid-template-columns: repeat(2, 1fr); gap: 24px 12px; }
+            .video-details { padding: 8px 0 0 0; }
+            .video-title { font-size: 14px; line-height: 18px; }
+            .icon-btn { width: 40px; height: 40px; padding: 8px; }
+            .user-profile-btn { min-height: 44px; }
+            .download-btn { width: 52px; }
+            main, #queueContainer { padding-left: 16px !important; padding-right: 16px !important; }
+        }
+    </style>
+    <link id="theme-style-link" rel="stylesheet">
+    <link id="fonts-link" rel="stylesheet" href="/static/css/fonts.css">
+    <link rel="stylesheet" href="/static/css/ui.css">
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    <!-- theme.js без defer и до разметки: тема должна встать на <html> раньше
+         первой отрисовки, иначе виден кадр тёмной темы на светлой (FOUC). -->
+    <!-- Перевод строк, которые собирает клиентский код. До theme.js:
+         t() должна быть готова к первому вызову. -->
+    {# Словарь идёт вместе со страницей: отдельный запрос приходил позже
+       первой отрисовки, и подписи из скриптов оставались русскими. #}
+    {% if ui_strings %}<script>
+        window.LT_I18N = {{ ui_strings|tojson }};
+    </script>{% endif %}
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/theme.js"></script>
+    <script src="/static/js/mobile.js" defer></script>
+</head>
+<body>
+    <div id="bg-layer-1" style="background-image: none; opacity: 0;"></div>
+    <div id="bg-layer-2" style="background-image: none; opacity: 1;"></div>
+
+    <header>
+        <div class="header-left">
+            <svg class="menu-icon" id="sidebarToggle" viewBox="0 0 24 24"><path d="M21,6H3V5h18V6z M21,11H3v1h18V11z M21,17H3v1h18V17z"></path></svg>
+            <a href="/" class="logo"><svg viewBox="0 0 24 24"><path d="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5s-6.25,0-7.81,0.42c-0.88,0.23-1.54,0.89-1.77,1.77 C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42 c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19z M10,15V9l5.2,3L10,15z"/></svg>LocalTube</a>
+        </div>
+        <div class="header-center">
+            <div class="search-container">
+                {# Скачивание — дело владельца: гостю поле ссылки не нужно. #}
+                {% if is_owner|default(true) %}
+                <input type="text" id="urlInput" class="url-input" placeholder="{{ 'Вставьте ссылку на видео...'|t }}" autocomplete="off" aria-label="{{ 'Ссылка на видео, плейлист или профиль'|t }}">
+                <select id="urlQuality" class="url-quality" aria-label="{{ 'Качество загрузки'|t }}">
+                    <option value="best">{{ 'Максимум'|t }}</option>
+                    <option value="2160">2160p</option>
+                    <option value="1440">1440p</option>
+                    <option value="1080" selected>1080p</option>
+                    <option value="720">720p</option>
+                    <option value="480">480p</option>
+                    <option value="360">360p</option>
+                    <option value="audio">{{ 'Только звук'|t }}</option>
+                </select>
+                <button type="button" class="download-btn" id="downloadBtn" onclick="startDownload()" title="{{ 'Скачать через очередь'|t }}" aria-label="{{ 'Добавить в очередь загрузки'|t }}"><svg viewBox="0 0 24 24"><path d="M17 18v1H6v-1h11zm-.5-6.6-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-4.9z"/></svg></button>
+                {% else %}
+                <input type="text" id="searchInput" class="url-input" placeholder="{{ 'Поиск по библиотеке...'|t }}" autocomplete="off" aria-label="{{ 'Поиск по библиотеке'|t }}">
+                {% endif %}
+            </div>
+        </div>
+        <div class="header-right">
+            {% if is_owner|default(true) %}
+            <a class="icon-btn" id="themeToggleHeader" href="/settings" title="{{ 'Настройки'|t }}"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg></a>
+            <a class="user-profile-btn" href="/settings"><span class="user-name-display" id="headerUsername">{{ 'Гость'|t }}</span><div class="user-avatar-placeholder" id="headerAvatar">{{ ('Гость'|t)[:1] }}</div></a>
+            {% else %}
+            {# Гость из локальной сети: настройки владельца ему закрыты. #}
+            <button type="button" class="icon-btn" id="guestUnlockBtn" title="{{ 'Войти как владелец по PIN'|t }}" aria-label="{{ 'Войти как владелец по PIN'|t }}"><svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm3 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></button>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar-drawer" id="sidebarDrawer">
+        <a href="#" class="sidebar-item active" data-nav="all" onclick="filterNav('all'); return false;"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg><span>{{ 'Главная'|t }}</span></a>
+        <a href="#" class="sidebar-item" data-nav="shorts" onclick="filterNav('shorts'); return false;"><svg viewBox="0 0 24 24"><path d="M17.77,10.32l-1.2-.5L18,9.06a3.74,3.74,0 0 0-3.5-6.62L6,6.94a3.74,3.74,0 0 0,.23,6.74l1.2.49L6,14.93a3.75,3.75,0 0 0,3.5,6.63l8.5-4.5a3.74,3.74,0 0 0-.23-6.74Z"/></svg><span>Shorts</span></a>
+        <a href="#" class="sidebar-item" data-nav="favorites" onclick="filterNav('favorites'); return false;"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg><span>{{ 'Избранное'|t }}</span></a>
+        <a href="#" class="sidebar-item" data-nav="history" onclick="filterNav('history'); return false;"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.14-8-8s3.58-8 8-8 8 3.14 8 8-3.14 8-8 8zm.5-13H11v6h3V7h-2V4z"/></svg><span>{{ 'История'|t }}</span></a>
+        {# Очередь, загрузка и плейлисты — только для владельца. #}
+        {% if is_owner|default(true) %}
+        <a href="#" class="sidebar-item" data-nav="queue" onclick="filterNav('queue'); return false;"><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 6h8v2h-8V6zm0 4h8v2h-8v-2zm0 4h6v2h-6v-2z"/></svg><span>{{ 'Очередь'|t }}</span></a>
+        <a href="/upload" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg><span>{{ 'Загрузить свой файл'|t }}</span></a>
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-title">{{ 'Мои плейлисты'|t }}</div>
+        <div id="sidebarCollections"></div>
+        <a href="#" class="sidebar-item" id="createCollectionBtn"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg><span>{{ 'Создать плейлист'|t }}</span></a>
+        {% endif %}
+        <div class="sidebar-divider"></div>
+        {% for author in authors %}
+        <a href="/channel/{{ author.name|urlencode }}" class="sidebar-item">
+            <div style="width:28px;height:28px;border-radius:50%;background:#8e24aa;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;overflow:hidden;">{% if author.avatar %}<img src="{{ author.avatar }}" style="width:100%;height:100%;object-fit:cover;">{% else %}{{ author.name[:1]|upper }}{% endif %}</div>
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ author.name }}</span>
+        </a>
+        {% endfor %}
+        {% if is_owner|default(true) %}
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-title">{{ 'Скрытые каналы'|t }}</div>
+        <div id="hiddenChannelsList"></div>
+        <div class="sidebar-divider"></div>
+        <a href="/settings" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>{{ 'Настройки'|t }}</span></a>
+        {% endif %}
+    </aside>
+
+    <main id="mainContent" style="margin-left: var(--yt-sidebar-width); padding: calc(var(--yt-header-height) + 24px) 24px 40px; min-height: 100vh;">
+        {% if not all_videos and not user_videos and not shorts and not playlists %}
+        <div class="empty-message"><h2>{{ 'Здесь пока нет видео'|t }}</h2><p>{{ 'Скачанные и добавленные вручную видео появятся здесь.'|t }}</p></div>
+        {% else %}
+        
+        {% if user_videos %}
+        <div class="my-videos-section">
+            <h2 style="margin-bottom: 24px; font-weight: 600;">{{ '📹 Мои видео'|t }}</h2>
+            <div class="video-grid" id="myVideosGrid">
+                {% for v in user_videos %}
+                <a href="/watch/{{ v.id }}" class="video-card" data-id="{{ v.id }}" data-title="{{ v.title|lower|e }}" data-author="{{ v.author }}" data-size="{{ v.size_mb }}" onclick="markHistory('{{ v.id }}')">
+                    <div class="video-thumb">
+                        {% if v.source == 'user' and v.thumb %}<img loading="lazy" src="/usermedia/{{ v.author }}/{{ v.folder }}/thumbnail.jpg" alt="">{% elif v.source != 'user' %}<img loading="lazy" src="/api/thumbnail/{{ v.id }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет превью'|t }}</div>{% endif %}
+                        {% if v.duration %}<span class="duration-badge">{{ "%d:%02d"|format(v.duration // 60, v.duration % 60) }}</span>{% endif %}
+                        <div class="card-actions"><button class="action-btn" title="{{ 'Копировать ссылку'|t }}" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button><button class="action-btn fav-btn" title="{{ 'В избранное'|t }}" onclick="event.preventDefault(); event.stopPropagation(); toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button></div>
+                    </div>
+                    <div class="video-details">
+                        <div class="video-author-avatar">{% if v.author_avatar %}<img src="{{ v.author_avatar }}">{% else %}{{ v.author[:1]|upper }}{% endif %}</div>
+                        <div class="video-info">
+                            <div class="video-title">{{ v.title }}</div>
+                            <div class="video-meta">
+                                <div>{{ v.author }}</div>
+                                <div>{{ v.size_mb }} {{ 'МБ'|t }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if all_videos %}
+        <div class="video-grid" id="mainGrid">
+            {% for v in all_videos %}
+            <a href="{{ url_for('watch', vid_id=v.id) }}" class="video-card" data-size="{{ v.size_mb }}" data-author="{{ v.author }}" data-id="{{ v.id }}" data-title="{{ v.title|lower|e }}" onclick="markHistory('{{ v.id }}')">
+                <div class="video-thumb">
+                    {% if v.thumb %}<img loading="lazy" src="{{ url_for('media', filename=v.author ~ '/' ~ v.folder ~ '/' ~ v.thumb) }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет превью'|t }}</div>{% endif %}
+                    {% if v.duration %}<span class="duration-badge">{{ "%d:%02d"|format(v.duration // 60, v.duration % 60) }}</span>{% endif %}
+                    <div class="card-actions"><button class="action-btn" title="{{ 'Копировать ссылку'|t }}" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ v.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button><button class="action-btn fav-btn" title="{{ 'В избранное'|t }}" onclick="event.preventDefault(); event.stopPropagation(); toggleFav('{{ v.id }}', this)"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button></div>
+                </div>
+                <div class="video-details">
+                    <div class="video-author-avatar">{% if v.author_avatar %}<img src="{{ v.author_avatar }}" style="width:100%;height:100%;object-fit:cover;">{% else %}{{ v.author[:1]|upper }}{% endif %}</div>
+                    <div class="video-info">
+                        <div class="video-title">{{ v.title }}</div>
+                        <div class="video-meta">
+                            <div>{{ v.author }}</div>
+                            <div>{{ v.size_mb }} {{ 'МБ'|t }}</div>
+                        </div>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if shorts %}
+        <div class="shorts-shelf-container">
+            <div class="shorts-title">
+                <h2><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style="color: #ff0000; margin-right: 2px;"><path d="M17.77,10.32l-1.2-.5L18,9.06a3.74,3.74,0 0 0-3.5-6.62L6,6.94a3.74,3.74,0 0 0,.23,6.74l1.2.49L6,14.93a3.75,3.75,0 0 0,3.5,6.63l8.5-4.5a3.74,3.74,0 0 0-.23-6.74Z"/></svg> Shorts</h2>
+                <a href="/" onclick="filterNav('shorts'); return false;" style="color: var(--yt-spec-text-secondary); font-size: 14px; font-weight: 500; text-decoration: none;">{{ 'Показать все →'|t }}</a>
+            </div>
+            <div class="shorts-shelf">
+                {% for s in shorts %}
+                <a href="/watch/{{ s.id }}" class="short-card" data-id="{{ s.id }}" data-title="{{ s.title|lower|e }}" data-author="{{ s.author }}" onclick="markHistory('{{ s.id }}')">
+                    <div class="short-thumb">
+                        {% if s.thumb %}<img loading="lazy" src="/api/thumbnail/{{ s.id }}" alt="">{% else %}<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">{{ 'Нет'|t }}</div>{% endif %}
+                        <div class="card-actions"><button class="action-btn" title="{{ 'Копировать ссылку'|t }}" onclick="event.preventDefault(); event.stopPropagation(); copyLink('/watch/{{ s.id }}')"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H8V7h11v14z"/></svg></button></div>
+                    </div>
+                    <div class="short-title">{{ s.title }}</div>
+                    <div class="video-meta">
+                        <div>{{ s.author }}</div>
+                        <div>{{ s.size_mb }} {{ 'МБ'|t }}</div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if playlists %}
+        <div class="chips" id="playlistChips" style="margin-top: 32px;">
+            {% for p in playlists %}
+            <span class="chip" style="cursor: default;">{{ p.title }} · {{ p.video_count }} {{ 'видео'|t }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        {% endif %}
+    </main>
+
+    <div id="queueContainer" style="display: none; margin-left: var(--yt-sidebar-width); padding: calc(var(--yt-header-height) + 24px) 24px 40px; min-height: 100vh;">
+         <div class="queue-toolbar">
+             <div class="queue-toolbar-actions"><button onclick="pauseQueue()" class="btn-secondary">{{ '⏸ Пауза'|t }}</button><button onclick="resumeQueue()" class="btn-primary">{{ '▶ Возобновить'|t }}</button><button onclick="retryFailedQueueTasks()" class="btn-secondary">{{ 'Повторить ошибки'|t }}</button><button onclick="clearQueue()" class="btn-secondary queue-clear-btn">{{ 'Очистить завершённые'|t }}</button></div>
+             <label class="queue-filter-label" for="queueFilter">{{ 'Показать'|t }}</label><select id="queueFilter" class="queue-filter"><option value="all">{{ 'Все задачи'|t }}</option><option value="active">{{ 'Активные'|t }}</option><option value="waiting">{{ 'Ожидают'|t }}</option><option value="downloading">{{ 'Загружаются'|t }}</option><option value="completed">{{ 'Завершённые'|t }}</option><option value="error">{{ 'С ошибками'|t }}</option><option value="cancelled">{{ 'Отменённые'|t }}</option></select>
+         </div>
+         <div id="queuePausedBanner" class="queue-paused-banner" style="display: none;" role="status">
+             <span>{{ 'Очередь на паузе — загрузка не начнётся, пока вы её не возобновите.'|t }}</span>
+             <button type="button" onclick="resumeQueue()" class="btn-primary">{{ '▶ Возобновить'|t }}</button>
+         </div>
+         <div id="queueSummary" class="queue-summary"></div>
+         <div id="queueList" style="display: flex; flex-direction: column; gap: 12px;"></div>
+    </div>
+
+    <div id="miniplayer-container" aria-label="{{ 'Мини-плеер'|t }}">
+        <div class="mp-video-wrapper" id="mp-video-wrapper"><video id="mp-video" playsinline></video></div>
+        <div class="mp-controls"><div class="mp-info"><div class="mp-title" id="mp-title"></div><div class="mp-author" id="mp-author"></div></div><div class="mp-actions"><button type="button" class="mp-btn" id="mp-playpause" title="{{ 'Воспроизвести или пауза'|t }}">▶</button><button type="button" class="mp-btn mp-close-btn" id="mp-close" title="{{ 'Закрыть'|t }}">×</button></div></div>
+    </div>
+
+    {# Нижняя навигация: на телефоне основные разделы должны быть в один тап.
+       Активный пункт здесь переключает filterNav() без перезагрузки. #}
+    {% include '_mobile_nav.html' with context %}
+
+    <div id="toast-container"></div>
+    <script>
+        let watchHistory = {{ watch_history|default([])|tojson }};
+        let hiddenChannels = {{ hidden_channels|default([])|tojson }};
+        
+        // Сбор всех аватарок на странице в единый словарь (чтобы отрисовывать скрытые каналы)
+        const avatarMap = {};
+        {% if authors %}
+            {% for a in authors %}
+                {% if a.avatar %}avatarMap[{{ a.name|tojson }}] = {{ a.avatar|tojson }};{% endif %}
+            {% endfor %}
+        {% endif %}
+        {% if all_videos %}
+            {% for v in all_videos %}
+                {% if v.author_avatar %}avatarMap[{{ v.author|tojson }}] = {{ v.author_avatar|tojson }};{% endif %}
+            {% endfor %}
+        {% endif %}
+        {% if user_videos %}
+            {% for v in user_videos %}
+                {% if v.author_avatar %}avatarMap[{{ v.author|tojson }}] = {{ v.author_avatar|tojson }};{% endif %}
+            {% endfor %}
+        {% endif %}
+        {% if shorts %}
+            {% for s in shorts %}
+                {% if s.author_avatar %}avatarMap[{{ s.author|tojson }}] = {{ s.author_avatar|tojson }};{% endif %}
+            {% endfor %}
+        {% endif %}
+        
+        let mpVideo = null, mpContainer = null, mpPausePlayBtn = null;
+        let isDragging = false, dragStartX, dragStartY, initialLeft, initialBottom;
+
+        function initMiniPlayer() {
+            mpContainer = document.getElementById('miniplayer-container');
+            mpVideo = document.getElementById('mp-video');
+            mpPausePlayBtn = document.getElementById('mp-playpause');
+            const mpCloseBtn = document.getElementById('mp-close');
+            if (!mpContainer) return;
+            const savedMP = localStorage.getItem('lt_miniplayer');
+            if (savedMP) {
+                try {
+                    const data = JSON.parse(savedMP);
+                    if (data.url && data.title) showMiniPlayer(data.url, data.title, data.author, data.time);
+                } catch(e) {}
+            }
+            let header = mpContainer.querySelector('.mp-controls');
+            header.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', stopDrag);
+
+            function startDrag(e) {
+                if (e.target.closest('.mp-actions')) return;
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                const rect = mpContainer.getBoundingClientRect();
+                initialLeft = rect.left;
+                initialBottom = window.innerHeight - rect.bottom;
+                mpContainer.style.transition = 'none';
+                e.preventDefault();
+            }
+            function onDrag(e) {
+                if (!isDragging) return;
+                const dx = e.clientX - dragStartX;
+                const dy = e.clientY - dragStartY;
+                let newLeft = initialLeft + dx;
+                let newBottom = initialBottom - dy;
+                newLeft = Math.max(10, Math.min(window.innerWidth - mpContainer.offsetWidth - 10, newLeft));
+                newBottom = Math.max(10, Math.min(window.innerHeight - mpContainer.offsetHeight - 10, newBottom));
+                mpContainer.style.left = newLeft + 'px';
+                mpContainer.style.right = 'auto';
+                mpContainer.style.bottom = newBottom + 'px';
+            }
+            function stopDrag() { isDragging = false; mpContainer.style.transition = ''; }
+
+            if (mpPausePlayBtn) mpPausePlayBtn.addEventListener('click', () => { if (mpVideo.paused) mpVideo.play(); else mpVideo.pause(); });
+            mpCloseBtn.addEventListener('click', closeMiniPlayer);
+            mpVideo.addEventListener('play', () => { mpPausePlayBtn.textContent = '❚❚'; });
+            mpVideo.addEventListener('pause', () => { mpPausePlayBtn.textContent = '▶'; });
+            mpVideo.addEventListener('timeupdate', () => {
+                const saved = JSON.parse(localStorage.getItem('lt_miniplayer') || '{}');
+                if (saved.url) {
+                    saved.time = mpVideo.currentTime;
+                    localStorage.setItem('lt_miniplayer', JSON.stringify(saved));
+                }
+            });
+            mpVideo.addEventListener('ended', closeMiniPlayer);
+            document.getElementById('mp-video-wrapper')?.addEventListener('click', () => {
+                if (mpVideo.paused) mpVideo.play(); else mpVideo.pause();
+            });
+        }
+
+        function showMiniPlayer(videoUrl, title, author, currentTime = 0) {
+            if (!mpContainer) return;
+            mpVideo.src = videoUrl;
+            document.getElementById('mp-title').innerText = title;
+            document.getElementById('mp-author').innerText = author || '';
+            mpVideo.currentTime = currentTime || 0;
+            mpVideo.play().catch(e => console.log('autoplay blocked', e));
+            mpContainer.style.display = 'flex';
+            localStorage.setItem('lt_miniplayer', JSON.stringify({ url: videoUrl, title, author, time: mpVideo.currentTime }));
+        }
+
+        function closeMiniPlayer() {
+            if (mpVideo) { mpVideo.pause(); mpVideo.src = ''; }
+            mpContainer.style.display = 'none';
+            localStorage.removeItem('lt_miniplayer');
+        }
+
+        // Максимум плашек на экране. Опрос очереди идёт каждые 3 секунды, и при
+        // недоступном сервере неисчезающие красные тосты копились без предела,
+        // закрывая всю страницу.
+        const TOAST_LIMIT = 3;
+
+        function showToast(msg, type = 'info', retryCallback = null) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            // Один и тот же текст не дублируем: повторная ошибка опроса просто
+            // оставляет уже висящую плашку.
+            const existing = Array.from(container.children);
+            if (existing.some(el => el.dataset.msg === msg)) return;
+            while (existing.length >= TOAST_LIMIT) existing.shift().remove();
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.dataset.msg = msg;
+            if (type === 'error') {
+                toast.style.background = '#ff4d4d';
+                toast.style.color = 'white';
+                toast.style.border = '1px solid #cc0000';
+                toast.style.borderRadius = '8px';
+                toast.style.padding = '12px 20px';
+                toast.style.display = 'flex';
+                toast.style.alignItems = 'center';
+                toast.style.justifyContent = 'space-between';
+                toast.style.gap = '12px';
+                toast.style.minWidth = '250px';
+                toast.style.boxShadow = '0 4px 12px rgba(255,0,0,0.3)';
+            }
+            const msgSpan = document.createElement('span');
+            msgSpan.innerText = msg;
+            toast.appendChild(msgSpan);
+            if (type === 'error' && retryCallback) {
+                const retryBtn = document.createElement('button');
+                retryBtn.innerText = t('🔄 Повторить');
+                retryBtn.style.background = 'rgba(255,255,255,0.2)';
+                retryBtn.style.border = 'none';
+                retryBtn.style.color = 'white';
+                retryBtn.style.padding = '4px 12px';
+                retryBtn.style.borderRadius = '16px';
+                retryBtn.style.cursor = 'pointer';
+                retryBtn.style.fontWeight = 'bold';
+                retryBtn.onclick = () => { toast.remove(); retryCallback(); };
+                toast.appendChild(retryBtn);
+            }
+            container.appendChild(toast);
+            if (type !== 'error' || !retryCallback) {
+                setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 5000);
+            }
+        }
+
+        function showErrorToast(msg, retryCallback = null) { showToast(msg, 'error', retryCallback); }
+
+        // Тема, стиль и обои живут в /static/js/theme.js. Раньше эти же 90
+        // строк были скопированы в каждый из семи шаблонов: копии разошлись в
+        // поведении, ссылка на обои получала ?w=&h= и потому перекачивалась
+        // каждые 30 секунд, а применялась тема только после разметки — на
+        // каждом переходе была видна вспышка тёмного фона.
+
+        const userSettings = JSON.parse(localStorage.getItem('lt_settings') || '{"avatar":""}');
+        // У гостя из локальной сети профиля в шапке нет: без проверок скрипт
+        // падал бы здесь и остальная страница осталась бы без обработчиков.
+        const usernameBox = document.getElementById('headerUsername');
+        if (usernameBox) usernameBox.innerText = userSettings.username || t('Гость');
+        const avatarBox = document.getElementById('headerAvatar');
+        if (avatarBox) {
+            if(userSettings.avatar) avatarBox.innerHTML = `<img src="${userSettings.avatar}" alt="${t('Аватар')}">`;
+            // Берём первую букву от целого слова: ключ из одной буквы «Г» переводчику
+        // ни о чём не говорит, а «Гость» переводится и даёт нужную букву само.
+        else avatarBox.innerHTML = (userSettings.username || t('Гость')).charAt(0).toUpperCase();
+        }
+
+        const sidebarDrawer = document.getElementById('sidebarDrawer');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        // Переключение панели живёт в /static/js/mobile.js: пять шаблонов
+        // держали одинаковую копию, и CSS-часть разъехалась — на десктопе
+        // кнопка только затемняла экран, а панель не сворачивалась.
+
+        let currentNav = 'all';
+        let isListView = false;
+        // Владелец или гость из локальной сети. Гость только смотрит: кнопки
+        // действий скрыты, а его избранное живёт в localStorage его устройства
+        // и на сервер не уходит.
+        const IS_OWNER = {{ 'true' if is_owner|default(true) else 'false' }};
+        // Гость пишет в свои ключи. Если бы он использовал те же, что владелец,
+        // его избранное уехало бы на сервер при первом же входе по PIN: перенос
+        // старых данных читает именно lt_favorites и lt_history.
+        const GUEST_FAV_KEY = 'lt_guest_favorites';
+        const GUEST_HISTORY_KEY = 'lt_guest_history';
+        // Избранное, история и скрытые каналы хранятся на сервере. Здесь только
+        // локальная копия для мгновенной отрисовки; она синхронизируется в loadUserData().
+        // Данные приходят вместе со страницей: не нужно ждать запроса, поэтому
+        // избранное и фильтры корректны с первой отрисовки.
+        // Имя watchHistory, а не history: иначе затеняется window.history.
+
+        // Разовый перенос старых данных из localStorage на сервер.
+        async function migrateLocalUserData() {
+            const legacy = {
+                favorites: JSON.parse(localStorage.getItem('lt_favorites') || '[]'),
+                history: JSON.parse(localStorage.getItem('lt_history') || '[]'),
+                hidden_channels: JSON.parse(localStorage.getItem('lt_hidden_channels') || '[]'),
+            };
+            const hasLegacy = legacy.favorites.length || legacy.history.length || legacy.hidden_channels.length;
+            if (!hasLegacy) return null;
+            try {
+                // Бэкап до отправки: если что-то пойдёт не так, данные можно
+                // восстановить из lt_migration_backup вручную.
+                localStorage.setItem('lt_migration_backup', JSON.stringify({
+                    saved_at: new Date().toISOString(), data: legacy,
+                }));
+                const res = await fetch('/api/userdata/migrate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(legacy),
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                // Сверяем, что сервер действительно принял все записи, и только
+                // потом удаляем локальные копии.
+                const complete = ['favorites', 'history', 'hidden_channels'].every(key => {
+                    const saved = new Set(data[key] || []);
+                    return legacy[key].every(item => saved.has(item));
+                });
+                if (!complete) throw new Error(t('Сервер сохранил не все данные'));
+                localStorage.removeItem('lt_favorites');
+                localStorage.removeItem('lt_history');
+                localStorage.removeItem('lt_hidden_channels');
+                const moved = Object.values(data.added || {}).reduce((a, b) => a + b, 0);
+                if (moved) showToast(t('Данные перенесены на сервер: {what}').replace('{what}', moved));
+                return data;
+            } catch (err) {
+                console.error('Не удалось перенести данные на сервер:', err);
+                showToast(t('Не удалось перенести данные на сервер, работаем локально'));
+                // Возвращаем локальные данные: пользователь не должен увидеть
+                // пустое избранное из-за проблемы с сервером.
+                return {
+                    favorites: legacy.favorites,
+                    history: legacy.history,
+                    hidden_channels: legacy.hidden_channels,
+                    offline: true,
+                };
+            }
+        }
+
+        // Если сервер недоступен, продолжаем работать через localStorage:
+        // потерять отметку лучше не дать вовсе.
+        // Гость сразу работает локально: его избранное и история не должны
+        // попадать в данные владельца сервера.
+        let userDataOffline = !IS_OWNER;
+        // Промис загрузки: обработчики кликов ждут его, чтобы не действовать
+        // по пустым спискам.
+        let userDataReady = null;
+
+        function applyUserData(data) {
+            favorites = data.favorites || [];
+            watchHistory = data.history || [];
+            hiddenChannels = data.hidden_channels || [];
+        }
+
+        function saveUserDataLocally() {
+            try {
+                if (!IS_OWNER) {
+                    // Гость: только свои ключи, чтобы данные не попали к владельцу.
+                    localStorage.setItem(GUEST_FAV_KEY, JSON.stringify(favorites));
+                    localStorage.setItem(GUEST_HISTORY_KEY, JSON.stringify(watchHistory));
+                    return;
+                }
+                localStorage.setItem('lt_favorites', JSON.stringify(favorites));
+                localStorage.setItem('lt_history', JSON.stringify(watchHistory));
+                localStorage.setItem('lt_hidden_channels', JSON.stringify(hiddenChannels));
+            } catch (err) {
+                console.error('Не удалось сохранить данные локально:', err);
+            }
+        }
+
+        // Отправляет изменение на сервер. При ошибке переходит в offline-режим
+        // и сохраняет всё в localStorage, чтобы изменение не пропало.
+        async function pushUserData(url, body) {
+            if (userDataOffline) { saveUserDataLocally(); return null; }
+            try {
+                const options = { method: 'POST' };
+                if (body !== undefined) {
+                    options.headers = { 'Content-Type': 'application/json' };
+                    options.body = JSON.stringify(body);
+                }
+                const res = await fetch(url, options);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return await res.json();
+            } catch (err) {
+                console.error('Не удалось сохранить на сервере:', err);
+                userDataOffline = true;
+                saveUserDataLocally();
+                showToast(t('Сервер недоступен, изменения сохранены локально'));
+                return null;
+            }
+        }
+
+        async function loadUserData() {
+            if (!IS_OWNER) {
+                // Гость: своё избранное и историю берём из его же браузера.
+                // Переносить их на сервер нельзя — там данные владельца.
+                applyUserData({
+                    favorites: JSON.parse(localStorage.getItem(GUEST_FAV_KEY) || '[]'),
+                    history: JSON.parse(localStorage.getItem(GUEST_HISTORY_KEY) || '[]'),
+                    hidden_channels: [],
+                });
+                return;
+            }
+            const migrated = await migrateLocalUserData();
+            if (migrated) {
+                applyUserData(migrated);
+                if (migrated.offline) userDataOffline = true;
+                return;
+            }
+            try {
+                const res = await fetch('/api/userdata');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                applyUserData(await res.json());
+            } catch (err) {
+                console.error('Не удалось загрузить пользовательские данные:', err);
+                userDataOffline = true;
+                // Данные, отрендеренные вместе со страницей, уже актуальны:
+                // перезаписываем их локальной копией только если она полнее.
+                const local = {
+                    favorites: JSON.parse(localStorage.getItem('lt_favorites') || '[]'),
+                    history: JSON.parse(localStorage.getItem('lt_history') || '[]'),
+                    hidden_channels: JSON.parse(localStorage.getItem('lt_hidden_channels') || '[]'),
+                };
+                if (local.favorites.length || local.history.length || local.hidden_channels.length) {
+                    applyUserData(local);
+                }
+            }
+        }
+
+        // Запускаем запрос сразу, не дожидаясь конца скрипта: чем раньше придут
+        // данные, тем короче показ карточек скрытых каналов.
+        userDataReady = loadUserData();
+
+        // ===== Свои плейлисты в боковом меню =====
+        // Список приходит с сервера: он живёт в userdata.json, а не в localStorage,
+        // поэтому одинаков во всех браузерах.
+        async function loadSidebarCollections() {
+            const box = document.getElementById('sidebarCollections');
+            if (!box) return;
+            // Плейлисты принадлежат владельцу: гостю их не показываем.
+            if (!IS_OWNER) return;
+            try {
+                const res = await fetch('/api/collections');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                box.textContent = '';
+                for (const item of (data.collections || [])) {
+                    const link = document.createElement('a');
+                    link.className = 'sidebar-item';
+                    link.href = '/collection/' + encodeURIComponent(item.id);
+                    link.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM12 6v8l5-4-5-4z"/></svg>';
+                    // Название задал пользователь — только textContent, без вставки HTML.
+                    const label = document.createElement('span');
+                    label.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                    label.textContent = item.count ? `${item.title} (${item.count})` : item.title;
+                    link.append(label);
+                    box.append(link);
+                }
+            } catch (err) {
+                box.textContent = '';
+            }
+        }
+
+        document.getElementById('createCollectionBtn')?.addEventListener('click', async event => {
+            event.preventDefault();
+            const title = prompt(t('Название нового плейлиста:'));
+            if (title === null) return;
+            try {
+                const res = await fetch('/api/collections', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) throw new Error(data.error || t('Не удалось создать плейлист.'));
+                showToast(t('Плейлист «{title}» создан').replace('{title}', data.collection.title));
+                loadSidebarCollections();
+            } catch (err) {
+                showToast(err.message);
+            }
+        });
+
+        loadSidebarCollections();
+
+        function filterNav(nav) {
+            if (nav === 'shorts') {
+                const watched = new Set(watchHistory);
+                const shorts = Array.from(document.querySelectorAll('.short-card'));
+                const candidates = shorts.filter(card => !watched.has(card.dataset.id));
+                const selected = (candidates.length ? candidates : shorts)[Math.floor(Math.random() * (candidates.length ? candidates.length : shorts.length))];
+                if (selected) { window.location.href = selected.href; return; }
+                showToast(t('Локальных Shorts пока нет'));
+                return;
+            }
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+            const target = document.querySelector(`.sidebar-item[data-nav="${nav}"]`);
+            if (target) target.classList.add('active');
+            // Нижняя панель показывает те же разделы, что и меню: без этого
+            // отметка оставалась на «Главной» после перехода в очередь.
+            document.querySelectorAll('.lt-nav-item').forEach(el => {
+                const isCurrent = el.getAttribute('data-nav-target') === nav;
+                el.classList.toggle('active', isCurrent);
+                if (isCurrent) el.setAttribute('aria-current', 'page');
+                else el.removeAttribute('aria-current');
+            });
+            const chips = document.querySelectorAll('.chip');
+            chips.forEach(c => c.classList.remove('active'));
+            if (nav === 'all') { const allChip = document.querySelector('.chip[data-nav="all"]'); if(allChip) allChip.classList.add('active'); }            currentNav = nav;
+
+            const mainGrid = document.getElementById('mainGrid');
+            const shortsContainer = document.querySelector('.shorts-shelf-container');
+            const myVideosSection = document.querySelector('.my-videos-section');
+            const queueContainer = document.getElementById('queueContainer');
+            // Сам <main> тоже надо скрывать, а не только его внутренние блоки:
+            // у него min-height 100vh, поэтому пустой <main> оставался в потоке
+            // и сдвигал очередь ровно на высоту экрана вниз. Пользователь видел
+            // пустой (в тёмной теме — чёрный) экран, хотя задачи были в DOM.
+            const mainContent = document.getElementById('mainContent');
+
+            if (mainGrid) mainGrid.style.display = 'none';
+            if (shortsContainer) shortsContainer.style.display = 'none';
+            if (myVideosSection) myVideosSection.style.display = 'none';
+            if (queueContainer) queueContainer.style.display = 'none';
+
+            if (nav === 'queue') {
+                if (mainContent) mainContent.style.display = 'none';
+                if (queueContainer) queueContainer.style.display = 'block';
+                loadQueue();
+            } else {
+                if (mainContent) mainContent.style.display = 'block';
+                // display снимаем, а не задаём: раскладку определяют .video-grid
+                // и .video-grid.list-view, а инлайновый стиль их перебивал.
+                if (mainGrid) mainGrid.style.removeProperty('display');
+                if (shortsContainer) shortsContainer.style.display = nav === 'all' ? 'block' : 'none';
+                if (myVideosSection) myVideosSection.style.display = ['all', 'favorites', 'history'].includes(nav) ? 'block' : 'none';
+                applyFilters();
+            }
+            if (sidebarDrawer && sidebarDrawer.classList.contains('active')) {
+                sidebarDrawer.classList.remove('active');
+                sidebarOverlay.classList.remove('active');
+            }
+        }
+
+        function applyFilters() {
+            if (currentNav === 'queue') return;
+            // searchInput — поле поиска, которое видит гость вместо поля ссылки.
+            // localSearch остаётся для совместимости: элемента с таким id в
+            // разметке нет, поэтому фильтр по тексту раньше всегда был пустым.
+            const searchBox = document.getElementById('localSearch') || document.getElementById('searchInput');
+            const query = searchBox ? searchBox.value.toLowerCase().trim() : '';
+            const sort = document.getElementById('sortSelect') ? document.getElementById('sortSelect').value : 'default';
+            const grid = document.getElementById('mainGrid');
+            const myGrid = document.getElementById('myVideosGrid');
+
+            function shouldShow(card) {
+                const title = card.getAttribute('data-title');
+                const author = card.getAttribute('data-author');
+                const vid = card.getAttribute('data-id');
+                let show = title && title.includes(query);
+                if (currentNav === 'favorites') show = show && favorites.includes(vid);
+                else if (currentNav === 'history') show = show && watchHistory.includes(vid);
+                else if (currentNav !== 'all' && currentNav !== 'shorts') show = show && (author === currentNav);
+                if (show && isChannelHidden(author)) show = false;
+                return show;
+            }
+
+            if (grid) {
+                let cards = Array.from(grid.querySelectorAll('.video-card'));
+                cards.forEach(card => { card.style.display = shouldShow(card) ? 'block' : 'none'; });
+                if (sort !== 'default') {
+                    cards.sort((a,b) => {
+                        if (sort === 'az' || sort === 'za') {
+                            const tA = a.getAttribute('data-title'), tB = b.getAttribute('data-title');
+                            return sort === 'az' ? tA.localeCompare(tB) : tB.localeCompare(tA);
+                        } else {
+                            const sA = parseFloat(a.getAttribute('data-size')) || 0, sB = parseFloat(b.getAttribute('data-size')) || 0;
+                            return sort === 'sizeAsc' ? sA - sB : sB - sA;
+                        }
+                    });
+                    cards.forEach(card => grid.appendChild(card));
+                }
+            }
+            if (myGrid) {
+                let myCards = Array.from(myGrid.querySelectorAll('.video-card'));
+                myCards.forEach(card => { card.style.display = shouldShow(card) ? 'block' : 'none'; });
+            }
+        }
+
+        function toggleView() {
+            isListView = !isListView;
+            const grid = document.getElementById('mainGrid');
+            const myGrid = document.getElementById('myVideosGrid');
+            for (const el of [grid, myGrid]) {
+                if (!el) continue;
+                el.classList.toggle('list-view', isListView);
+                // Инлайновый display надо снимать: switchNav() выставляет его
+                // напрямую (grid/flex), а инлайновый стиль перебивает класс, и
+                // раскладка списка не применялась после перехода по разделам.
+                el.style.removeProperty('display');
+            }
+        }
+
+        async function toggleFav(id, btn) {
+            // Ждём загрузки: иначе favorites пуст, клиент решит «добавляю», а
+            // сервер по своему актуальному списку сделает обратное.
+            await userDataReady;
+            const shouldBeFavorite = !favorites.includes(id);
+            // Интерфейс обновляем сразу, не дожидаясь ответа сервера.
+            if (shouldBeFavorite) {
+                favorites = favorites.concat([id]);
+                showToast(t('Добавлено в избранное'));
+            } else {
+                favorites = favorites.filter(x => x !== id);
+                showToast(t('Удалено из избранного'));
+            }
+            if (btn) btn.classList.toggle('fav-active', shouldBeFavorite);
+            if (currentNav === 'favorites') applyFilters();
+            // Передаём желаемое состояние, а не «переключи»: повторный или
+            // запоздавший запрос не перевернёт результат.
+            const data = await pushUserData(
+                `/api/userdata/favorite/${encodeURIComponent(id)}`, { active: shouldBeFavorite });
+            if (data && data.favorites) {
+                favorites = data.favorites;
+                markFavoriteButtons();
+                if (currentNav === 'favorites') applyFilters();
+            }
+        }
+
+        async function markHistory(id) {
+            watchHistory = watchHistory.filter(x => x !== id);
+            watchHistory.unshift(id);
+            const data = await pushUserData(`/api/userdata/watched/${encodeURIComponent(id)}`);
+            if (data && data.history) watchHistory = data.history;
+        }
+
+        function copyLink(url) { navigator.clipboard.writeText(url).then(() => showToast(t('Ссылка скопирована!'))); }
+
+        function isChannelHidden(channelName) { return hiddenChannels.includes(channelName); }
+        async function toggleHideChannel(channelName) {
+            await userDataReady;
+            const shouldHide = !hiddenChannels.includes(channelName);
+            if (shouldHide) {
+                hiddenChannels = hiddenChannels.concat([channelName]);
+                showToast(`Канал "${channelName}" скрыт`);
+            } else {
+                hiddenChannels = hiddenChannels.filter(c => c !== channelName);
+                showToast(`Канал "${channelName}" больше не скрыт`);
+            }
+            updateHiddenChannelsList();
+            applyFilters();
+            // Явное состояние вместо переключения: см. комментарий в toggleFav.
+            const data = await pushUserData('/api/userdata/hidden-channel',
+                { author: channelName, hidden: shouldHide });
+            if (data && data.hidden_channels) {
+                hiddenChannels = data.hidden_channels;
+                updateHiddenChannelsList();
+                applyFilters();
+            }
+        }
+
+        // ===== ИСПРАВЛЕННЫЙ БЛОК ДЛЯ СКРЫТЫХ КАНАЛОВ =====
+        function updateHiddenChannelsList() {
+            const container = document.getElementById('hiddenChannelsList');
+            if (!container) return;
+            container.replaceChildren();
+            if (hiddenChannels.length === 0) {
+                const empty = document.createElement('div');
+                empty.style.cssText = 'padding: 8px 24px; color: var(--yt-spec-text-secondary); font-size: 14px; margin-bottom: 8px;';
+                empty.textContent = t('Нет скрытых каналов');
+                container.append(empty);
+                return;
+            }
+            
+            const allAuthors = {{ authors|default([])|tojson }};
+            // Запасной план: если бэкенд не отдал скрытый канал в authors,
+            // попробуем найти его аватарку в нашей глобальной мапе (из всех видео на странице).
+            const fallbackMap = typeof avatarMap !== 'undefined' ? avatarMap : {};
+
+            hiddenChannels.forEach(channel => {
+                const item = document.createElement('div');
+                item.className = 'hidden-channel-item sidebar-item';
+                item.style.cursor = 'default';
+                item.style.paddingRight = '8px';
+
+                const author = allAuthors.find(a => a.name === channel);
+                const avatarUrl = (author && author.avatar) ? author.avatar : fallbackMap[channel];
+
+                const avatar = document.createElement('div');
+                avatar.style.cssText = 'width: 28px; height: 28px; border-radius: 50%; background: #272727; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; overflow: hidden;';
+
+                if (avatarUrl) {
+                    const img = document.createElement('img');
+                    img.src = avatarUrl;
+                    img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+                    avatar.append(img);
+                } else {
+                    avatar.textContent = channel.charAt(0).toUpperCase();
+                }
+
+                const label = document.createElement('span');
+                label.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-left: 8px; font-size: 14px; color: var(--yt-spec-text-primary);';
+                label.textContent = channel;
+
+                const button = document.createElement('button');
+                button.className = 'unhide-btn';
+                button.type = 'button';
+                button.textContent = t('Показать');
+                button.style.cssText = 'background: transparent; border: none; color: #3ea6ff; cursor: pointer; padding: 6px 10px; border-radius: 18px; font-size: 13px; font-weight: 500; font-family: inherit; transition: background 0.2s; flex-shrink: 0;';
+                button.onmouseover = () => button.style.backgroundColor = 'rgba(62, 166, 255, 0.15)';
+                button.onmouseleave = () => button.style.backgroundColor = 'transparent';
+                button.addEventListener('click', () => toggleHideChannel(channel));
+
+                item.append(avatar, label, button);
+                container.append(item);
+            });
+        }
+        updateHiddenChannelsList();
+
+        function applyProfileUI() {
+            const username = userSettings.username || t('Гость');
+            const usernameEl = document.getElementById('headerUsername');
+            const avatarBox = document.getElementById('headerAvatar');
+            if (usernameEl) usernameEl.textContent = username;
+            if (!avatarBox) return;
+            avatarBox.replaceChildren();
+            if (userSettings.avatar) {
+                const image = document.createElement('img');
+                image.src = userSettings.avatar;
+                image.alt = t('Аватар');
+                avatarBox.append(image);
+            } else {
+                avatarBox.textContent = username.charAt(0).toUpperCase();
+            }
+        }
+        applyProfileUI();
+
+        let queuePollInterval = null, lastQueueTasks = [], lastQueuePaused = false;
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+        }
+
+        async function loadQueue() {
+            try {
+                const res = await fetch('/api/queue/list');
+                    if (!res.ok) throw new Error(t('Сервер вернул ошибку {code}').replace('{code}', res.status));
+                const data = await res.json();
+                lastQueueTasks = data.tasks || [];
+                lastQueuePaused = !!data.paused;
+                renderQueue(lastQueueTasks, lastQueuePaused);
+            } catch(err) {
+                console.error('Ошибка загрузки очереди:', err);
+                showErrorToast(t('Не удалось загрузить очередь') + ': ' + err.message, loadQueue);
+            }
+        }
+
+        function renderQueue(tasks, paused = false) {
+            const container = document.getElementById('queueList');
+            const summary = document.getElementById('queueSummary');
+            if (!container) return;
+            // Пока пользователь выбирает приоритет, список не перерисовываем:
+            // раскрытый <select> уничтожался вместе с разметкой через 3 секунды,
+            // и выбрать значение не удавалось.
+            const active = document.activeElement;
+            if (active && active.classList.contains('queue-priority-select')
+                && container.contains(active)) return;
+            const filter = document.getElementById('queueFilter')?.value || 'all';
+            // Заметное предупреждение о паузе: упоминание мелким серым текстом в
+            // сводке пользователи не замечали, и остановленная очередь выглядела
+            // как сломанная загрузка.
+            const pausedBanner = document.getElementById('queuePausedBanner');
+            if (pausedBanner) {
+                const hasPending = tasks.some(t => ['waiting', 'downloading'].includes(t.status));
+                pausedBanner.style.display = (paused && hasPending) ? 'flex' : 'none';
+            }
+            const counts = tasks.reduce((acc, task) => { acc[task.status] = (acc[task.status] || 0) + 1; return acc; }, {});
+            // Сводка собирается из отдельных подписей: одна длинная шаблонная
+            // строка ключом словаря быть не может — в неё вписан код JS.
+            if (summary) {
+                const parts = [
+                    t('Всего') + ': ' + tasks.length,
+                    t('В работе') + ': ' + (counts.downloading || 0),
+                    t('Ожидают') + ': ' + (counts.waiting || 0),
+                    t('Завершено') + ': ' + (counts.completed || 0),
+                    t('Ошибки') + ': ' + ((counts.error || 0) + (counts.partial || 0)),
+                ];
+                if (counts.cancelled) parts.push(t('Отменено') + ': ' + counts.cancelled);
+                if (paused) parts.push(t('Очередь приостановлена'));
+                summary.textContent = parts.join(' · ');
+            }
+            const visible = tasks.filter(task => {
+                if (filter === 'all') return true;
+                if (filter === 'active') return ['waiting', 'downloading'].includes(task.status);
+                // Частичный провал — тоже ошибка: иначе задача, где не скачалась
+                // часть видео, не попадала ни в один фильтр, кроме «Все».
+                if (filter === 'error') return ['error', 'partial'].includes(task.status);
+                // Отменяемая задача остаётся в статусе downloading, но по смыслу
+                // пользователь ищет её среди отменённых.
+                if (filter === 'cancelled') return task.status === 'cancelled' || task.cancelling;
+                if (filter === 'downloading') return task.status === 'downloading' && !task.cancelling;
+                return task.status === filter;
+            });
+            if (!visible.length) {
+                container.innerHTML = `<div class="queue-empty">${tasks.length ? t('Нет задач, соответствующих фильтру') : t('Очередь пуста')}</div>`;
+                return;
+            }
+            container.innerHTML = visible.map(task => {
+                const statuses = {
+                    waiting: [t('⏳ Ожидание'), 'status-waiting'], downloading: [t('⬇ Загрузка'), 'status-downloading'],
+                    completed: [t('✓ Завершено'), 'status-completed'], error: [t('✕ Ошибка'), 'status-error'],
+                    cancelled: [t('⊘ Отменено'), 'status-cancelled'],
+                    // Частично скачано: раньше такая задача выглядела как «Завершено».
+                    partial: [t('⚠ Частично'), 'status-error']
+                };
+                let [statusText, statusClass] = statuses[task.status] || [escapeHtml(task.status), ''];
+                if (task.cancelling) { statusText = t('⊘ Отмена...'); statusClass = 'status-cancelled'; }
+                const progress = Math.max(0, Math.min(100, Number(task.progress) || 0));
+                // Номер видео показываем только когда загрузка идёт: у ожидающей
+                // задачи оставалось «Видео 11/79» из прошлой попытки, и это
+                // выглядело как сохранённый прогресс.
+                const position = task.total_urls > 1 && task.status === 'downloading'
+                    ? t('Видео {current}/{total}').replace('{current}', task.current_index || 1).replace('{total}', task.total_urls)
+                    : t('{count} видео').replace('{count}', task.urls.length);
+                const metrics = task.status === 'downloading' ? [task.speed, task.eta ? `ETA ${task.eta}` : ''].filter(Boolean).join(' · ') : '';
+                const currentUrl = task.status === 'downloading' && task.current_url ? `<div class="queue-current-url" title="${escapeHtml(task.current_url)}">${escapeHtml(task.current_url)}</div>` : '';
+                const attempts = task.attempts > 1 ? `<span class="queue-attempts">Попытка ${task.attempts}</span>` : '';
+                const priorityLabels = { high: t('Высокий'), normal: t('Обычный'), low: t('Низкий') };
+                const priority = task.priority || 'normal';
+                const priorityBadge = priority !== 'normal' ? `<span class="queue-priority priority-${escapeHtml(priority)}">${escapeHtml(priorityLabels[priority] || priority)} приоритет</span>` : '';
+                const prioritySelect = task.status === 'waiting'
+                    ? `<select class="queue-priority-select" aria-label="${t('Приоритет задачи')}" onchange="setQueuePriority('${escapeHtml(task.id)}', this.value)">
+                        ${['high', 'normal', 'low'].map(p => `<option value="${p}"${p === priority ? ' selected' : ''}>${priorityLabels[p]}</option>`).join('')}
+                       </select>`
+                    : '';
+                const cancelBtn = ['waiting', 'downloading'].includes(task.status) && !task.cancelling
+                    ? `<button onclick="cancelQueueTask('${escapeHtml(task.id)}')" class="cancel-btn">Отменить</button>`
+                    : '';
+                return `<div class="queue-item" data-id="${escapeHtml(task.id)}">
+                    <div class="queue-item-info">
+                        <div class="queue-item-title">${escapeHtml(task.title)}</div>
+                        ${priorityBadge}
+                        <div class="queue-item-meta">${position} · ${Math.round(progress)}%${metrics ? ` ${escapeHtml(metrics)}` : ''}${attempts ? ` · ${attempts}` : ''}</div>
+                        ${currentUrl}${task.error ? `<div class="queue-item-error">${escapeHtml(task.error)}</div>` : ''}
+                        <div class="progress-bar"><div class="progress-fill-queue" style="width:${progress}%;"></div></div>
+                        <div class="queue-item-meta">${escapeHtml(task.message || '')}</div>
+                    </div>
+                    <div class="queue-item-status ${statusClass}">${statusText}</div>
+                    <div class="queue-item-actions">
+                        ${prioritySelect}
+                        ${['error', 'cancelled', 'partial'].includes(task.status) ? `<button onclick="retryQueueTask('${escapeHtml(task.id)}')" class="retry-btn">Повторить</button>` : ''}
+                        ${cancelBtn}
+                        <button onclick="removeQueueTask('${escapeHtml(task.id)}')" class="remove-btn">Удалить</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // Селектор формата для yt-dlp по выбранному качеству. null означает
+        // «пусть загрузчик решает сам»: эндпоинт принимает format_id = null.
+        function buildFormatSelector(quality, url = '') {
+            if (!quality || quality === 'best') return null;
+            if (quality === 'audio') return 'bestaudio/best';
+            // Некоторые сайты отдают единый поток: селектор bestvideo+bestaudio —
+            // синтаксис YouTube и там приводит к «формат не найден».
+            if (/^https?:\/\/(?:www\.)?(?:m\.)?(?:vm\.|vt\.)?tiktok\.com\//i.test(url)) return null;
+            return `bestvideo[height<=${quality}]+bestaudio/best`;
+        }
+
+        // Ссылку проверяем на клиенте: иначе в очередь уходил любой текст, и
+        // задача падала уже в загрузчике, а пользователь видел ошибку не сразу.
+        function isSupportedVideoUrl(value) {
+            let parsed;
+            try {
+                parsed = new URL(value);
+            } catch (err) {
+                return false;
+            }
+            if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+            const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+            if (['youtube.com', 'm.youtube.com', 'music.youtube.com',
+                 'youtu.be', 'youtube-nocookie.com'].includes(host)) return true;
+            if (['vm.tiktok.com', 'vt.tiktok.com'].includes(host)) {
+                return parsed.pathname.replace(/\/+$/, '').length > 0;
+            }
+            if (host !== 'tiktok.com' && host !== 'm.tiktok.com') return false;
+            const parts = parsed.pathname.split('/').filter(Boolean);
+            if (host === 'm.tiktok.com' && parts[0] === 'v' && /^\d+/.test(parts[1] || '')) return true;
+            return (parts.length >= 3 && parts[0].startsWith('@') && parts[1] === 'video' && /^\d+$/.test(parts[2]))
+                || (parts.length === 1 && parts[0].startsWith('@') && parts[0].length > 1);
+        }
+
+        async function startDownload() {
+            const input = document.getElementById('urlInput');
+            const button = document.getElementById('downloadBtn');
+            if (!input) return;
+            const url = input.value.trim();
+            if (!url) { showToast(t('Введите ссылку на видео')); input.focus(); return; }
+            if (!isSupportedVideoUrl(url)) {
+                showErrorToast(t('Это не похоже на ссылку на видео'));
+                input.focus();
+                return;
+            }
+            const quality = document.getElementById('urlQuality')?.value || 'best';
+            const payload = { urls: [url], title: t('Загрузка по ссылке') };
+            const selector = buildFormatSelector(quality, url);
+            if (selector) payload.format_id = selector;
+            // Кнопку блокируем на время запроса: двойной клик добавлял в очередь
+            // две одинаковые задачи.
+            if (button) button.disabled = true;
+            try {
+                const res = await fetch('/api/queue/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json().catch(() => ({}));
+                // Проверяем и код ответа, и тело: часть ошибок очереди
+                // приходит именно в теле.
+                if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+                input.value = '';
+                showToast(t('Добавлено в очередь'));
+                // Сразу показываем очередь: иначе непонятно, что вообще
+                // произошло после нажатия кнопки.
+                filterNav('queue');
+            } catch (err) {
+                showErrorToast(t('Не удалось добавить в очередь') + ': ' + err.message,
+                               () => startDownload());
+            } finally {
+                if (button) button.disabled = false;
+            }
+        }
+
+        function addToQueue(urls, formatId, title, mergeFormat = 'mp4') {
+            fetch('/api/queue/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ urls: urls, format_id: formatId, title: title, merge_format: mergeFormat })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) showErrorToast(t('Ошибка') + ': ' + data.error);
+                else { showToast(t('Добавлено в очередь')); if (currentNav === 'queue') loadQueue(); }
+            })
+            .catch(err => showErrorToast(t('Ошибка добавления в очередь') + ': ' + err.message, () => addToQueue(urls, formatId, title, mergeFormat)));
+        }
+
+        function retryQueueTask(taskId) {
+            fetch(`/api/queue/retry/${taskId}`, { method: 'POST' })
+                .then(async res => { const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`); loadQueue(); showToast(t('Повторная загрузка запущена')); })
+                .catch(err => showErrorToast(t('Ошибка повтора') + ': ' + err.message, () => retryQueueTask(taskId)));
+        }
+
+        function removeQueueTask(taskId) {
+            // Удаление доступно и для активной задачи, но обещать прерывание
+            // нельзя: отмена читается только из хуков прогресса, поэтому в
+            // неотменяемом участке (склейка) поток догрузит видео до конца.
+            const task = lastQueueTasks.find(t => t.id === taskId);
+            if (task && task.status === 'downloading'
+                // Фраза целиком одним ключом: по частям перевод сложить нельзя,
+                // в других языках порядок слов свой.
+                && !confirm(t('Задача ещё загружается. Убрать её из очереди?')
+                    + '\n\n'
+                    + t('Обычная загрузка прервётся. Если она зависла на склейке, файл может докачаться в фоне.'))) return;
+            // Раньше ответ не проверялся, и ошибка сервера показывалась
+            // пользователю как «Задача удалена».
+            fetch(`/api/queue/remove/${taskId}`, { method: 'DELETE' })
+                .then(async res => {
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                    loadQueue();
+                    showToast(data.cancelled_active ? t('Загрузка отменена и задача удалена') : t('Задача удалена'));
+                })
+                .catch(err => showErrorToast(t('Ошибка удаления') + ': ' + err.message, () => removeQueueTask(taskId)));
+        }
+
+        function cancelQueueTask(taskId) {
+            // Спрашиваем всегда: статус в кэше отстаёт минимум на один опрос, и
+            // задача, подписанная «Ожидание», могла уже начать качать. Раньше в
+            // этом случае предупреждение не показывалось, а скачанное удалялось.
+            if (!confirm(t('Отменить загрузку? Уже скачанная часть видео будет удалена.'))) return;
+            fetch(`/api/queue/cancel/${taskId}`, { method: 'POST' })
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                    loadQueue();
+                    showToast(data.was_downloading ? t('Загрузка прерывается...') : t('Задача отменена'));
+                })
+                .catch(err => showErrorToast(t('Не удалось отменить') + ': ' + err.message, () => cancelQueueTask(taskId)));
+        }
+
+        function setQueuePriority(taskId, priority) {
+            fetch(`/api/queue/priority/${taskId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ priority: priority })
+            })
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                    loadQueue();
+                    showToast(t('Приоритет обновлён'));
+                })
+                .catch(err => showErrorToast(t('Не удалось изменить приоритет') + ': ' + err.message));
+        }
+
+        // Раньше pause/resume/clear не смотрели на код ответа: fetch отклоняется
+        // только на сетевой ошибке, поэтому 500 показывался как «Очередь
+        // возобновлена», хотя сервер ничего не сделал.
+        function queueAction(url, okMessage, retry) {
+            return fetch(url, { method: 'POST' })
+                .then(async res => {
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+                    loadQueue();
+                    showToast(okMessage);
+                })
+                .catch(err => showErrorToast(t('Ошибка') + ': ' + err.message, retry));
+        }
+
+        function pauseQueue() {
+            queueAction('/api/queue/pause', t('Пауза: текущая загрузка завершится, следующие не начнутся'), pauseQueue);
+        }
+
+        function resumeQueue() {
+            queueAction('/api/queue/resume', t('Очередь возобновлена'), resumeQueue);
+        }
+
+        function clearQueue() {
+            if (!confirm(t('Удалить завершённые, отменённые задачи и задачи с ошибками? Активные и ожидающие останутся.'))) return;
+            queueAction('/api/queue/clear', t('Завершённые задачи удалены'), clearQueue);
+        }
+
+        document.getElementById('queueFilter')?.addEventListener('change', () => renderQueue(lastQueueTasks, lastQueuePaused));
+
+        function retryFailedQueueTasks() {
+            // Частично скачанные задачи тоже надо повторять: раньше сюда
+            // попадали только error, и дозагрузить пропущенное было нечем.
+            const failed = lastQueueTasks.filter(task => ['error', 'partial'].includes(task.status));
+            if (!failed.length) return showToast(t('Задач с ошибками нет'));
+            // Результаты проверяем: задача, уже подхваченная воркером, вернёт 409,
+            // а удалённая — 404, и раньше всё это выдавалось за успешный повтор.
+            Promise.all(failed.map(task => fetch(`/api/queue/retry/${task.id}`, { method: 'POST' })
+                .then(res => res.ok).catch(() => false)))
+                .then(results => {
+                    loadQueue();
+                    const ok = results.filter(Boolean).length;
+                    if (!ok) showErrorToast(t('Ни одну задачу повторить не удалось'), retryFailedQueueTasks);
+                    else if (ok < results.length) showToast(t('Повтор запущен: {ok} из {total}').replace('{ok}', ok).replace('{total}', results.length));
+                    else showToast(t('Повтор запущен: {ok}').replace('{ok}', ok));
+                })
+                .catch(err => showErrorToast(t('Не удалось повторить задачи') + ': ' + err.message, retryFailedQueueTasks));
+        }
+
+        function startQueuePolling() {
+            if (queuePollInterval) clearInterval(queuePollInterval);
+            queuePollInterval = setInterval(() => {
+                // Опрос только когда очередь на экране: раньше запрос уходил
+                // каждые 3 секунды всегда и перерисовывал скрытый список.
+                if (currentNav !== 'queue') return;
+                if (document.hidden) return;
+                loadQueue();
+            }, 3000);
+        }
+
+        startQueuePolling();
+
+        function markFavoriteButtons() {
+            const favSet = new Set(favorites);
+            document.querySelectorAll('.fav-btn').forEach(btn => {
+                const card = btn.closest('.video-card');
+                if (!card) return;
+                btn.classList.toggle('fav-active', favSet.has(card.getAttribute('data-id')));
+            });
+        }
+
+        // ========== НИЖНЯЯ НАВИГАЦИЯ ==========
+        // Разделы главной переключаются на месте, без перезагрузки, поэтому
+        // ссылки панели перехватываем. Атрибут href остаётся настоящим: с
+        // других страниц панель ведёт на /?nav=..., и с отключённым JS ссылка
+        // тоже работает.
+        document.querySelectorAll('.lt-nav-item[data-nav-target]').forEach(item => {
+            item.addEventListener('click', (event) => {
+                event.preventDefault();
+                filterNav(item.getAttribute('data-nav-target'));
+                // Раздел выбран — прокрутка должна начинаться сверху, иначе
+                // после длинного каталога открывается середина списка.
+                window.scrollTo({ top: 0 });
+            });
+        });
+
+        // Переход с другой страницы: /?nav=queue должен открыть очередь сразу.
+        const requestedNav = new URLSearchParams(window.location.search).get('nav');
+
+        // Данные приходят с сервера асинхронно, поэтому интерфейс, зависящий от
+        // них, обновляется после загрузки. Запрос уже начат выше.
+        // Данные уже пришли вместе со страницей, поэтому применяем их сразу.
+        markFavoriteButtons();
+        updateHiddenChannelsList();
+        // filterNav сам вызывает applyFilters, поэтому при переходе по ?nav=
+        // второй вызов не нужен.
+        if (requestedNav) filterNav(requestedNav);
+        else applyFilters();
+
+        // Синхронизация с сервером на случай, если данные изменились в другой
+        // вкладке или произошла разовая миграция из localStorage.
+        userDataReady.then(() => {
+            markFavoriteButtons();
+            updateHiddenChannelsList();
+            applyFilters();
+        }).catch(err => {
+            console.error('Ошибка применения пользовательских данных:', err);
+        });
+
+        initMiniPlayer();
+
+        async function preloadAllThumbnails() {
+            const cards = document.querySelectorAll('.video-card, .short-card');
+            cards.forEach(async card => {
+                const videoId = card.getAttribute('data-id');
+                if (!videoId) return;
+                const thumbImg = card.querySelector('.video-thumb img, .short-thumb img');
+                if (!thumbImg) return;
+                const currentSrc = thumbImg.src;
+                if (currentSrc && currentSrc !== '' && currentSrc !== 'about:blank' && !currentSrc.includes('/api/thumbnail/')) return;
+                try {
+                    const res = await fetch(`/api/thumbnail/${videoId}`);
+                    if (res.ok) {
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        thumbImg.src = url;
+                        thumbImg.onload = () => URL.revokeObjectURL(url);
+                    }
+                } catch(e) { console.error('Ошибка предзагрузки:', e); }
+            });
+        }
+        document.addEventListener('DOMContentLoaded', preloadAllThumbnails);
+
+        // Enter в поле ссылки запускает загрузку: тянуться к кнопке после
+        // вставки ссылки неудобно.
+        document.getElementById('urlInput')?.addEventListener('keydown', event => {
+            if (event.key === 'Enter') { event.preventDefault(); startDownload(); }
+        });
+
+        // ===== Гость из локальной сети =====
+        // Своё устройство можно повысить до владельца PIN-кодом из настроек
+        // на самом компьютере.
+        document.getElementById('guestUnlockBtn')?.addEventListener('click', async () => {
+            const pin = prompt(t('PIN из настроек LocalTube на компьютере владельца:'));
+            if (!pin) return;
+            try {
+                const res = await fetch('/api/network/unlock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin: pin.trim() }),
+                });
+                if (!res.ok) {
+                    // Сервер ограничивает число попыток, и при исчерпании
+                    // отвечает 429. Показывать при этом «Неверный PIN» было бы
+                    // ложью: PIN мог быть верным, просто окно закрыто, и
+                    // пользователь не понимал, почему вход не проходит.
+                    let message = t('Неверный PIN');
+                    try {
+                        const data = await res.json();
+                        if (data.error) message = data.error;
+                        else if (typeof data.attempts_left === 'number') {
+                            message = t('Неверный PIN. Осталось попыток: {left}').replace('{left}', data.attempts_left);
+                        }
+                    } catch (parseError) {
+                        // Тело не JSON — остаётся общее сообщение.
+                    }
+                    showToast(message);
+                    return;
+                }
+                showToast(t('Готово, открываю полный доступ'));
+                location.reload();
+            } catch (err) {
+                console.error('Не удалось войти по PIN:', err);
+                showToast(t('Не удалось связаться с сервером'));
+            }
+        });
+
+        // Поиск по библиотеке для гостя: поле ссылки ему заменено на поиск.
+        // Значение читает сам applyFilters, здесь только повод перерисовать.
+        document.getElementById('searchInput')?.addEventListener('input', () => applyFilters());
+    </script>
+</body>
+</html>

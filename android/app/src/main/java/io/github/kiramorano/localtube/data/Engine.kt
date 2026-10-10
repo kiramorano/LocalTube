@@ -254,7 +254,7 @@ object Engine {
      */
     internal fun fallbackWatchUrl(id: String, listingUrl: String): String {
         val profile = listingUrl.trim().trimEnd('/').substringBefore('?')
-        if (UrlKind.isTikTokProfile(profile)) return "$profile/video/$id"
+        if (UrlKind.isProfile(profile)) return "$profile/video/$id"
         if (UrlKind.isTikTok(profile)) return profile
         return "https://www.youtube.com/watch?v=$id"
     }

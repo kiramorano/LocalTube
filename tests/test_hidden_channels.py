@@ -35,7 +35,7 @@ def library(app_module, tmp_path, monkeypatch):
         meta = {"id": vid, "title": f"Видео {vid}", "duration": 30,
                 "upload_date": "20260101"}
         if is_short:
-            meta.update({"width": 720, "height": 1280, "duration": 20})
+            meta.update({"is_short": True, "width": 720, "height": 1280, "duration": 20})
         else:
             meta.update({"width": 1920, "height": 1080})
         with open(vdir / "info.json", "w", encoding="utf-8") as f:

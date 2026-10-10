@@ -3,6 +3,7 @@ package io.github.kiramorano.localtube.ui.theme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -116,12 +117,16 @@ fun LocalTubeTheme(
         cornerRadius = if (theme == AppTheme.AERO) 20.dp else 16.dp
     )
 
+    // LocalContentColor задаёт цвет Text без явного color= : в Material 3
+    // значение по умолчанию чёрное, и без него заголовки в Box (а не Surface)
+    // оказались чёрными на чёмном фоне. Подбираем цвет основного текста темы.
     CompositionLocalProvider(
         LocalIsAero provides (theme == AppTheme.AERO),
         LocalIsGlassy provides (theme == AppTheme.AERO || theme == AppTheme.GLASS),
         LocalIsTv provides isTv,
         LocalLtColors provides lt,
-        LocalLtSizes provides sizes
+        LocalLtSizes provides sizes,
+        LocalContentColor provides lt.textPrimary
     ) {
         // Раньше передавались только цвета, поэтому больше восьмидесяти
         // обращений к MaterialTheme.typography.* отдавали дефолты Material,

@@ -71,6 +71,25 @@ enum class TaskPriority(val order: Int, val label: String) {
     LOW(2, "Низкий")
 }
 
+/**
+ * Вид задачи в очереди. Видео скачивается через yt-dlp с форматом и субтитрами;
+ * оформление канала — аватаркой и шапкой через отдельный путь без процентов.
+ */
+enum class TaskKind {
+    VIDEO {
+        override val supportsPriority: Boolean = true
+    },
+    CHANNEL_ASSETS {
+        override val supportsPriority: Boolean = false
+    };
+
+    /**
+     * У оформления свой исполнитель и не участвует в общем порядке воркера:
+     * приоритетный чип обещал бы настройку, которая ничего не меняет.
+     */
+    abstract val supportsPriority: Boolean
+}
+
 data class DownloadTask(
     val id: String,
     val title: String,
@@ -86,24 +105,50 @@ data class DownloadTask(
     val speed: String = "",
     val attempts: Int = 0,
     /** Контейнер для склейки видео и звука: mp4, mkv или webm. */
-    val mergeFormat: String = Engine.DEFAULT_MERGE_FORMAT
+    val mergeFormat: String = Engine.DEFAULT_MERGE_FORMAT,
+    /**
+     * Вид задачи. По умолчанию VIDEO: очередь, записанная до появления
+     * оформления, не содержит поля kind, и старые задачи не должны уйти
+     * в неправильный исполнитель.
+     */
+    val kind: TaskKind = TaskKind.VIDEO,
+    /** Автор канала для задач оформления: нужен для дедупликации. */
+    val author: String = ""
 ) {
     val isFinished: Boolean
         get() = status == TaskStatus.COMPLETED ||
                 status == TaskStatus.ERROR ||
                 status == TaskStatus.CANCELED
 
+    val supportsPriority: Boolean
+        get() = kind.supportsPriority
+
     val statusText: String
-        get() = when (status) {
-            TaskStatus.WAITING -> "В очереди"
-            TaskStatus.DOWNLOADING -> buildString {
-                append("Скачивание ${progress.toInt()}%")
-                if (speed.isNotBlank()) append(" · $speed")
-                if (etaSeconds > 0) append(" · осталось ${formatEta(etaSeconds)}")
+        get() = when (kind) {
+            TaskKind.CHANNEL_ASSETS -> when (status) {
+                // Прогресс шаговый: запрос → аватарка → шапка. Проценты бы
+                // выглядели как зависшая задача на запросе метаданных.
+                TaskStatus.WAITING -> "В очереди"
+                TaskStatus.DOWNLOADING -> when {
+                    progress < 1 -> "Запрос данных канала"
+                    progress < 50 -> "Аватарка"
+                    else -> "Шапка канала"
+                }
+                TaskStatus.COMPLETED -> "Готово"
+                TaskStatus.ERROR -> "Ошибка: ${error ?: ""}"
+                TaskStatus.CANCELED -> "Отменено"
             }
-            TaskStatus.COMPLETED -> "Готово"
-            TaskStatus.ERROR -> "Ошибка: ${error ?: ""}"
-            TaskStatus.CANCELED -> "Отменено"
+            TaskKind.VIDEO -> when (status) {
+                TaskStatus.WAITING -> "В очереди"
+                TaskStatus.DOWNLOADING -> buildString {
+                    append("Скачивание ${progress.toInt()}%")
+                    if (speed.isNotBlank()) append(" · $speed")
+                    if (etaSeconds > 0) append(" · осталось ${formatEta(etaSeconds)}")
+                }
+                TaskStatus.COMPLETED -> "Готово"
+                TaskStatus.ERROR -> "Ошибка: ${error ?: ""}"
+                TaskStatus.CANCELED -> "Отменено"
+            }
         }
 }
 

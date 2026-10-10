@@ -4,63 +4,170 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{ 'Настройки — LocalTube'|t }}</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/fonts.css">
+    
     <style>
-        :root[data-theme="dark"] { --bg:#0f0f0f; --text:#f1f1f1; --muted:#aaa; --border:#3f3f3f; --card:#1e1e1e; --button:#272727; }
-        :root[data-theme="light"] { --bg:#fff; --text:#0f0f0f; --muted:#606060; --border:#ddd; --card:#f8f8f8; --button:#eee; }
-        #bg-layer-1, #bg-layer-2 { position:fixed; top:0; left:0; width:100%; height:100%; background-size:cover; background-position:center center; background-repeat:no-repeat; transition:opacity 1.5s ease-in-out; pointer-events:none; z-index:-3; }
-        #bg-layer-2 { z-index:-2; }
-        :root[data-theme="frutiger-aero"] { --bg:transparent; --text:#fff; --muted:#e3f2fd; --border:rgba(255,255,255,.35); --card:rgba(255,255,255,.18); --button:rgba(255,255,255,.22); }
-        :root[data-theme="frutiger-aero"] body { background-color:#b3d9f0; }
-        :root[data-theme="frutiger-aero"] section { backdrop-filter:blur(16px) saturate(180%); -webkit-backdrop-filter:blur(16px) saturate(180%); box-shadow:0 8px 32px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.3); }
-        :root[data-theme="frutiger-aero"] input, :root[data-theme="frutiger-aero"] select, :root[data-theme="frutiger-aero"] textarea { background:rgba(255,255,255,.25); }
-        :root[data-theme="frutiger-aero"] option { color:#0f0f0f; }
-        * { box-sizing:border-box; } body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); } header { height:56px; display:flex; align-items:center; padding:0 20px; border-bottom:1px solid var(--border); } a { color:inherit; text-decoration:none; } main { width:min(760px, calc(100% - 32px)); margin:32px auto; } h1 { margin:0 0 24px; font-size:28px; } section { padding:20px; margin-bottom:16px; background:var(--card); border:1px solid var(--border); border-radius:12px; } h2 { margin:0 0 16px; font-size:18px; } label { display:block; margin:14px 0 6px; font-size:14px; } input, select, textarea, button { font:inherit; } input, select, textarea { width:100%; padding:10px 12px; color:var(--text); background:var(--bg); border:1px solid var(--border); border-radius:8px; } textarea { resize:vertical; } .row { display:flex; gap:10px; flex-wrap:wrap; } .row > * { flex:1; min-width:160px; } button { padding:10px 14px; color:var(--text); background:var(--button); border:1px solid var(--border); border-radius:20px; cursor:pointer; } button.primary { color:#000; background:#3ea6ff; border-color:#3ea6ff; } #status { color:var(--muted); font-size:14px; min-height:20px; }
-        /* Вкладки разделов. overflow-x на узком экране: три кнопки иначе
-           растягивали страницу и появлялась горизонтальная прокрутка. */
-        .tabs { display:flex; gap:8px; margin:0 0 20px; overflow-x:auto; }
-        .tab-btn { flex:0 0 auto; white-space:nowrap; }
-        .tab-btn.active { color:#000; background:#3ea6ff; border-color:#3ea6ff; }
-        .panel[hidden] { display:none; }
-        .hint { margin:6px 0 0; color:var(--muted); font-size:12px; word-break:break-all; }
-        code { padding:1px 5px; background:var(--button); border-radius:4px; font-size:13px; }
-        #storageStatus, #filesStatus { color:var(--muted); font-size:14px; min-height:20px; margin:12px 0 0; }
-        /* Раздел «Сеть»: адрес, кнопка копирования и найденные серверы. */
-        .net-toggle { display:flex; align-items:center; gap:10px; margin:14px 0 0; }
-        .net-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--border); }
-        .net-row:first-child { border-top:0; }
-        .net-url { flex:1; min-width:0; font-family:monospace; font-size:14px; word-break:break-all; }
-        .net-row button { flex:0 0 auto; padding:6px 12px; font-size:13px; }
-        /* Кнопки и поля на телефоне: 44px — минимальная площадь под палец. */
-        @media (max-width:600px) {
-            .tab-btn { min-height:44px; }
-            button, input[type="text"], input[type="password"], select { min-height:44px; }
-            .net-row button { min-height:40px; }
+        /* БАЗОВЫЕ ПЕРЕМЕННЫЕ (нужны для правильной работы тем) */
+        :root[data-theme="dark"] { --bg: #0f0f0f; --text: #f1f1f1; --muted: #aaaaaa; --border: #303030; --card: #1e1e1e; --button: #272727; }
+        :root[data-theme="light"] { --bg: #ffffff; --text: #0f0f0f; --muted: #606060; --border: #cccccc; --card: #f8f8f8; --button: #eee; }
+        
+        /* Специфичные фиксы для Frutiger Aero (возвращаем их на место) */
+        :root[data-theme="frutiger-aero"] { --bg: transparent; --text: #fff; --muted: #e3f2fd; --border: rgba(255,255,255,.35); --card: rgba(255,255,255,.18); --button: rgba(255,255,255,.22); }
+        :root[data-theme="frutiger-aero"] body { background-color: #b3d9f0; }
+        :root[data-theme="frutiger-aero"] section { backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); box-shadow: 0 8px 32px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.3); }
+        :root[data-theme="frutiger-aero"] input, :root[data-theme="frutiger-aero"] select, :root[data-theme="frutiger-aero"] textarea { background: rgba(255,255,255,.25); }
+        :root[data-theme="frutiger-aero"] option { color: #0f0f0f; }
+
+        /* YOUTUBE ПЕРЕМЕННЫЕ (связываем их с базовыми) */
+        :root {
+            --yt-bg: var(--bg);
+            --yt-bg-solid: var(--bg);
+            --yt-spec-text-primary: var(--text);
+            --yt-spec-text-secondary: var(--muted);
+            --yt-spec-border: var(--border);
+            --yt-spec-icon-inactive: var(--text); /* ИСПРАВЛЕНИЕ: вернули цвет иконкам шапки */
+            --yt-button-bg: var(--button);
+            --yt-button-hover: var(--border);
+            --yt-search-bg: var(--card);
+            --yt-modal-bg: var(--card);
+            --yt-header-height: 56px;
+            --yt-sidebar-width: 240px;
         }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: var(--yt-bg); color: var(--yt-spec-text-primary); min-height: 100vh; overflow-x: hidden; position: relative; transition: background-color 0.5s ease, color 0.5s ease; font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+        
+        /* Фоны и слои с жестким pointer-events: none, чтобы ничего не блокировало клики */
+        #bg-layer-1, #bg-layer-2 { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center center; background-repeat: no-repeat; transition: opacity 1.5s ease-in-out; pointer-events: none !important; z-index: -3; }
+        #bg-layer-2 { z-index: -2; }
+        body::after { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: rgba(0, 0, 0, 0.05); pointer-events: none !important; }
+
+        /* HEADER */
+        header { position: fixed; top: 0; left: 0; right: 0; height: var(--yt-header-height); background-color: var(--yt-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 100; border-bottom: 1px solid var(--yt-spec-border); }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .menu-icon { width: 24px; height: 24px; fill: var(--yt-spec-icon-inactive); cursor: pointer; border-radius: 50%; padding: 0; }
+        .logo { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 600; text-decoration: none; color: var(--yt-spec-text-primary); letter-spacing: -0.5px; }
+        .logo svg { width: 30px; height: 20px; fill: #FF0000; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .user-profile-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 12px; border-radius: 20px; text-decoration: none; color: var(--yt-spec-text-primary); transition: background 0.2s; }
+        .user-profile-btn:hover { background-color: var(--yt-button-hover); }
+        .user-name-display { font-weight: 500; font-size: 14px; display: none; }
+        .user-avatar-placeholder { width: 32px; height: 32px; border-radius: 50%; background-color: #00897b; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; overflow: hidden; border: 1px solid var(--yt-spec-border); }
+        .user-avatar-placeholder img { width: 100%; height: 100%; object-fit: cover; }
+        @media (min-width: 768px) { .user-name-display { display: block; } }
+
+        /* SIDEBAR */
+        .sidebar-drawer { position: fixed; top: var(--yt-header-height); left: -240px; width: 240px; height: calc(100vh - var(--yt-header-height)); background: var(--yt-bg); z-index: 200; transition: left 0.3s ease; padding: 12px 0; overflow-y: auto; border-right: 1px solid var(--yt-spec-border); }
+        .sidebar-drawer.active { left: 0; }
+        .sidebar-overlay { position: fixed; top: var(--yt-header-height); left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .sidebar-overlay.active { opacity: 1; pointer-events: all; }
+        @media (min-width: 1000px) { .sidebar-drawer { left: 0; } .sidebar-overlay.active { opacity: 0; pointer-events: none; } }
+        .sidebar-item { display: flex; align-items: center; gap: 16px; padding: 10px 12px; margin: 0 12px 4px 12px; border-radius: 10px; cursor: pointer; color: var(--yt-spec-text-primary); font-size: 14px; text-decoration: none; transition: background 0.2s; }
+        .sidebar-item:hover { background-color: var(--yt-button-hover); }
+        .sidebar-item.active { background-color: var(--yt-button-hover); font-weight: 500; }
+        .sidebar-item svg { width: 24px; height: 24px; fill: currentColor; }
+        .sidebar-divider { height: 1px; background-color: var(--yt-spec-border); margin: 12px 0; }
+        .sidebar-title { padding: 8px 24px; font-size: 16px; font-weight: 600; margin-top: 8px; color: var(--yt-spec-text-primary); }
+
+        /* SETTINGS CONTENT */
+        #mainContent { margin-left: var(--yt-sidebar-width); padding: calc(var(--yt-header-height) + 32px) 32px 100px; max-width: 900px; z-index: 10; position: relative; }
+        @media (max-width: 999px) { #mainContent { margin-left: 0 !important; padding-inline: 16px; padding-bottom: 100px; } }
+        
+        h1 { font-size: 28px; font-weight: 700; margin: 0 0 24px 0; color: var(--yt-spec-text-primary); }
+        h2 { font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: var(--yt-spec-text-primary); }
+        
+        .tabs { display: flex; gap: 12px; margin-bottom: 24px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
+        .tabs::-webkit-scrollbar { display: none; }
+        
+        /* КНОПКИ (жестко перебиваем ui.css через !important) */
+        .tab-btn { background-color: var(--yt-button-bg) !important; border: 1px solid var(--yt-spec-border) !important; padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--yt-spec-text-primary) !important; white-space: nowrap; transition: background 0.2s; font-family: inherit; }
+        .tab-btn:hover { background-color: var(--yt-button-hover) !important; }
+        .tab-btn.active { background-color: var(--yt-spec-text-primary) !important; color: var(--yt-bg-solid, #0f0f0f) !important; border-color: var(--yt-spec-text-primary) !important; }
+        
+        button { padding: 10px 18px; background: var(--yt-button-bg) !important; color: var(--yt-spec-text-primary) !important; border: 1px solid var(--yt-spec-border) !important; border-radius: 18px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s; font-family: inherit; }
+        button:hover { background: var(--yt-button-hover) !important; }
+        button.primary { background: #FF0000 !important; color: #fff !important; font-weight: 600 !important; border: 1px solid #FF0000 !important; }
+        button.primary:hover { background: #cc0000 !important; border-color: #cc0000 !important; }
+
+        .panel[hidden] { display: none !important; }
+        section { background: var(--yt-button-bg); border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid var(--yt-spec-border); }
+        
+        label { display: block; margin: 16px 0 8px; font-size: 14px; font-weight: 500; color: var(--yt-spec-text-primary); }
+        input[type="text"], input[type="password"], select, textarea { width: 100%; padding: 12px 16px; background: var(--yt-search-bg); border: 1px solid var(--yt-spec-border); color: var(--yt-spec-text-primary); border-radius: 8px; font-size: 14px; outline: none; transition: border-color 0.2s; font-family: inherit; }
+        input[type="text"]:focus, select:focus, textarea:focus { border-color: var(--yt-spec-text-secondary); }
+        textarea { resize: vertical; min-height: 80px; }
+        select[multiple] { padding: 8px; }
+        
+        .row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+        .row > * { flex: 1; min-width: 160px; }
+        
+        .hint { margin: 6px 0 0; color: var(--yt-spec-text-secondary); font-size: 13px; line-height: 1.4; word-break: break-word; }
+        code { background: var(--yt-search-bg); padding: 2px 6px; border-radius: 4px; font-family: monospace; border: 1px solid var(--yt-spec-border); font-size: 13px; }
+        
+        #status, #storageStatus, #filesStatus, #downloadPrefsStatus, #langStatus, #netStatus, #netScanStatus { color: var(--yt-spec-text-secondary); font-size: 14px; min-height: 20px; margin-top: 12px; }
+        
+        .net-toggle { display: flex; align-items: center; justify-content: flex-start; gap: 12px; margin: 16px 0 8px; }
+        .net-toggle label { margin: 0; cursor: pointer; }
+        .net-toggle input[type="checkbox"] { width: 20px; height: 20px; accent-color: #FF0000; cursor: pointer; }
+        
+        .net-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--yt-spec-border); }
+        .net-row:first-child { border-top: none; }
+        .net-url { flex: 1; min-width: 0; font-family: monospace; font-size: 14px; word-break: break-all; color: var(--yt-spec-text-primary); }
+        .net-row button { flex: 0 0 auto; padding: 8px 16px; border-radius: 16px; }
+        
+        /* ИСПРАВЛЕНИЕ: Жестко скрываем QR-код, если у него есть атрибут hidden */
+        #netQrBox { margin-top: 16px; background: var(--yt-search-bg); padding: 16px; border-radius: 12px; display: inline-block; border: 1px solid var(--yt-spec-border); }
+        #netQrBox[hidden] { display: none !important; }
+        #netQrBox img { display: block; background: #fff; padding: 8px; border-radius: 8px; }
     </style>
-    <!-- Файл темы после инлайновых стилей: иначе токены шаблона перебивают
-         midnight/glass/aero. -->
+
     <link id="theme-style" rel="stylesheet">
-    <!-- ui.css и mobile.css после инлайновых стилей: правила имеют равную
-         специфичность, поэтому побеждает тот, кто идёт последним. -->
     <link rel="stylesheet" href="/static/css/ui.css">
     <link rel="stylesheet" href="/static/css/mobile.css">
-    <!-- Синхронно, после ссылки на файл темы и до разметки. -->
-    <!-- Перевод строк, которые собирает клиентский код. До theme.js:
-         t() должна быть готова к первому вызову. -->
-    {# Словарь идёт вместе со страницей: отдельный запрос приходил позже
-       первой отрисовки, и подписи из скриптов оставались русскими. #}
+
     {% if ui_strings %}<script>
         window.LT_I18N = {{ ui_strings|tojson }};
     </script>{% endif %}
     <script src="/static/js/i18n.js"></script>
     <script src="/static/js/theme.js"></script>
+    <script src="/static/js/mobile.js" defer></script>
 </head>
 <body>
     <div id="bg-layer-1" style="background-image:none; opacity:0;"></div>
     <div id="bg-layer-2" style="background-image:none; opacity:0;"></div>
-    <header><a href="/">LocalTube</a></header>
-    <main>
+    
+    <header>
+        <div class="header-left">
+            <svg class="menu-icon" id="sidebarToggle" viewBox="0 0 24 24"><path d="M21,6H3V5h18V6z M21,11H3v1h18V11z M21,17H3v1h18V17z"></path></svg>
+            <a href="/" class="logo"><svg viewBox="0 0 24 24"><path d="M21.58,7.19C21.35,6.31,20.69,5.65,19.81,5.42C18.25,5,12,5,12,5s-6.25,0-7.81,0.42c-0.88,0.23-1.54,0.89-1.77,1.77 C2,8.75,2,12,2,12s0,3.25,0.42,4.81c0.23,0.88,0.89,1.54,1.77,1.77C5.75,19,12,19,12,19s6.25,0,7.81-0.42 c0.88-0.23,1.54-0.89,1.77-1.77C22,15.25,22,12,22,12S22,8.75,21.58,7.19z M10,15V9l5.2,3L10,15z"/></svg>LocalTube</a>
+        </div>
+        <div class="header-right">
+            <a class="user-profile-btn" href="/settings">
+                <span class="user-name-display" id="headerUsername">{{ 'Гость'|t }}</span>
+                <div class="user-avatar-placeholder" id="headerAvatar">{{ ('Гость'|t)[:1] }}</div>
+            </a>
+        </div>
+    </header>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar-drawer" id="sidebarDrawer">
+        <a href="/" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M4,10V21h6V15h4v6h6V10L12,3Z"></path></svg><span>{{ 'Главная'|t }}</span></a>
+        <a href="/?nav=shorts" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M17.77,10.32l-1.2-.5L18,9.06a3.74,3.74,0 0 0-3.5-6.62L6,6.94a3.74,3.74,0 0 0,.23,6.74l1.2.49L6,14.93a3.75,3.75,0 0 0,3.5,6.63l8.5-4.5a3.74,3.74,0 0 0-.23-6.74Z"/></svg><span>Shorts</span></a>
+        <a href="/?nav=favorites" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg><span>{{ 'Избранное'|t }}</span></a>
+        <a href="/?nav=history" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.14-8-8s3.58-8 8-8 8 3.14 8 8-3.14 8-8 8zm.5-13H11v6h3V7h-2V4z"/></svg><span>{{ 'История'|t }}</span></a>
+        {% if is_owner|default(true) %}
+        <a href="/?nav=queue" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 6h8v2h-8V6zm0 4h8v2h-8v-2zm0 4h6v2h-6v-2z"/></svg><span>{{ 'Очередь'|t }}</span></a>
+        <a href="/upload" class="sidebar-item"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg><span>{{ 'Загрузить свой файл'|t }}</span></a>
+        <div class="sidebar-divider"></div>
+        <a href="/settings" class="sidebar-item active"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49-.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg><span>{{ 'Настройки'|t }}</span></a>
+        {% endif %}
+    </aside>
+
+    <main id="mainContent">
         <h1>{{ 'Настройки'|t }}</h1>
         <nav class="tabs" role="tablist" aria-label="{{ 'Разделы настроек'|t }}">
             <button type="button" class="tab-btn active" data-tab="profile" role="tab" aria-selected="true" aria-controls="panel-profile">{{ 'Профиль'|t }}</button>
@@ -71,172 +178,185 @@
         </nav>
 
         <div id="panel-profile" class="panel" role="tabpanel" aria-labelledby="tab-profile">
-        <section>
-            <h2>{{ 'Профиль и оформление'|t }}</h2>
-            <label for="username">{{ 'Отображаемое имя'|t }}</label><input id="username" type="text" placeholder="{{ 'Гость'|t }}">
-            <label for="avatar">{{ 'Ссылка на аватар'|t }}</label><input id="avatar" type="text" placeholder="{{ 'URL или data:image/...'|t }}">
-            <label for="theme">{{ 'Тема'|t }}</label>
-            <select id="theme"><option value="dark">{{ 'Тёмная'|t }}</option><option value="light">{{ 'Светлая'|t }}</option><option value="midnight">{{ 'Midnight — премиальная тёмная'|t }}</option><option value="glass">{{ 'Glass — стеклянная'|t }}</option><option value="frutiger-aero">Frutiger Aero</option></select>
-        </section>
-        <section>
-            <h2>{{ 'Мои данные'|t }}</h2>
-            <p id="userdataSummary" style="margin:0 0 12px; color:var(--muted); font-size:14px;">{{ 'Загрузка...'|t }}</p>
-            <div class="row">
-                <button type="button" id="clearHistory">{{ 'Очистить историю'|t }}</button>
-                <button type="button" id="clearFavorites">{{ 'Очистить избранное'|t }}</button>
-                <button type="button" id="clearHidden">{{ 'Показать все каналы'|t }}</button>
-            </div>
-            <p style="margin:12px 0 0; color:var(--muted); font-size:13px;">{{ 'Избранное, история и скрытые каналы хранятся на сервере и доступны со всех устройств.'|t }}</p>
-        </section>
+            <section>
+                <h2>{{ 'Профиль и оформление'|t }}</h2>
+                <label for="username">{{ 'Отображаемое имя'|t }}</label><input id="username" type="text" placeholder="{{ 'Гость'|t }}">
+                <label for="avatar">{{ 'Ссылка на аватар'|t }}</label><input id="avatar" type="text" placeholder="{{ 'URL или data:image/...'|t }}">
+                <label for="theme">{{ 'Тема'|t }}</label>
+                <select id="theme"><option value="dark">{{ 'Тёмная'|t }}</option><option value="light">{{ 'Светлая'|t }}</option><option value="midnight">{{ 'Midnight — премиальная тёмная'|t }}</option><option value="glass">{{ 'Glass — стеклянная'|t }}</option><option value="frutiger-aero">Frutiger Aero</option></select>
+            </section>
+            <section>
+                <h2>{{ 'Мои данные'|t }}</h2>
+                <p id="userdataSummary" style="margin:0 0 12px; color:var(--yt-spec-text-secondary); font-size:14px;">{{ 'Загрузка...'|t }}</p>
+                <div class="row">
+                    <button type="button" id="clearHistory">{{ 'Очистить историю'|t }}</button>
+                    <button type="button" id="clearFavorites">{{ 'Очистить избранное'|t }}</button>
+                    <button type="button" id="clearHidden">{{ 'Показать все каналы'|t }}</button>
+                </div>
+                <p style="margin:16px 0 0; color:var(--yt-spec-text-secondary); font-size:13px;">{{ 'Избранное, история и скрытые каналы хранятся на сервере и доступны со всех устройств.'|t }}</p>
+            </section>
         </div>
 
         <div id="panel-storage" class="panel" role="tabpanel" aria-labelledby="tab-storage" hidden>
-        <section>
-            <h2>{{ 'Папки хранения'|t }}</h2>
-            {# Пример пути отделён в свою строку: иначе фраза разрезается тегом
-               <code> на три куска, и переводить пришлось бы огрызки. #}
-            <p style="margin:0 0 4px; color:var(--muted); font-size:13px;">{{ 'Можно указать путь на другом диске, например'|t }} <code>D:\LocalTube\{{ 'видео'|t }}</code></p>
-            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'Относительный путь считается от папки программы. Уже скачанные файлы остаются на месте: чтобы они снова появились в библиотеке, верните прежний путь или перенесите файлы вручную.'|t }}</p>
-            <label for="video_dir">{{ 'Видео с YouTube'|t }}</label>
-            <input id="video_dir" data-path="video_dir" type="text" placeholder="videos">
-            <p class="hint" id="hint-video_dir"></p>
-            <label for="avatars_dir">{{ 'Аватарки каналов'|t }}</label>
-            <input id="avatars_dir" data-path="avatars_dir" type="text" placeholder="avas">
-            <p class="hint" id="hint-avatars_dir"></p>
-            <label for="banners_dir">{{ 'Шапки каналов'|t }}</label>
-            <input id="banners_dir" data-path="banners_dir" type="text" placeholder="avas\banners">
-            <p class="hint" id="hint-banners_dir"></p>
-            <label for="meta_dir">{{ 'Описания каналов'|t }}</label>
-            <input id="meta_dir" data-path="meta_dir" type="text" placeholder="avas\meta">
-            <p class="hint" id="hint-meta_dir"></p>
-            <label for="playlists_dir">{{ 'Плейлисты'|t }}</label>
-            <input id="playlists_dir" data-path="playlists_dir" type="text" placeholder="playlists">
-            <p class="hint" id="hint-playlists_dir"></p>
-            <label for="subtitles_dir">{{ 'Субтитры'|t }}</label>
-            <input id="subtitles_dir" data-path="subtitles_dir" type="text" placeholder="subtitles">
-            <p class="hint" id="hint-subtitles_dir"></p>
-            <label for="uservideos_dir">{{ 'Свои видео'|t }}</label>
-            <input id="uservideos_dir" data-path="uservideos_dir" type="text" placeholder="uservideos">
-            <p class="hint" id="hint-uservideos_dir"></p>
-            <div class="row" style="margin-top:16px;">
-                <button type="button" class="primary" id="saveStorage">{{ 'Сохранить папки'|t }}</button>
-                <button type="button" id="resetStorage">{{ 'Вернуть по умолчанию'|t }}</button>
-            </div>
-            <p id="storageStatus"></p>
-        </section>
-        <section>
-            <h2>{{ 'Обслуживание файлов'|t }}</h2>
-            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'Догрузка того, что отсутствует на диске. Работает в фоне, интерфейс не блокируется.'|t }}</p>
-            <div class="row">
-                <button type="button" id="downloadAvatars">{{ 'Скачать аватарки каналов'|t }}</button>
-                <button type="button" id="generateThumbs">{{ 'Создать превью'|t }}</button>
-            </div>
-            <p id="filesStatus"></p>
-        </section>
+            <section>
+                <h2>{{ 'Папки хранения'|t }}</h2>
+                <p class="hint" style="margin:0 0 4px;">{{ 'Можно указать путь на другом диске, например'|t }} <code>D:\LocalTube\{{ 'видео'|t }}</code></p>
+                <p class="hint" style="margin:0 0 16px;">{{ 'Относительный путь считается от папки программы. Уже скачанные файлы остаются на месте: чтобы они снова появились в библиотеке, верните прежний путь или перенесите файлы вручную.'|t }}</p>
+                <label for="video_dir">{{ 'Видео с YouTube'|t }}</label>
+                <input id="video_dir" data-path="video_dir" type="text" placeholder="videos">
+                <p class="hint" id="hint-video_dir"></p>
+                <label for="avatars_dir">{{ 'Аватарки каналов'|t }}</label>
+                <input id="avatars_dir" data-path="avatars_dir" type="text" placeholder="avas">
+                <p class="hint" id="hint-avatars_dir"></p>
+                <label for="banners_dir">{{ 'Шапки каналов'|t }}</label>
+                <input id="banners_dir" data-path="banners_dir" type="text" placeholder="avas\banners">
+                <p class="hint" id="hint-banners_dir"></p>
+                <label for="meta_dir">{{ 'Описания каналов'|t }}</label>
+                <input id="meta_dir" data-path="meta_dir" type="text" placeholder="avas\meta">
+                <p class="hint" id="hint-meta_dir"></p>
+                <label for="playlists_dir">{{ 'Плейлисты'|t }}</label>
+                <input id="playlists_dir" data-path="playlists_dir" type="text" placeholder="playlists">
+                <p class="hint" id="hint-playlists_dir"></p>
+                <label for="subtitles_dir">{{ 'Субтитры'|t }}</label>
+                <input id="subtitles_dir" data-path="subtitles_dir" type="text" placeholder="subtitles">
+                <p class="hint" id="hint-subtitles_dir"></p>
+                <label for="uservideos_dir">{{ 'Свои видео'|t }}</label>
+                <input id="uservideos_dir" data-path="uservideos_dir" type="text" placeholder="uservideos">
+                <p class="hint" id="hint-uservideos_dir"></p>
+                <div class="row" style="margin-top:24px;">
+                    <button type="button" class="primary" id="saveStorage">{{ 'Сохранить папки'|t }}</button>
+                    <button type="button" id="resetStorage">{{ 'Вернуть по умолчанию'|t }}</button>
+                </div>
+                <p id="storageStatus"></p>
+            </section>
+            <section>
+                <h2>{{ 'Обслуживание файлов'|t }}</h2>
+                <p class="hint" style="margin:0 0 16px;">{{ 'Догрузка того, что отсутствует на диске. Работает в фоне, интерфейс не блокируется.'|t }}</p>
+                <div class="row">
+                    <button type="button" id="downloadAvatars">{{ 'Скачать аватарки каналов'|t }}</button>
+                    <button type="button" id="generateThumbs">{{ 'Создать превью'|t }}</button>
+                </div>
+                <p id="filesStatus"></p>
+            </section>
         </div>
 
         <div id="panel-download" class="panel" role="tabpanel" aria-labelledby="tab-download" hidden>
-        <section>
-            <h2>{{ 'Загрузка с YouTube'|t }}</h2>
-            <label for="client">{{ 'Клиент YouTube'|t }}</label>
-            <select id="client"><option value="">{{ 'Авто'|t }}</option><option value="tv">TV</option><option value="web">Web</option><option value="web_safari">Web Safari</option><option value="web_embedded">Web Embedded</option><option value="mweb">Mobile Web</option><option value="android">Android</option><option value="android_vr">Android VR</option><option value="ios">iOS</option></select>
-            <label for="po">PO Token</label>
-            <select id="po"><option value="off">{{ 'Выключено'|t }}</option><option value="bgutil:http">bgutil HTTP</option><option value="bgutil:cli">bgutil CLI</option></select>
-            <label for="cookieBrowser">{{ 'Экспорт cookies из браузера'|t }}</label>
-            <select id="cookieBrowser"><option value="">{{ 'Загрузка списка...'|t }}</option></select>
-            <p id="browserHint" style="margin:6px 0 0; color:var(--muted); font-size:13px;">{{ 'Cookies нужны для видео с ограничением по возрасту. Браузер лучше закрыть перед экспортом.'|t }}</p>
-            <div class="row"><button type="button" id="importFromBrowser">{{ 'Экспортировать из браузера'|t }}</button></div>
-            <label for="cookies">{{ 'Или вставьте cookies вручную (Netscape или JSON)'|t }}</label><textarea id="cookies" rows="5" placeholder="# Netscape HTTP Cookie File"></textarea>
-            <div class="row"><button type="button" id="importCookies">{{ 'Импортировать cookies'|t }}</button><button type="button" id="deleteCookies">{{ 'Удалить cookies'|t }}</button></div>
-        </section>
-        <section>
-            <h2>{{ 'Языковые дорожки и субтитры'|t }}</h2>
-            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'Списки языков заполняются с сервера. Порядок выбора не важен: приоритет считается сверху вниз по списку.'|t }}</p>
-            <label for="audioLangs">{{ 'Язык озвучки (можно выбрать несколько)'|t }}</label>
-            <select id="audioLangs" multiple size="6"></select>
-            <p class="hint">{{ 'Ничего не выбрано — скачивается дорожка по умолчанию. Если нужного языка у видео нет, берётся оригинальная: иначе не скачалось бы вообще ничего.'|t }}</p>
-            <div class="net-toggle">
-                <label for="subtitlesEnabled" style="margin:0;">{{ 'Скачивать субтитры вместе с видео'|t }}</label>
-                <input type="checkbox" id="subtitlesEnabled" style="width:auto; flex:0 0 auto;">
-            </div>
-            <label for="subtitleLangs">{{ 'Языки субтитров (можно выбрать несколько)'|t }}</label>
-            <select id="subtitleLangs" multiple size="6"></select>
-            <div class="net-toggle">
-                <label for="subtitlesAuto" style="margin:0;">{{ 'Брать автоматические, если авторских нет'|t }}</label>
-                <input type="checkbox" id="subtitlesAuto" style="width:auto; flex:0 0 auto;">
-            </div>
-            <p class="hint">{{ 'Автоматические субтитры распознаны машиной: в них бывают ошибки, зато они есть почти у каждого видео.'|t }}</p>
-            <p id="downloadPrefsStatus" class="hint"></p>
-        </section>
-        <section>
-            <h2>{{ 'Плагины и диагностика'|t }}</h2>
-            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'PO Token требует плагинов bgutil. Если они не найдены, YouTube чаще требует подтверждения, что вы не робот.'|t }}</p>
-            <div class="row"><button type="button" id="authCheck">{{ 'Проверить плагины'|t }}</button><button type="button" id="authRefresh">{{ 'Обновить статус'|t }}</button></div>
-            <p id="status"></p>
-        </section>
+            <section>
+                <h2>{{ 'Загрузка с YouTube'|t }}</h2>
+                <label for="client">{{ 'Клиент YouTube'|t }}</label>
+                <select id="client"><option value="">{{ 'Авто'|t }}</option><option value="tv">TV</option><option value="web">Web</option><option value="web_safari">Web Safari</option><option value="web_embedded">Web Embedded</option><option value="mweb">Mobile Web</option><option value="android">Android</option><option value="android_vr">Android VR</option><option value="ios">iOS</option></select>
+                <label for="po">PO Token</label>
+                <select id="po"><option value="off">{{ 'Выключено'|t }}</option><option value="bgutil:http">bgutil HTTP</option><option value="bgutil:cli">bgutil CLI</option></select>
+                <label for="cookieBrowser">{{ 'Экспорт cookies из браузера'|t }}</label>
+                <select id="cookieBrowser"><option value="">{{ 'Загрузка списка...'|t }}</option></select>
+                <p id="browserHint" class="hint" style="margin:8px 0 0;">{{ 'Cookies нужны для видео с ограничением по возрасту. Браузер лучше закрыть перед экспортом.'|t }}</p>
+                <div class="row"><button type="button" id="importFromBrowser">{{ 'Экспортировать из браузера'|t }}</button></div>
+                <label for="cookies">{{ 'Или вставьте cookies вручную (Netscape или JSON)'|t }}</label><textarea id="cookies" rows="5" placeholder="# Netscape HTTP Cookie File"></textarea>
+                <div class="row"><button type="button" id="importCookies">{{ 'Импортировать cookies'|t }}</button><button type="button" id="deleteCookies">{{ 'Удалить cookies'|t }}</button></div>
+            </section>
+            <section>
+                <h2>{{ 'Языковые дорожки и субтитры'|t }}</h2>
+                <p class="hint" style="margin:0 0 16px;">{{ 'Списки языков заполняются с сервера. Порядок выбора не важен: приоритет считается сверху вниз по списку.'|t }}</p>
+                <label for="audioLangs">{{ 'Язык озвучки (можно выбрать несколько)'|t }}</label>
+                <select id="audioLangs" multiple size="6"></select>
+                <p class="hint">{{ 'Ничего не выбрано — скачивается дорожка по умолчанию. Если нужного языка у видео нет, берётся оригинальная: иначе не скачалось бы вообще ничего.'|t }}</p>
+                <div class="net-toggle">
+                    <input type="checkbox" id="subtitlesEnabled">
+                    <label for="subtitlesEnabled">{{ 'Скачивать субтитры вместе с видео'|t }}</label>
+                </div>
+                <label for="subtitleLangs">{{ 'Языки субтитров (можно выбрать несколько)'|t }}</label>
+                <select id="subtitleLangs" multiple size="6"></select>
+                <div class="net-toggle">
+                    <input type="checkbox" id="subtitlesAuto">
+                    <label for="subtitlesAuto">{{ 'Брать автоматические, если авторских нет'|t }}</label>
+                </div>
+                <p class="hint">{{ 'Автоматические субтитры распознаны машиной: в них бывают ошибки, зато они есть почти у каждого видео.'|t }}</p>
+                <p id="downloadPrefsStatus" class="hint"></p>
+            </section>
+            <section>
+                <h2>{{ 'Плагины и диагностика'|t }}</h2>
+                <p class="hint" style="margin:0 0 16px;">{{ 'PO Token требует плагинов bgutil. Если они не найдены, YouTube чаще требует подтверждения, что вы не робот.'|t }}</p>
+                <div class="row"><button type="button" id="authCheck">{{ 'Проверить плагины'|t }}</button><button type="button" id="authRefresh">{{ 'Обновить статус'|t }}</button></div>
+                <p id="status"></p>
+            </section>
         </div>
 
         <div id="panel-language" class="panel" role="tabpanel" aria-labelledby="tab-language" hidden>
-        <section>
-            <h2>{{ 'Язык интерфейса'|t }}</h2>
-            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'Язык запоминается для этого устройства: на телефоне может быть выбран другой, чем на компьютере.'|t }}</p>
-            <label for="uiLang">{{ 'Язык'|t }}</label>
-            {# Язык называется на самом себе: выбрать его из непонятного
-               интерфейса иначе тяжело, поэтому подписи не переводятся. #}
-            <select id="uiLang">
-                {% for lang in ui_languages %}<option value="{{ lang.code }}" {% if lang.code == ui_lang %}selected{% endif %}>{{ lang.label }}</option>{% endfor %}
-            </select>
-            <p id="langStatus" class="hint"></p>
-        </section>
+            <section>
+                <h2>{{ 'Язык интерфейса'|t }}</h2>
+                <p class="hint" style="margin:0 0 16px;">{{ 'Язык запоминается для этого устройства: на телефоне может быть выбран другой, чем на компьютере.'|t }}</p>
+                <label for="uiLang">{{ 'Язык'|t }}</label>
+                <select id="uiLang">
+                    {% for lang in ui_languages %}<option value="{{ lang.code }}" {% if lang.code == ui_lang %}selected{% endif %}>{{ lang.label }}</option>{% endfor %}
+                </select>
+                <p id="langStatus" class="hint"></p>
+            </section>
         </div>
 
         <div id="panel-network" class="panel" role="tabpanel" aria-labelledby="tab-network" hidden>
-        <section>
-            <h2>{{ 'Мой сервер в локальной сети'|t }}</h2>
-            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'Откройте этот адрес на телефоне или другом компьютере в той же сети (тот же Wi-Fi или роутер). Гости смогут только смотреть видео: скачивание, настройки и ваши плейлисты им недоступны.'|t }}</p>
-            <div class="net-toggle">
-                <label for="netEnabled" style="margin:0;">{{ 'Пускать устройства из локальной сети'|t }}</label>
-                <input type="checkbox" id="netEnabled" style="width:auto; flex:0 0 auto;">
-            </div>
-            <p id="netEnabledHint" class="hint"></p>
-            <div id="netAddresses" style="margin-top:14px;"></div>
-            <div class="row" style="margin-top:14px;">
-                <button type="button" id="netShowQr">{{ 'Показать QR-код'|t }}</button>
-                <button type="button" id="netRegenPin">{{ 'Сменить PIN'|t }}</button>
-            </div>
-            <div id="netQrBox" style="margin-top:14px;" hidden>
-                <img id="netQrImage" alt="{{ 'QR-код с адресом сервера'|t }}" style="width:200px; height:200px; background:#fff; border-radius:8px; padding:8px;">
-                <p class="hint">{{ 'Наведите камеру телефона на код.'|t }}</p>
-            </div>
-            <p style="margin:16px 0 0; font-size:14px;">{{ 'PIN для своих устройств:'|t }} <code id="netPin">—</code></p>
-            <p class="hint">{{ 'Введите его на телефоне (кнопка с замком в шапке), чтобы получить полный доступ. Смена PIN отключает все ранее впущенные устройства.'|t }}</p>
-            <p id="netStatus" style="margin:12px 0 0; color:var(--muted); font-size:14px; min-height:20px;"></p>
-        </section>
-        <section>
-            <h2>{{ 'Другой LocalTube в сети'|t }}</h2>
-            <p style="margin:0 0 12px; color:var(--muted); font-size:13px;">{{ 'Добавьте адрес чужого сервера, чтобы открывать его библиотеку. Кнопка поиска сама обойдёт вашу сеть.'|t }}</p>
-            <label for="netServerUrl">{{ 'Адрес сервера'|t }}</label>
-            <input id="netServerUrl" type="text" placeholder="192.168.0.15:5000">
-            <div class="row" style="margin-top:12px;">
-                <button type="button" id="netAddServer">{{ 'Добавить'|t }}</button>
-                <button type="button" id="netScan">{{ 'Найти в сети'|t }}</button>
-            </div>
-            <div id="netServers" style="margin-top:14px;"></div>
-            <p id="netScanStatus" style="margin:12px 0 0; color:var(--muted); font-size:14px; min-height:20px;"></p>
-        </section>
+            <section>
+                <h2>{{ 'Мой сервер в локальной сети'|t }}</h2>
+                <p class="hint" style="margin:0 0 16px;">{{ 'Откройте этот адрес на телефоне или другом компьютере в той же сети (тот же Wi-Fi или роутер). Гости смогут только смотреть видео: скачивание, настройки и ваши плейлисты им недоступны.'|t }}</p>
+                <div class="net-toggle">
+                    <input type="checkbox" id="netEnabled">
+                    <label for="netEnabled">{{ 'Пускать устройства из локальной сети'|t }}</label>
+                </div>
+                <p id="netEnabledHint" class="hint"></p>
+                <div id="netAddresses" style="margin-top:16px;"></div>
+                <div class="row" style="margin-top:16px;">
+                    <button type="button" id="netShowQr">{{ 'Показать QR-код'|t }}</button>
+                    <button type="button" id="netRegenPin">{{ 'Сменить PIN'|t }}</button>
+                </div>
+                <div id="netQrBox" hidden>
+                    <img id="netQrImage" alt="{{ 'QR-код с адресом сервера'|t }}" style="width:200px; height:200px;">
+                    <p class="hint">{{ 'Наведите камеру телефона на код.'|t }}</p>
+                </div>
+                <p style="margin:20px 0 0; font-size:14px; font-weight:500; color:var(--yt-spec-text-primary);">{{ 'PIN для своих устройств:'|t }} <code id="netPin">—</code></p>
+                <p class="hint">{{ 'Введите его на телефоне (кнопка с замком в шапке), чтобы получить полный доступ. Смена PIN отключает все ранее впущенные устройства.'|t }}</p>
+                <p id="netStatus"></p>
+            </section>
+            <section>
+                <h2>{{ 'Другой LocalTube в сети'|t }}</h2>
+                <p class="hint" style="margin:0 0 16px;">{{ 'Добавьте адрес чужого сервера, чтобы открывать его библиотеку. Кнопка поиска сама обойдёт вашу сеть.'|t }}</p>
+                <label for="netServerUrl">{{ 'Адрес сервера'|t }}</label>
+                <input id="netServerUrl" type="text" placeholder="192.168.0.15:5000">
+                <div class="row" style="margin-top:16px;">
+                    <button type="button" id="netAddServer">{{ 'Добавить'|t }}</button>
+                    <button type="button" id="netScan">{{ 'Найти в сети'|t }}</button>
+                </div>
+                <div id="netServers" style="margin-top:16px;"></div>
+                <p id="netScanStatus"></p>
+            </section>
         </div>
 
-        <button class="primary" id="save">{{ 'Сохранить настройки'|t }}</button>
+        <button class="primary" id="save" style="margin-top: 8px;">{{ 'Сохранить настройки'|t }}</button>
     </main>
-    {# Нижняя навигация: на телефоне разделы должны быть в один тап. #}
+
     {% include '_mobile_nav.html' with context %}
+    
     <script>
         const $ = id => document.getElementById(id);
         const settings = JSON.parse(localStorage.getItem('lt_settings') || '{}');
 
+        function applyProfileUI() {
+            const username = settings.username || t('Гость');
+            const usernameEl = $('headerUsername');
+            const avatarBox = $('headerAvatar');
+            if (usernameEl) usernameEl.textContent = username;
+            if (!avatarBox) return;
+            avatarBox.replaceChildren();
+            if (settings.avatar) {
+                const image = document.createElement('img');
+                image.src = settings.avatar;
+                image.alt = t('Аватар');
+                avatarBox.append(image);
+            } else {
+                avatarBox.textContent = username.charAt(0).toUpperCase();
+            }
+        }
+        applyProfileUI();
+
         // ===== Разделы настроек =====
-        // Выбранный раздел запоминаем: после сохранения путей страница не
-        // перезагружается, но при возврате на настройки удобно попасть туда же.
         function showTab(name) {
             for (const btn of document.querySelectorAll('.tab-btn')) {
                 const active = btn.dataset.tab === name;
@@ -252,36 +372,50 @@
             btn.addEventListener('click', () => showTab(btn.dataset.tab));
         }
         showTab(localStorage.getItem('lt_settings_tab') || 'profile');
+        
         $('username').value = settings.username || '';
         $('avatar').value = settings.avatar || '';
-        // Тема, стиль и обои — /static/js/theme.js. Здесь остаётся только связь
-        // с <select>: раньше на этой странице была своя копия той же логики.
+        
         const applyTheme = theme => window.LocalTubeTheme.apply(theme);
-        // Значение берём у модуля, а не из localStorage напрямую: там оно уже
-        // проверено по списку тем, поэтому мусор в хранилище не оставит
-        // <select> пустым.
         $('theme').value = window.LocalTubeTheme.get();
         $('theme').addEventListener('change', e => applyTheme(e.target.value));
+        
         async function authStatus() {
             try {
                 const data = await (await fetch('/api/auth/status')).json();
-                $('client').value = data.options?.player_client || '';
-                $('po').value = data.options?.po_token || 'off';
-                // Строка собирается из частей: подписи «установлены» и «нет»
-                // переводятся порознь, а целая фраза с кодом JS ключом быть не может.
-                $('status').textContent = [
+                if($('client')) $('client').value = data.options?.player_client || '';
+                if($('po')) $('po').value = data.options?.po_token || 'off';
+                if($('status')) $('status').textContent = [
                     'Cookies: ' + (data.cookies_exists ? t('установлены') : t('нет')),
                     t('плагины') + ': ' + (data.plugins_dir ? t('установлены') : t('не найдены')),
                     'bgutil HTTP: ' + (data.bgutil_http_alive ? t('доступен') : t('недоступен')),
                 ].join('; ') + '.';
-            } catch { $('status').textContent = t('Не удалось получить статус.'); }
+            } catch { 
+                if($('status')) $('status').textContent = t('Не удалось получить статус.'); 
+            }
         }
-        $('save').addEventListener('click', async () => { settings.username = $('username').value.trim(); settings.avatar = $('avatar').value.trim(); localStorage.setItem('lt_settings', JSON.stringify(settings)); applyTheme($('theme').value); await fetch('/api/auth/options', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({player_client:$('client').value, po_token:$('po').value})}); const langsOk = await saveDownloadPrefs(); $('status').textContent = langsOk ? t('Настройки сохранены.') : t('Настройки сохранены, кроме языков.'); });
+        
+        $('save').addEventListener('click', async () => { 
+            settings.username = $('username').value.trim(); 
+            settings.avatar = $('avatar').value.trim(); 
+            localStorage.setItem('lt_settings', JSON.stringify(settings)); 
+            applyProfileUI();
+            applyTheme($('theme').value); 
+            
+            try {
+                await fetch('/api/auth/options', {
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({player_client:$('client').value, po_token:$('po').value})
+                }); 
+                const langsOk = await saveDownloadPrefs(); 
+                $('status').textContent = langsOk ? t('Настройки сохранены.') : t('Настройки сохранены, кроме языков.'); 
+            } catch(e) {
+                $('status').textContent = t('Ошибка сохранения.');
+            }
+        });
 
         // ===== Языки аудиодорожек и субтитров =====
-        // Список языков приходит с сервера: копия в шаблоне разъехалась бы с
-        // тем, что понимает загрузчик, и в настройках оказался бы язык, по
-        // которому ничего не скачивается.
         function fillLangSelect(select, languages, chosen) {
             select.innerHTML = '';
             for (const lang of languages) {
@@ -291,8 +425,6 @@
                 option.selected = chosen.includes(lang.code);
                 select.appendChild(option);
             }
-            // Язык, заданный руками в config.json, тоже должен быть виден:
-            // иначе сохранение настроек молча его выбросит.
             for (const code of chosen) {
                 if (languages.some(l => l.code === code)) continue;
                 const option = document.createElement('option');
@@ -314,7 +446,7 @@
                 $('subtitlesEnabled').checked = !!data.subtitles_enabled;
                 $('subtitlesAuto').checked = !!data.subtitles_auto;
             } catch (err) {
-                $('downloadPrefsStatus').textContent = t('Не удалось загрузить языки.');
+                if($('downloadPrefsStatus')) $('downloadPrefsStatus').textContent = t('Не удалось загрузить языки.');
             }
         }
         async function saveDownloadPrefs() {
@@ -341,9 +473,6 @@
         loadDownloadPrefs();
 
         // ===== Язык интерфейса =====
-        // Выбор уходит на сервер и возвращается перезагрузкой: разметку собирает
-        // Jinja, поэтому подменить подписи на месте нечем — иначе пришлось бы
-        // держать вторую копию каждой строки в клиентском коде.
         $('uiLang').addEventListener('change', async event => {
             const lang = event.target.value;
             $('langStatus').textContent = '';
@@ -359,12 +488,11 @@
                 $('langStatus').textContent = t('Сервер не ответил, язык не сохранён.');
             }
         });
+        
         $('importCookies').addEventListener('click', async () => { const text = $('cookies').value.trim(); if (!text) return $('status').textContent = t('Вставьте cookies.'); const res = await fetch('/api/cookies/import', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text})}); const data = await res.json(); $('status').textContent = res.ok ? t('Cookies импортированы: {count}.').replace('{count}', data.cookies_count) : (data.error || t('Ошибка импорта.')); });
         $('deleteCookies').addEventListener('click', async () => { await fetch('/api/cookies', {method:'DELETE'}); $('status').textContent = t('Cookies удалены.'); });
 
         // ===== Экспорт cookies из браузера =====
-        // Список приходит с сервера: там видно, какие браузеры реально
-        // установлены. Предлагать отсутствующий браузер — вести к ошибке.
         async function loadBrowsers() {
             const select = $('cookieBrowser');
             try {
@@ -380,13 +508,11 @@
                     option.disabled = !item.installed;
                     select.appendChild(option);
                 }
-                // Явно выбирать первый установленный не нужно: браузер сам
-                // пропускает варианты с disabled. Проверено в
-                // tests/browser/cookies-browser-ui.cjs.
             } catch (err) {
                 select.innerHTML = '<option value="">Список браузеров недоступен</option>';
             }
         }
+        
         $('importFromBrowser').addEventListener('click', async event => {
             const button = event.currentTarget;
             const browser = $('cookieBrowser').value;
@@ -403,9 +529,6 @@
                 });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok || data.error) throw new Error(data.error || t('Не удалось прочитать cookies.'));
-                // Сначала обновляем общий статус, и только потом пишем итог:
-                // authStatus() тоже пишет в #status, и запущенный после него
-                // ответ затирал сообщение об успешном экспорте.
                 await authStatus();
                 $('status').textContent = t('Cookies из браузера сохранены: {count}.').replace('{count}', data.cookies_count);
             } catch (err) {
@@ -416,13 +539,12 @@
             }
         });
         loadBrowsers();
+        
         $('authCheck').addEventListener('click', async () => { await fetch('/api/auth/ensure', {method:'POST'}); authStatus(); });
         $('authRefresh').addEventListener('click', authStatus);
         authStatus();
 
         // ===== Хранение (пути к папкам) =====
-        // Поля перечислены в разметке через data-path: список ключей задаётся
-        // в одном месте, дублировать его в JS не нужно.
         const pathFields = () => Array.from(document.querySelectorAll('[data-path]'));
         let storageDefaults = {};
 
@@ -435,14 +557,12 @@
                 for (const input of pathFields()) {
                     const key = input.dataset.path;
                     input.value = data[key] || '';
-                    // Относительный путь ничего не говорит о том, где файлы:
-                    // показываем, во что он разворачивается.
                     const hint = $('hint-' + key);
                     if (hint) hint.textContent = (data.resolved || {})[key] || '';
                 }
             } catch (err) {
                 console.error('Не удалось загрузить пути:', err);
-                $('storageStatus').textContent = t('Не удалось загрузить текущие пути.');
+                if($('storageStatus')) $('storageStatus').textContent = t('Не удалось загрузить текущие пути.');
             }
         }
 
@@ -488,7 +608,7 @@
         });
         loadStorage();
 
-        // Догрузка файлов: эндпоинты существовали, но кнопок для них не было.
+        // Догрузка файлов
         async function runFileTask(url, button, message) {
             button.disabled = true;
             $('filesStatus').textContent = t('Запускаю…');
@@ -525,7 +645,7 @@
             const f = (data.favorites || []).length;
             const h = (data.history || []).length;
             const c = (data.hidden_channels || []).length;
-            $('userdataSummary').textContent =
+            if($('userdataSummary')) $('userdataSummary').textContent =
                 `В избранном ${f} ${pluralize(f, [t('видео'), t('видео'), t('видео')])}, ` +
                 `в истории ${h} ${pluralize(h, [t('запись'), t('записи'), t('записей')])}, ` +
                 `скрыто ${c} ${pluralize(c, [t('канал'), t('канала'), t('каналов')])}.`;
@@ -537,10 +657,10 @@
                 renderUserdata(await res.json());
             } catch (err) {
                 console.error('Не удалось загрузить данные:', err);
-                $('userdataSummary').textContent = t('Не удалось загрузить данные.');
+                if($('userdataSummary'))$('userdataSummary').textContent = t('Не удалось загрузить данные.');
             }
         }
-        // Очистка необратима, поэтому спрашиваем подтверждение.
+        
         async function clearSection(section, question) {
             if (!confirm(question)) return;
             try {
@@ -554,21 +674,17 @@
                 $('status').textContent = t('Не удалось очистить') + ': ' + err.message;
             }
         }
-        $('clearHistory').addEventListener('click', () =>
-            clearSection('history', t('Очистить всю историю просмотров? Это действие необратимо.')));
-        $('clearFavorites').addEventListener('click', () =>
-            clearSection('favorites', t('Удалить все видео из избранного? Это действие необратимо.')));
-        $('clearHidden').addEventListener('click', () =>
-            clearSection('hidden_channels', t('Показать все скрытые каналы?')));
+        $('clearHistory').addEventListener('click', () => clearSection('history', t('Очистить всю историю просмотров? Это действие необратимо.')));
+        $('clearFavorites').addEventListener('click', () => clearSection('favorites', t('Удалить все видео из избранного? Это действие необратимо.')));
+        $('clearHidden').addEventListener('click', () => clearSection('hidden_channels', t('Показать все скрытые каналы?')));
         loadUserdata();
 
         // ===== Локальная сеть =====
-        // Свой сервер: адреса для гостей, QR, PIN, тумблер доступа.
-        // Чужие серверы: сохранённый список, проверка связи, поиск в подсети.
         let netFirstUrl = '';
 
         function renderAddresses(list) {
             const box = $('netAddresses');
+            if(!box) return;
             box.textContent = '';
             if (!list.length) {
                 box.textContent = t('Не удалось определить адрес в сети.');
@@ -577,8 +693,6 @@
             for (const item of list) {
                 const row = document.createElement('div');
                 row.className = 'net-row';
-                // Адрес приходит с сервера, но вставляем текстом: разметку из
-                // данных собирать незачем.
                 const url = document.createElement('span');
                 url.className = 'net-url';
                 url.textContent = item.url;
@@ -600,6 +714,7 @@
 
         function renderServers(list) {
             const box = $('netServers');
+            if(!box) return;
             box.textContent = '';
             if (!list.length) {
                 box.textContent = t('Пока ничего не добавлено.');
@@ -666,22 +781,22 @@
                 netFirstUrl = (data.addresses && data.addresses[0]) ? data.addresses[0].url : '';
                 renderAddresses(data.addresses || []);
                 renderServers(data.servers || []);
-                $('netPin').textContent = data.pin || '—';
-                $('netEnabled').checked = !!data.enabled;
+                if($('netPin'))$('netPin').textContent = data.pin || '—';
+                if($('netEnabled'))$('netEnabled').checked = !!data.enabled;
                 updateEnabledHint(!!data.enabled);
             } catch (err) {
                 console.error('Не удалось получить данные о сети:', err);
-                $('netStatus').textContent = t('Не удалось получить данные о сети.');
+                if($('netStatus'))$('netStatus').textContent = t('Не удалось получить данные о сети.');
             }
         }
 
         function updateEnabledHint(enabled) {
-            $('netEnabledHint').textContent = enabled
+            if($('netEnabledHint'))$('netEnabledHint').textContent = enabled
                 ? t('Устройства в сети могут смотреть видео.')
                 : t('Сервер отвечает только с этого компьютера.');
         }
 
-        $('netEnabled').addEventListener('change', async event => {
+        if($('netEnabled'))$('netEnabled').addEventListener('change', async event => {
             const enabled = event.target.checked;
             try {
                 const res = await fetch('/api/network/enabled', {
@@ -695,23 +810,20 @@
                 $('netStatus').textContent = data.enabled
                     ? t('Доступ из сети включён.') : t('Доступ из сети выключен.');
             } catch (err) {
-                // Возвращаем галочку: иначе интерфейс показывал бы состояние,
-                // которого на сервере нет.
                 event.target.checked = !enabled;
                 $('netStatus').textContent = t('Не удалось изменить') + ': ' + err.message;
             }
         });
 
-        $('netShowQr').addEventListener('click', () => {
+        if($('netShowQr'))$('netShowQr').addEventListener('click', () => {
             const box = $('netQrBox');
             if (!box.hidden) { box.hidden = true; return; }
-            // Кэш-брейкер: адрес меняется при переходе в другую сеть.
             $('netQrImage').src = '/api/network/qr?t=' + Date.now();
             box.hidden = false;
             if (netFirstUrl) $('netStatus').textContent = t('QR ведёт на {url}').replace('{url}', netFirstUrl);
         });
 
-        $('netRegenPin').addEventListener('click', async () => {
+        if($('netRegenPin'))$('netRegenPin').addEventListener('click', async () => {
             if (!confirm(t('Сменить PIN? Все устройства, впущенные по старому PIN, потеряют доступ.'))) return;
             try {
                 const res = await fetch('/api/network/pin/regenerate', { method: 'POST' });
@@ -724,7 +836,7 @@
             }
         });
 
-        $('netAddServer').addEventListener('click', async () => {
+        if($('netAddServer'))$('netAddServer').addEventListener('click', async () => {
             const url = $('netServerUrl').value.trim();
             if (!url) { $('netScanStatus').textContent = t('Введите адрес.'); return; }
             try {
@@ -736,14 +848,13 @@
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
                 renderServers(data.servers || []);
-                $('netServerUrl').value = '';
-                $('netScanStatus').textContent = t('Сервер добавлен.');
+                $('netServerUrl').value = '';$('netScanStatus').textContent = t('Сервер добавлен.');
             } catch (err) {
                 $('netScanStatus').textContent = t('Не удалось добавить') + ': ' + err.message;
             }
         });
 
-        $('netScan').addEventListener('click', async () => {
+        if($('netScan'))$('netScan').addEventListener('click', async () => {
             const btn = $('netScan');
             btn.disabled = true;
             btn.textContent = t('Ищу...');
@@ -757,8 +868,6 @@
                     $('netScanStatus').textContent = t('Других LocalTube в сети не нашлось.');
                     return;
                 }
-                // Найденные сразу сохраняем: иначе список пропадёт при
-                // перезагрузке страницы.
                 for (const item of found) {
                     await fetch('/api/network/servers', {
                         method: 'POST',
